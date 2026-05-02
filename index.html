@@ -1069,6 +1069,7 @@ const SUPABASE_CONFIG = {
 let currentUsername = null;
 let isOffline = false;
 let autoPollingInterval = null;
+let lastSaveTime = 0;
 
 /* ─────────────────────────────────────
    DATA
@@ -1124,6 +1125,7 @@ function saveState() {
     localStorage.setItem('wongaCup2026', JSON.stringify(s));
   } catch(e) {}
   syncToHash();
+  lastSaveTime = Date.now();
   if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
     saveToSupabase();
   }
@@ -1863,6 +1865,11 @@ if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
 
   // Auto-poll every 30s for everyone (live scores for all players)
   setInterval(() => {
+    // Skip re-render if we saved within the last 5 seconds to avoid wiping in-progress input
+    if (Date.now() - lastSaveTime < 5000) {
+      console.log('Auto-poll skipped — recent save in progress');
+      return;
+    }
     console.log('Auto-poll triggered');
     loadFromSupabase().then((success) => {
       console.log('Poll load success:', success);
