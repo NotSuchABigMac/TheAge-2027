@@ -1656,46 +1656,16 @@ async function loadFromSupabase() {
 
     const remoteState = JSON.parse(data[0].state_json);
     console.log('Loaded state from Supabase, updated by:', data[0].updated_by);
+    console.log('Remote state:', remoteState);
 
-    // Smart merge: take teams from remote, but intelligently merge scores
-    // This prevents overwriting unsaved local changes while keeping global data in sync
-    const oldDay1 = JSON.parse(JSON.stringify(state.day1));
-    const oldDay2 = JSON.parse(JSON.stringify(state.day2));
-    const oldDay3 = JSON.parse(JSON.stringify(state.day3));
-
-    // Update teams (global, not player-specific)
+    // Take the remote state as-is (server is source of truth)
+    // Auto-saves prevent significant data loss
     state.teamA = new Set(remoteState.teamA);
     state.teamB = new Set(remoteState.teamB);
-
-    // For Day 1: merge match results (take remote if different, keep local only for empty holes)
-    state.day1 = remoteState.day1.map((match, mi) => ({
-      pA: match.pA,
-      pB: match.pB,
-      h: match.h.map((hole, hi) => {
-        // If remote has a value (not null), use it (someone entered a result)
-        if (hole !== null) return hole;
-        // If remote is null but local has value, keep local (unsaved local entry)
-        if (oldDay1[mi]?.h[hi]) return oldDay1[mi].h[hi];
-        // Otherwise null
-        return null;
-      })
-    }));
-
-    // For Day 2: merge scores (take remote, but preserve local empty fields as they might be in-progress)
-    state.day2 = {
-      a4: remoteState.day2.a4 || oldDay2.a4,
-      a2: remoteState.day2.a2 || oldDay2.a2,
-      b4: remoteState.day2.b4 || oldDay2.b4,
-      b2: remoteState.day2.b2 || oldDay2.b2
-    };
-
-    // For Day 3: merge player scores (take remote filled scores, preserve local ones if they're newer)
-    state.day3 = { ...remoteState.day3 };
-    Object.keys(oldDay3).forEach(pid => {
-      if (oldDay3[pid] && !remoteState.day3[pid]) {
-        state.day3[pid] = oldDay3[pid]; // Local entry not yet synced
-      }
-    });
+    state.day1 = remoteState.day1;
+    state.day2 = remoteState.day2;
+    state.day3 = remoteState.day3;
+    console.log('State updated from remote');
 
     isOffline = false;
     document.getElementById('offline-banner').style.display = 'none';
@@ -1812,17 +1782,35 @@ updateScoreboard();
 syncToHash();
 // Load from Supabase on init if configured
 function refreshAllDays() {
-  renderDay1();
-  restoreDay2();
-  renderDay3();
-  updateScoreboard();
+  console.log('Refreshing all day tabs...');
+  try {
+    renderDay1();
+    console.log('Day 1 rendered');
+    restoreDay2();
+    console.log('Day 2 rendered');
+    renderDay3();
+    console.log('Day 3 rendered');
+    updateScoreboard();
+    console.log('Scoreboard updated');
+  } catch(e) {
+    console.error('Error rendering days:', e);
+  }
 }
 
 if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
-  loadFromSupabase().then(() => refreshAllDays());
+  console.log('Starting Supabase polling...');
+  loadFromSupabase().then((success) => {
+    console.log('Initial load success:', success);
+    if (success) refreshAllDays();
+  }).catch(e => console.error('Initial load error:', e));
+
   // Auto-poll every 30s for everyone (live scores for all players)
   setInterval(() => {
-    loadFromSupabase().then(() => refreshAllDays());
+    console.log('Auto-poll triggered');
+    loadFromSupabase().then((success) => {
+      console.log('Poll load success:', success);
+      if (success) refreshAllDays();
+    }).catch(e => console.error('Poll load error:', e));
   }, 30000);
 }
 </script>
