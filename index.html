@@ -289,9 +289,6 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .sync-btn:hover{background:var(--gold-light)}
 .sync-btn.sec{background:transparent;color:var(--grey);border:1px solid rgba(255,255,255,.18)}
 .sync-btn.sec:hover{color:var(--white);border-color:rgba(255,255,255,.45)}
-.sync-btn.spec-on{background:var(--team-b);color:var(--white)}
-.copy-toast{font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#44dd88;opacity:0;transition:opacity .3s;pointer-events:none}
-.copy-toast.show{opacity:1}
 .save-toast{position:fixed;bottom:24px;left:24px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:12px 16px;border-radius:var(--r);opacity:0;transition:opacity .3s;pointer-events:none;z-index:100}
 .save-toast.show{opacity:1}
 .save-toast.saving{background:rgba(240,180,41,.2);color:var(--gold);border:1px solid var(--gold)}
@@ -931,12 +928,8 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
   <!-- Live sync bar -->
   <div class="sync-bar">
     <span class="sync-label"><span class="live-dot"></span>Live Scores</span>
-    <button class="sync-btn" onclick="copyShareLink()">Copy Share Link</button>
-    <button class="sync-btn sec" id="spectator-btn" onclick="toggleSpectator()">Spectator Mode</button>
     <button class="refresh-btn" onclick="loadFromSupabase().then(() => refreshAllDays())">🔄 Refresh</button>
-    <span class="copy-toast" id="copy-toast">✓ Link copied to clipboard</span>
     <span class="sync-spacer"></span>
-    <span class="sync-label" id="sync-status"></span>
   </div>
 
   <!-- Sub-tabs -->
@@ -1124,7 +1117,6 @@ function saveState() {
     };
     localStorage.setItem('wongaCup2026', JSON.stringify(s));
   } catch(e) {}
-  syncToHash();
   lastSaveTime = Date.now();
   if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
     saveToSupabase();
@@ -1553,45 +1545,7 @@ function updateScoreboard() {
    hash so copying the page URL gives a
    snapshot anyone can load.
 ───────────────────────────────────── */
-function stateToHash() {
-  try {
-    const s = {
-      tA: [...state.teamA],
-      tB: [...state.teamB],
-      d1: state.day1.matches.map(m => ({ pA: m.pA, pB: m.pB, h: m.holes })),
-      d2: state.day2,
-      d3: state.day3
-    };
-    return btoa(unescape(encodeURIComponent(JSON.stringify(s))));
-  } catch(e) { return ''; }
-}
 
-function hashToState(encoded) {
-  try {
-    const s = JSON.parse(decodeURIComponent(escape(atob(encoded))));
-    if (s.tA) state.teamA = new Set(s.tA);
-    if (s.tB) state.teamB = new Set(s.tB);
-    if (s.d1) s.d1.forEach((m, i) => {
-      state.day1.matches[i].pA = m.pA;
-      state.day1.matches[i].pB = m.pB;
-      state.day1.matches[i].holes = m.h;
-    });
-    if (s.d2) state.day2 = s.d2;
-    if (s.d3) state.day3 = s.d3;
-    return true;
-  } catch(e) { return false; }
-}
-
-function syncToHash() {
-  const encoded = stateToHash();
-  if (encoded) history.replaceState(null, '', '#s=' + encoded);
-}
-
-function loadFromHash() {
-  const h = location.hash;
-  if (h.startsWith('#s=')) return hashToState(h.slice(3));
-  return false;
-}
 
 /* ─────────────────────────────────────
    SUPABASE SYNC FUNCTIONS
@@ -1774,71 +1728,18 @@ function initUsername() {
   }
 }
 
-function copyShareLink() {
-  syncToHash();
-  const url = location.href;
-  const toast = document.getElementById('copy-toast');
-  const show = () => { toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2800); };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(show).catch(() => fallbackCopy(url, show));
-  } else {
-    fallbackCopy(url, show);
-  }
-}
-
-function fallbackCopy(text, cb) {
-  const el = document.createElement('textarea');
-  el.value = text; el.style.position = 'fixed'; el.style.opacity = '0';
-  document.body.appendChild(el); el.select();
-  try { document.execCommand('copy'); } catch(e) {}
-  document.body.removeChild(el);
-  if (cb) cb();
-}
-
-let spectatorTimer = null;
-let spectatorCountdown = 30;
-
-function toggleSpectator() {
-  const btn = document.getElementById('spectator-btn');
-  const status = document.getElementById('sync-status');
-  if (spectatorTimer) {
-    clearInterval(spectatorTimer);
-    spectatorTimer = null;
-    btn.classList.remove('spec-on');
-    btn.textContent = 'Spectator Mode';
-    status.textContent = '';
-  } else {
-    spectatorCountdown = 30;
-    status.textContent = 'Refreshing in 30s…';
-    btn.classList.add('spec-on');
-    btn.textContent = 'Spectator ON';
-    spectatorTimer = setInterval(() => {
-      spectatorCountdown--;
-      if (spectatorCountdown <= 0) {
-        spectatorCountdown = 30;
-        loadFromSupabase();
-        updateScoreboard();
-      } else {
-        status.textContent = `Refreshing in ${spectatorCountdown}s…`;
-      }
-    }, 1000);
-  }
-}
 
 /* ─────────────────────────────────────
    INIT
 ───────────────────────────────────── */
 initUsername();
 // Load from shared URL hash first; fall back to localStorage
-const fromHash = loadFromHash();
-if (!fromHash) loadState();
+loadState();
 renderTeams();
 renderDay1();
 restoreDay2();
 renderDay3();
 updateScoreboard();
-// Immediately reflect any loaded state in the URL
-syncToHash();
 // Load from Supabase on init if configured
 function refreshAllDays() {
   console.log('Refreshing all day tabs...');
