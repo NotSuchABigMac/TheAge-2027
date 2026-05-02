@@ -851,7 +851,7 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
     <span class="sync-label"><span class="live-dot"></span>Live Scores</span>
     <button class="sync-btn" onclick="copyShareLink()">Copy Share Link</button>
     <button class="sync-btn sec" id="spectator-btn" onclick="toggleSpectator()">Spectator Mode</button>
-    <button class="refresh-btn" onclick="loadFromSupabase().then(() => updateScoreboard())">🔄 Refresh</button>
+    <button class="refresh-btn" onclick="loadFromSupabase().then(() => refreshAllDays())">🔄 Refresh</button>
     <span class="copy-toast" id="copy-toast">✓ Link copied to clipboard</span>
     <span class="sync-spacer"></span>
     <span class="sync-label" id="sync-status"></span>
@@ -1811,11 +1811,18 @@ updateScoreboard();
 // Immediately reflect any loaded state in the URL
 syncToHash();
 // Load from Supabase on init if configured
+function refreshAllDays() {
+  renderDay1();
+  restoreDay2();
+  renderDay3();
+  updateScoreboard();
+}
+
 if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
-  loadFromSupabase().then(() => updateScoreboard());
+  loadFromSupabase().then(() => refreshAllDays());
   // Auto-poll every 30s for everyone (live scores for all players)
   setInterval(() => {
-    loadFromSupabase().then(() => updateScoreboard());
+    loadFromSupabase().then(() => refreshAllDays());
   }, 30000);
 }
 </script>
