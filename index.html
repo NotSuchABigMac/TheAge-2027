@@ -287,9 +287,40 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .copy-toast{font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#44dd88;opacity:0;transition:opacity .3s;pointer-events:none}
 .copy-toast.show{opacity:1}
 .sync-spacer{flex:1}
+
+/* ── USERNAME PICKER MODAL ── */
+.username-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px)}
+.username-modal.hidden{display:none}
+.username-modal-card{background:var(--card-bg);border:2px solid var(--gold);border-radius:var(--rl);padding:40px;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.username-modal-title{font-family:var(--font-d);font-size:2rem;letter-spacing:2px;color:var(--gold);margin-bottom:8px}
+.username-modal-desc{font-size:.95rem;color:var(--grey);margin-bottom:24px}
+.username-input{width:100%;padding:12px 16px;font-family:var(--font-b);font-size:1rem;border:1px solid rgba(255,255,255,.2);border-radius:var(--r);background:rgba(255,255,255,.06);color:var(--white);margin-bottom:16px;transition:var(--tr)}
+.username-input:focus{outline:none;border-color:var(--gold);background:rgba(255,255,255,.1)}
+.username-input::placeholder{color:rgba(255,255,255,.3)}
+.username-btn{width:100%;padding:12px 20px;font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:var(--navy);border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
+.username-btn:hover{background:var(--gold-light)}
+.username-btn:disabled{opacity:.5;cursor:not-allowed}
+.username-badge{position:absolute;top:16px;right:24px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.3);padding:6px 14px;border-radius:100px;z-index:100}
+.offline-banner{position:fixed;top:60px;right:24px;background:rgba(200,0,0,.9);color:var(--white);padding:8px 16px;border-radius:var(--r);font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;z-index:999;animation:slideIn .3s ease}
+@keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
 </style>
 </head>
 <body>
+
+<!-- Username Picker Modal -->
+<div id="username-modal" class="username-modal">
+  <div class="username-modal-card">
+    <div class="username-modal-title">THE WONGA CUP</div>
+    <div class="username-modal-desc">Enter your name to start scoring</div>
+    <input type="text" id="username-input" class="username-input" placeholder="Your name" maxlength="30" autofocus>
+    <button class="username-btn" onclick="confirmUsername()">Enter Tournament</button>
+    <div class="username-modal-desc" style="font-size:.75rem;margin-top:16px;color:rgba(255,255,255,.2)">Your scores will sync live across all devices</div>
+  </div>
+</div>
+
+<!-- Username Badge & Offline Alert -->
+<div id="username-badge" class="username-badge" style="display:none"></div>
+<div id="offline-banner" class="offline-banner" style="display:none">⚠ Offline — Using Local Storage</div>
 
 <!-- ══════════════════════════════════════
      NAVIGATION
@@ -941,6 +972,20 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 ══════════════════════════════════════ -->
 <script>
 /* ─────────────────────────────────────
+   SUPABASE CONFIG — REPLACE WITH YOUR VALUES
+───────────────────────────────────── */
+const SUPABASE_CONFIG = {
+  apiUrl: '',  // Replace with your Supabase project URL: https://[project-id].supabase.co
+  apiKey: '', // Replace with your anon public key from Supabase settings
+  tournamentId: 'wonga-cup-2026',
+  sessionKey: 'wonga-cup-2026' // Unique key for this tournament instance
+};
+
+let currentUsername = null;
+let isOffline = false;
+let autoPollingInterval = null;
+
+/* ─────────────────────────────────────
    DATA
 ───────────────────────────────────── */
 const PLAYERS = [
@@ -994,6 +1039,9 @@ function saveState() {
     localStorage.setItem('wongaCup2026', JSON.stringify(s));
   } catch(e) {}
   syncToHash();
+  if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
+    saveToSupabase();
+  }
 }
 
 function loadState() {
@@ -1481,6 +1529,158 @@ function loadFromHash() {
   return false;
 }
 
+/* ─────────────────────────────────────
+   SUPABASE SYNC FUNCTIONS
+───────────────────────────────────── */
+async function saveToSupabase() {
+  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) return;
+
+  try {
+    const stateJson = JSON.stringify({
+      teamA: [...state.teamA],
+      teamB: [...state.teamB],
+      day1: state.day1,
+      day2: state.day2,
+      day3: state.day3
+    });
+
+    const response = await fetch(
+      `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&limit=1`,
+      {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_CONFIG.apiKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.length > 0) {
+      // Update existing record
+      await fetch(
+        `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_CONFIG.apiKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            state_json: stateJson,
+            updated_by: currentUsername,
+            updated_at: new Date().toISOString()
+          })
+        }
+      );
+    } else {
+      // Create new record
+      await fetch(
+        `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_CONFIG.apiKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            tournament_id: SUPABASE_CONFIG.tournamentId,
+            session_key: SUPABASE_CONFIG.sessionKey,
+            state_json: stateJson,
+            updated_by: currentUsername,
+            updated_at: new Date().toISOString()
+          })
+        }
+      );
+    }
+
+    isOffline = false;
+    document.getElementById('offline-banner').style.display = 'none';
+  } catch(err) {
+    console.log('Supabase save failed, using localStorage:', err);
+    isOffline = true;
+    document.getElementById('offline-banner').style.display = 'block';
+  }
+}
+
+async function loadFromSupabase() {
+  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey) return false;
+
+  try {
+    const response = await fetch(
+      `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&order=updated_at.desc&limit=1`,
+      {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_CONFIG.apiKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) throw new Error('Failed to fetch');
+
+    const data = await response.json();
+    if (data.length === 0) return false;
+
+    const remoteState = JSON.parse(data[0].state_json);
+    state.teamA = new Set(remoteState.teamA);
+    state.teamB = new Set(remoteState.teamB);
+    state.day1 = remoteState.day1;
+    state.day2 = remoteState.day2;
+    state.day3 = remoteState.day3;
+
+    isOffline = false;
+    document.getElementById('offline-banner').style.display = 'none';
+    return true;
+  } catch(err) {
+    console.log('Supabase load failed:', err);
+    isOffline = true;
+    document.getElementById('offline-banner').style.display = 'block';
+    return false;
+  }
+}
+
+/* ─────────────────────────────────────
+   USERNAME & LOGIN
+───────────────────────────────────── */
+function confirmUsername() {
+  const input = document.getElementById('username-input');
+  const name = input.value.trim();
+
+  if (!name) {
+    input.style.borderColor = 'var(--gold)';
+    setTimeout(() => { input.style.borderColor = ''; }, 300);
+    return;
+  }
+
+  currentUsername = name;
+  sessionStorage.setItem('wongaCup_username', name);
+  document.getElementById('username-modal').classList.add('hidden');
+  document.getElementById('username-badge').textContent = `🎯 ${name}`;
+  document.getElementById('username-badge').style.display = 'block';
+}
+
+function initUsername() {
+  const saved = sessionStorage.getItem('wongaCup_username');
+  if (saved) {
+    currentUsername = saved;
+    document.getElementById('username-modal').classList.add('hidden');
+    document.getElementById('username-badge').textContent = `🎯 ${saved}`;
+    document.getElementById('username-badge').style.display = 'block';
+  } else {
+    document.getElementById('username-modal').classList.remove('hidden');
+    const input = document.getElementById('username-input');
+    input.focus();
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') confirmUsername();
+    });
+  }
+}
+
 function copyShareLink() {
   syncToHash();
   const url = location.href;
@@ -1522,8 +1722,9 @@ function toggleSpectator() {
     spectatorTimer = setInterval(() => {
       spectatorCountdown--;
       if (spectatorCountdown <= 0) {
-        // Reload the page — if the scorer has updated the URL hash, the new state loads
-        location.reload();
+        spectatorCountdown = 30;
+        loadFromSupabase();
+        updateScoreboard();
       } else {
         status.textContent = `Refreshing in ${spectatorCountdown}s…`;
       }
@@ -1534,6 +1735,7 @@ function toggleSpectator() {
 /* ─────────────────────────────────────
    INIT
 ───────────────────────────────────── */
+initUsername();
 // Load from shared URL hash first; fall back to localStorage
 const fromHash = loadFromHash();
 if (!fromHash) loadState();
@@ -1544,6 +1746,16 @@ renderDay3();
 updateScoreboard();
 // Immediately reflect any loaded state in the URL
 syncToHash();
+// Load from Supabase on init if configured
+if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
+  loadFromSupabase().then(() => updateScoreboard());
+  // Auto-poll every 30s in background when not in spectator mode
+  setInterval(() => {
+    if (!spectatorTimer) {
+      loadFromSupabase().then(() => updateScoreboard());
+    }
+  }, 30000);
+}
 </script>
 </body>
 </html>
