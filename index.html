@@ -318,6 +318,28 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .username-badge{position:absolute;top:16px;right:24px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.3);padding:6px 14px;border-radius:100px;z-index:100}
 .offline-banner{position:fixed;top:60px;right:24px;background:rgba(200,0,0,.9);color:var(--white);padding:8px 16px;border-radius:var(--r);font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;z-index:999;animation:slideIn .3s ease}
 @keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
+/* ── MINI SCOREBOARD ── */
+.mini-sb{background:rgba(11,26,13,.97);border-bottom:1px solid rgba(240,180,41,.2);padding:7px 24px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+.mini-sb-team{display:flex;align-items:center;gap:8px;font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase}
+.mini-sb-name{color:var(--grey)}
+.mini-sb-score{font-family:var(--font-d);font-size:1.4rem;line-height:1}
+.mini-sb-a .mini-sb-score{color:var(--team-a)}
+.mini-sb-b .mini-sb-score{color:var(--team-b)}
+.mini-sb-vs{font-family:var(--font-d);font-size:.9rem;color:var(--grey)}
+.mini-sb-days{display:flex;gap:6px}
+.mini-sb-chip{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.05);color:var(--grey)}
+.mini-sb-chip.live-a{background:rgba(240,180,41,.15);color:var(--team-a)}
+.mini-sb-chip.live-b{background:rgba(74,158,255,.15);color:var(--team-b)}
+/* ── COUNTDOWN BAR ── */
+.countdown-bar{position:fixed;bottom:0;left:0;right:0;z-index:990;background:rgba(11,26,13,.97);border-top:2px solid var(--gold);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:6px}
+.cd-label{font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-right:4px}
+.cd-unit{display:flex;flex-direction:column;align-items:center;min-width:38px}
+.cd-num{font-family:var(--font-d);font-size:1.4rem;color:var(--gold);line-height:1}
+.cd-sub{font-family:var(--font-h);font-size:.5rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--grey)}
+.cd-sep{font-family:var(--font-d);font-size:1.2rem;color:var(--gold);opacity:.4;align-self:flex-start;padding-top:2px}
+.cd-live{font-family:var(--font-d);font-size:1.1rem;letter-spacing:2px;color:var(--gold)}
+body{padding-bottom:52px}
+@media(max-width:600px){.mini-sb-days{display:none}.cd-num{font-size:1.1rem}.cd-label{display:none}}
 .music-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(6px)}
 .music-modal.hidden{display:none}
 .music-modal-card{background:var(--card-bg);border:2px solid var(--gold);border-radius:var(--rl);padding:40px 36px;max-width:440px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6)}
@@ -375,6 +397,20 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
     </ul>
   </div>
 </nav>
+
+<!-- Mini Scoreboard -->
+<div class="mini-sb" id="mini-sb">
+  <div class="mini-sb-team mini-sb-a">
+    <span class="mini-sb-name">TEAM A</span>
+    <span class="mini-sb-score" id="mini-score-a">0</span>
+  </div>
+  <span class="mini-sb-vs">vs</span>
+  <div class="mini-sb-team mini-sb-b">
+    <span class="mini-sb-score" id="mini-score-b">0</span>
+    <span class="mini-sb-name">TEAM B</span>
+  </div>
+  <div class="mini-sb-days" id="mini-sb-days"></div>
+</div>
 
 <!-- ══════════════════════════════════════
      PAGE 1 — OVERVIEW
@@ -1583,6 +1619,7 @@ function updateScoreboard() {
   } else {
     banner.style.display = 'none';
   }
+  updateMiniScoreboard();
 }
 
 /* ─────────────────────────────────────
@@ -1782,7 +1819,7 @@ function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   const player = document.getElementById('yt-player');
   player.innerHTML = `<iframe width="1" height="1"
-    src="https://www.youtube.com/embed/PEsa8NHhTAw?autoplay=1&loop=1&playlist=PEsa8NHhTAw&controls=0&mute=0"
+    src="https://w.soundcloud.com/player/?url=https%3A//on.soundcloud.com/Bd3reRypa8dALRHMYA&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"
     allow="autoplay" frameborder="0"></iframe>`;
   sessionStorage.setItem('musicConsented', '1');
 }
@@ -1802,7 +1839,7 @@ if (!sessionStorage.getItem('musicConsented')) {
   // Re-start music if they consented earlier in this session
   const player = document.getElementById('yt-player');
   player.innerHTML = `<iframe width="1" height="1"
-    src="https://www.youtube.com/embed/PEsa8NHhTAw?autoplay=1&loop=1&playlist=PEsa8NHhTAw&controls=0&mute=0"
+    src="https://w.soundcloud.com/player/?url=https%3A//on.soundcloud.com/Bd3reRypa8dALRHMYA&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"
     allow="autoplay" frameborder="0"></iframe>`;
 }
 
@@ -1852,6 +1889,64 @@ if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
     }).catch(e => console.error('Poll load error:', e));
   }, 30000);
 }
+/* ─────────────────────────────────────
+   MINI SCOREBOARD
+───────────────────────────────────── */
+function updateMiniScoreboard() {
+  const d1 = calcDay1();
+  const d2 = calcDay2();
+  const d3 = calcDay3();
+  const totalA = d1.a + d2.a + d3.a;
+  const totalB = d1.b + d2.b + d3.b;
+  document.getElementById('mini-score-a').textContent = fmt(totalA);
+  document.getElementById('mini-score-b').textContent = fmt(totalB);
+  const days = [
+    { label: 'D1', a: d1.a, b: d1.b },
+    { label: 'D2', a: d2.a, b: d2.b },
+    { label: 'D3', a: d3.a, b: d3.b },
+  ];
+  document.getElementById('mini-sb-days').innerHTML = days.map(d => {
+    let cls = 'mini-sb-chip';
+    if (d.a > d.b) cls += ' live-a';
+    else if (d.b > d.a) cls += ' live-b';
+    return `<span class="${cls}">${d.label}: ${fmt(d.a)}–${fmt(d.b)}</span>`;
+  }).join('');
+}
+
+/* ─────────────────────────────────────
+   COUNTDOWN TIMER
+───────────────────────────────────── */
+function updateCountdown() {
+  const bar = document.getElementById('countdown-bar');
+  if (!bar) return;
+  // Tee off: Friday 7 August 2026 14:00 AEST (UTC+10) = 04:00 UTC
+  const target = new Date('2026-08-07T04:00:00Z');
+  const now = new Date();
+  const diff = target - now;
+  if (diff <= 0) {
+    bar.innerHTML = '<span class="cd-live">⛳ WE\'RE LIVE — TEE OFF!</span>';
+    return;
+  }
+  const days    = Math.floor(diff / 86400000);
+  const hours   = Math.floor((diff % 86400000) / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+  const seconds = Math.floor((diff % 60000) / 1000);
+  bar.innerHTML =
+    `<span class="cd-label">Tee Off In</span>` +
+    `<span class="cd-unit"><span class="cd-num">${String(days).padStart(2,'0')}</span><span class="cd-sub">Days</span></span>` +
+    `<span class="cd-sep">:</span>` +
+    `<span class="cd-unit"><span class="cd-num">${String(hours).padStart(2,'0')}</span><span class="cd-sub">Hrs</span></span>` +
+    `<span class="cd-sep">:</span>` +
+    `<span class="cd-unit"><span class="cd-num">${String(minutes).padStart(2,'0')}</span><span class="cd-sub">Min</span></span>` +
+    `<span class="cd-sep">:</span>` +
+    `<span class="cd-unit"><span class="cd-num">${String(seconds).padStart(2,'0')}</span><span class="cd-sub">Sec</span></span>`;
+}
+updateCountdown();
+setInterval(updateCountdown, 1000);
 </script>
+
+<!-- Countdown Bar -->
+<div class="countdown-bar" id="countdown-bar"></div>
+
 </body>
 </html>
