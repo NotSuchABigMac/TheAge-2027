@@ -1125,14 +1125,7 @@ function saveState() {
   } catch(e) {}
   syncToHash();
   if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
-    // Load latest from server first to merge any remote changes before saving
-    loadFromSupabase().then(() => {
-      console.log('Loaded latest from Supabase, now saving local changes on top');
-      saveToSupabase();
-    }).catch(() => {
-      console.log('Could not load from Supabase, saving locally anyway');
-      saveToSupabase();
-    });
+    saveToSupabase();
   }
 }
 
