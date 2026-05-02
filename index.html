@@ -1559,45 +1559,31 @@ async function saveToSupabase() {
       day3: state.day3
     });
 
-    const checkUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&session_key=eq.${SUPABASE_CONFIG.sessionKey}&limit=1`;
-    console.log('Checking Supabase for existing record:', checkUrl);
+    const patchUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&session_key=eq.${SUPABASE_CONFIG.sessionKey}`;
+    console.log('Attempting PATCH to shared record');
 
-    const response = await fetch(checkUrl, {
-      method: 'GET',
+    const patchResp = await fetch(patchUrl, {
+      method: 'PATCH',
       headers: {
         'apikey': SUPABASE_CONFIG.apiKey,
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        state_json: stateJson,
+        updated_by: currentUsername,
+        updated_at: new Date().toISOString()
+      })
     });
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    console.log('Supabase check result:', data.length > 0 ? 'Found existing record' : 'No record found');
+    if (!patchResp.ok) throw new Error(`PATCH failed: ${patchResp.status}`);
 
-    if (data.length > 0) {
-      // Update existing record
-      const patchUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&session_key=eq.${SUPABASE_CONFIG.sessionKey}`;
-      console.log('Updating record via PATCH');
+    const patchData = await patchResp.json();
+    console.log('PATCH response:', patchData);
 
-      const patchResp = await fetch(patchUrl, {
-        method: 'PATCH',
-        headers: {
-          'apikey': SUPABASE_CONFIG.apiKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
-          state_json: stateJson,
-          updated_by: currentUsername,
-          updated_at: new Date().toISOString()
-        })
-      });
-      if (!patchResp.ok) throw new Error(`PATCH failed: ${patchResp.status}`);
-      console.log('Record updated successfully');
-    } else {
-      // Create new record
-      console.log('Creating new record via POST');
-
+    // If PATCH found and updated 0 rows, the record doesn't exist yet - create it
+    if (!patchData || patchData.length === 0) {
+      console.log('No existing record, creating via POST');
       const postResp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores`, {
         method: 'POST',
         headers: {
@@ -1615,6 +1601,8 @@ async function saveToSupabase() {
       });
       if (!postResp.ok) throw new Error(`POST failed: ${postResp.status}`);
       console.log('Record created successfully');
+    } else {
+      console.log('Record updated successfully');
     }
 
     isOffline = false;
