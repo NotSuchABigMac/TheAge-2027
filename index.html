@@ -1634,7 +1634,7 @@ async function loadFromSupabase() {
 
   try {
     const loadUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&order=updated_at.desc&limit=1`;
-    console.log('Loading from Supabase:', loadUrl);
+    console.log('Loading from Supabase');
 
     const response = await fetch(loadUrl, {
       method: 'GET',
@@ -1657,11 +1657,45 @@ async function loadFromSupabase() {
     const remoteState = JSON.parse(data[0].state_json);
     console.log('Loaded state from Supabase, updated by:', data[0].updated_by);
 
+    // Smart merge: take teams from remote, but intelligently merge scores
+    // This prevents overwriting unsaved local changes while keeping global data in sync
+    const oldDay1 = JSON.parse(JSON.stringify(state.day1));
+    const oldDay2 = JSON.parse(JSON.stringify(state.day2));
+    const oldDay3 = JSON.parse(JSON.stringify(state.day3));
+
+    // Update teams (global, not player-specific)
     state.teamA = new Set(remoteState.teamA);
     state.teamB = new Set(remoteState.teamB);
-    state.day1 = remoteState.day1;
-    state.day2 = remoteState.day2;
-    state.day3 = remoteState.day3;
+
+    // For Day 1: merge match results (take remote if different, keep local only for empty holes)
+    state.day1 = remoteState.day1.map((match, mi) => ({
+      pA: match.pA,
+      pB: match.pB,
+      h: match.h.map((hole, hi) => {
+        // If remote has a value (not null), use it (someone entered a result)
+        if (hole !== null) return hole;
+        // If remote is null but local has value, keep local (unsaved local entry)
+        if (oldDay1[mi]?.h[hi]) return oldDay1[mi].h[hi];
+        // Otherwise null
+        return null;
+      })
+    }));
+
+    // For Day 2: merge scores (take remote, but preserve local empty fields as they might be in-progress)
+    state.day2 = {
+      a4: remoteState.day2.a4 || oldDay2.a4,
+      a2: remoteState.day2.a2 || oldDay2.a2,
+      b4: remoteState.day2.b4 || oldDay2.b4,
+      b2: remoteState.day2.b2 || oldDay2.b2
+    };
+
+    // For Day 3: merge player scores (take remote filled scores, preserve local ones if they're newer)
+    state.day3 = { ...remoteState.day3 };
+    Object.keys(oldDay3).forEach(pid => {
+      if (oldDay3[pid] && !remoteState.day3[pid]) {
+        state.day3[pid] = oldDay3[pid]; // Local entry not yet synced
+      }
+    });
 
     isOffline = false;
     document.getElementById('offline-banner').style.display = 'none';
