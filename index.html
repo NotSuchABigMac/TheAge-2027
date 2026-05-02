@@ -1454,11 +1454,15 @@ function renderDay3() {
   if (!tbody) return;
   const { sorted } = computeDay3();
   tbody.innerHTML = '';
+  const maxPts = POS_PTS[0];
   const topScore = sorted[0]?.score;
   sorted.forEach(p => {
     const row = document.createElement('tr');
     const isTop = p.score !== null && p.score === topScore;
     row.className = (p.team === 'A' ? 'row-a' : 'row-b') + (isTop ? ' top-scorer' : '');
+    const intensity = p.pts > 0 ? 0.05 + (p.pts / maxPts) * 0.28 : 0.03;
+    const rgb = p.team === 'A' ? '240,180,41' : '74,158,255';
+    row.style.background = `rgba(${rgb},${intensity.toFixed(3)})`;
     const posClass = p.pos === 1 ? 'pos-1' : p.pos === 2 ? 'pos-2' : p.pos === 3 ? 'pos-3' : '';
     const posText  = p.pos ? (p.pos === 1 ? '🥇' : p.pos === 2 ? '🥈' : p.pos === 3 ? '🥉' : p.pos) : '—';
     const ptsText  = p.score !== null ? (p.pts % 1 === 0 ? p.pts : p.pts.toFixed(1)) : '—';
@@ -1477,13 +1481,16 @@ function renderDay3() {
 function setStableford(pid, val) {
   state.day3[pid] = val;
   saveState();
-  // Only update the points cell for this player, don't re-render entire table
   const { sorted } = computeDay3();
   const player = sorted.find(p => p.id === pid);
   if (player) {
-    const ptsCell = document.querySelector(`[data-pid="${pid}"]`)?.closest('tr')?.querySelector('.pts-cell');
-    if (ptsCell && player.pts !== null) {
-      ptsCell.textContent = player.pts % 1 === 0 ? player.pts : player.pts.toFixed(1);
+    const row = document.querySelector(`[data-pid="${pid}"]`)?.closest('tr');
+    if (row) {
+      const ptsCell = row.querySelector('.pts-cell');
+      if (ptsCell) ptsCell.textContent = player.pts > 0 ? (player.pts % 1 === 0 ? player.pts : player.pts.toFixed(1)) : '—';
+      const intensity = player.pts > 0 ? 0.05 + (player.pts / POS_PTS[0]) * 0.28 : 0.03;
+      const rgb = player.team === 'A' ? '240,180,41' : '74,158,255';
+      row.style.background = `rgba(${rgb},${intensity.toFixed(3)})`;
     }
   }
   updateScoreboard();
