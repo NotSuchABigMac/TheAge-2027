@@ -158,6 +158,8 @@ a:hover{color:var(--gold-light)}
 .win-banner{background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));color:var(--navy);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 2s ease-in-out infinite}
 .sd-banner{background:linear-gradient(90deg,#7a0000,#c00,#7a0000);color:var(--white);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
+.refresh-btn{background:rgba(240,180,41,.15);color:var(--gold);border:1px solid var(--gold);padding:8px 14px;border-radius:var(--r);font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:var(--tr)}
+.refresh-btn:hover{background:rgba(240,180,41,.25)}
 
 /* ── SC TABS ── */
 .sc-tabs{display:flex;gap:2px;border-bottom:2px solid rgba(255,255,255,.1);max-width:1200px;margin:0 auto;padding:20px 24px 0}
@@ -849,6 +851,7 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
     <span class="sync-label"><span class="live-dot"></span>Live Scores</span>
     <button class="sync-btn" onclick="copyShareLink()">Copy Share Link</button>
     <button class="sync-btn sec" id="spectator-btn" onclick="toggleSpectator()">Spectator Mode</button>
+    <button class="refresh-btn" onclick="loadFromSupabase().then(() => updateScoreboard())">🔄 Refresh</button>
     <span class="copy-toast" id="copy-toast">✓ Link copied to clipboard</span>
     <span class="sync-spacer"></span>
     <span class="sync-label" id="sync-status"></span>
@@ -1385,7 +1388,14 @@ function renderDay3() {
 function setStableford(pid, val) {
   state.day3[pid] = val;
   saveState();
-  renderDay3();
+  // Only update the points cell for this player, don't re-render entire table
+  const { scores } = computeDay3();
+  const pts = scores[pid];
+  const ptsCell = document.querySelector(`[data-pid="${pid}"]`)?.closest('tr')?.querySelector('.pts-cell');
+  if (ptsCell && pts !== null) {
+    ptsCell.textContent = pts % 1 === 0 ? pts : pts.toFixed(1);
+  }
+  updateScoreboard();
 }
 
 /* ─────────────────────────────────────
