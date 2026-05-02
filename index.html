@@ -1567,7 +1567,7 @@ async function saveToSupabase() {
       headers: {
         'apikey': SUPABASE_CONFIG.apiKey,
         'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
+        'Prefer': 'return=representation'
       },
       body: JSON.stringify({
         state_json: stateJson,
@@ -1576,20 +1576,23 @@ async function saveToSupabase() {
       })
     });
 
-    if (!patchResp.ok) throw new Error(`PATCH failed: ${patchResp.status}`);
+    if (!patchResp.ok) {
+      console.error(`PATCH failed with status ${patchResp.status}:`, await patchResp.text());
+      throw new Error(`PATCH failed: ${patchResp.status}`);
+    }
 
     const patchData = await patchResp.json();
-    console.log('PATCH response:', patchData);
+    console.log('PATCH response rows:', patchData.length);
 
-    // If PATCH found and updated 0 rows, the record doesn't exist yet - create it
-    if (!patchData || patchData.length === 0) {
-      console.log('No existing record, creating via POST');
+    // If PATCH updated 0 rows, the record doesn't exist yet - create it
+    if (patchData.length === 0) {
+      console.log('No existing record found, creating via POST');
       const postResp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores`, {
         method: 'POST',
         headers: {
           'apikey': SUPABASE_CONFIG.apiKey,
           'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
+          'Prefer': 'return=representation'
         },
         body: JSON.stringify({
           tournament_id: SUPABASE_CONFIG.tournamentId,
@@ -1599,7 +1602,10 @@ async function saveToSupabase() {
           updated_at: new Date().toISOString()
         })
       });
-      if (!postResp.ok) throw new Error(`POST failed: ${postResp.status}`);
+      if (!postResp.ok) {
+        console.error(`POST failed with status ${postResp.status}:`, await postResp.text());
+        throw new Error(`POST failed: ${postResp.status}`);
+      }
       console.log('Record created successfully');
     } else {
       console.log('Record updated successfully');
