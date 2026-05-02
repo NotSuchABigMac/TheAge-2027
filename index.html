@@ -1543,7 +1543,10 @@ function loadFromHash() {
    SUPABASE SYNC FUNCTIONS
 ───────────────────────────────────── */
 async function saveToSupabase() {
-  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) return;
+  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) {
+    console.log('Supabase not configured or no username');
+    return;
+  }
 
   try {
     const stateJson = JSON.stringify({
@@ -1554,89 +1557,104 @@ async function saveToSupabase() {
       day3: state.day3
     });
 
-    const response = await fetch(
-      `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&limit=1`,
-      {
-        method: 'GET',
-        headers: {
-          'apikey': SUPABASE_CONFIG.apiKey,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    const checkUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&session_key=eq.${SUPABASE_CONFIG.sessionKey}&limit=1`;
+    console.log('Checking Supabase for existing record:', checkUrl);
 
+    const response = await fetch(checkUrl, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_CONFIG.apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
+    console.log('Supabase check result:', data.length > 0 ? 'Found existing record' : 'No record found');
 
     if (data.length > 0) {
       // Update existing record
-      await fetch(
-        `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'apikey': SUPABASE_CONFIG.apiKey,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify({
-            state_json: stateJson,
-            updated_by: currentUsername,
-            updated_at: new Date().toISOString()
-          })
-        }
-      );
+      const patchUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&session_key=eq.${SUPABASE_CONFIG.sessionKey}`;
+      console.log('Updating record via PATCH');
+
+      const patchResp = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_CONFIG.apiKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          state_json: stateJson,
+          updated_by: currentUsername,
+          updated_at: new Date().toISOString()
+        })
+      });
+      if (!patchResp.ok) throw new Error(`PATCH failed: ${patchResp.status}`);
+      console.log('Record updated successfully');
     } else {
       // Create new record
-      await fetch(
-        `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_CONFIG.apiKey,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify({
-            tournament_id: SUPABASE_CONFIG.tournamentId,
-            session_key: SUPABASE_CONFIG.sessionKey,
-            state_json: stateJson,
-            updated_by: currentUsername,
-            updated_at: new Date().toISOString()
-          })
-        }
-      );
+      console.log('Creating new record via POST');
+
+      const postResp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_CONFIG.apiKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          tournament_id: SUPABASE_CONFIG.tournamentId,
+          session_key: SUPABASE_CONFIG.sessionKey,
+          state_json: stateJson,
+          updated_by: currentUsername,
+          updated_at: new Date().toISOString()
+        })
+      });
+      if (!postResp.ok) throw new Error(`POST failed: ${postResp.status}`);
+      console.log('Record created successfully');
     }
 
     isOffline = false;
     document.getElementById('offline-banner').style.display = 'none';
   } catch(err) {
-    console.log('Supabase save failed, using localStorage:', err);
+    console.error('Supabase save failed:', err.message);
     isOffline = true;
     document.getElementById('offline-banner').style.display = 'block';
   }
 }
 
 async function loadFromSupabase() {
-  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey) return false;
+  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey) {
+    console.log('Supabase not configured');
+    return false;
+  }
 
   try {
-    const response = await fetch(
-      `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&order=updated_at.desc&limit=1`,
-      {
-        method: 'GET',
-        headers: {
-          'apikey': SUPABASE_CONFIG.apiKey,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    const loadUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&order=updated_at.desc&limit=1`;
+    console.log('Loading from Supabase:', loadUrl);
 
-    if (!response.ok) throw new Error('Failed to fetch');
+    const response = await fetch(loadUrl, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_CONFIG.apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const data = await response.json();
-    if (data.length === 0) return false;
+    console.log('Supabase load result:', data.length > 0 ? 'Got data' : 'No data');
+
+    if (data.length === 0) {
+      console.log('No records found in Supabase');
+      return false;
+    }
 
     const remoteState = JSON.parse(data[0].state_json);
+    console.log('Loaded state from Supabase, updated by:', data[0].updated_by);
+
     state.teamA = new Set(remoteState.teamA);
     state.teamB = new Set(remoteState.teamB);
     state.day1 = remoteState.day1;
@@ -1647,7 +1665,7 @@ async function loadFromSupabase() {
     document.getElementById('offline-banner').style.display = 'none';
     return true;
   } catch(err) {
-    console.log('Supabase load failed:', err);
+    console.error('Supabase load failed:', err.message);
     isOffline = true;
     document.getElementById('offline-banner').style.display = 'block';
     return false;
