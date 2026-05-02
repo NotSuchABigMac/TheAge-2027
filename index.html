@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Wonga Cup 2026 — 4th Annual Golf Extravaganza</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy:#0d1b2a; --navy-light:#162d4f; --navy-mid:#1e3a5f;
+  --gold:#f0b429; --gold-dark:#c8941e; --gold-light:#ffd166;
+  --white:#fff; --off-white:#f5f0e8;
+  --fairway:#2d6a4f; --fairway-dark:#1a4731;
+  --grey:#8892a4; --light-grey:#dee2e8;
+  --card-bg:#162035;
+  --team-a:#f0b429; --team-b:#4a9eff;
+  --font-d:'Bebas Neue',sans-serif;
+  --font-h:'Oswald',sans-serif;
+  --font-b:'Inter',sans-serif;
+  --tr:all .22s ease; --r:8px; --rl:16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background-color:var(--navy);
+  background-image:repeating-linear-gradient(-45deg,rgba(45,106,79,.06),rgba(45,106,79,.06) 1px,transparent 1px,transparent 14px);
+  color:var(--white);font-family:var(--font-b);min-height:100vh;font-size:16px;line-height:1.6
+}
+a{color:var(--gold);text-decoration:none}
+a:hover{color:var(--gold-light)}
+
+/* ── NAV ── */
+.site-nav{position:sticky;top:0;z-index:1000;background:rgba(13,27,42,.96);border-bottom:2px solid var(--gold);backdrop-filter:blur(10px)}
+.nav-inner{max-width:1200px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.nav-logo{font-family:var(--font-d);font-size:1.4rem;color:var(--gold);letter-spacing:1px;white-space:nowrap;padding:12px 0;flex-shrink:0}
+.nav-links{display:flex;list-style:none;gap:0}
+.nav-links a{display:block;padding:16px 14px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--white);transition:var(--tr);border-bottom:3px solid transparent}
+.nav-links a:hover,.nav-links a.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+/* ── PAGE SYSTEM ── */
+.page{display:none}
+.page.active{display:block}
+.page-content{max-width:1200px;margin:0 auto;padding:0 24px 64px}
+
+/* ── HERO ── */
+.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 45%,var(--fairway-dark) 100%);border-bottom:4px solid var(--gold);padding:80px 24px 64px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 30px,rgba(240,180,41,.03) 30px,rgba(240,180,41,.03) 60px)}
+.hero-inner{position:relative;max-width:1000px;margin:0 auto}
+.hero-pre{font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:var(--gold);margin-bottom:12px}
+.hero-title{font-family:var(--font-d);font-size:clamp(4.5rem,14vw,11rem);line-height:.9;color:var(--white);letter-spacing:3px;text-shadow:0 4px 24px rgba(0,0,0,.5);margin-bottom:16px}
+.hero-title span{color:var(--gold)}
+.hero-sub{font-family:var(--font-h);font-size:clamp(.95rem,2.5vw,1.5rem);font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--off-white);margin-bottom:24px}
+.hero-badge{display:inline-block;background:var(--gold);color:var(--navy);font-family:var(--font-h);font-weight:700;font-size:.8rem;letter-spacing:2px;text-transform:uppercase;padding:8px 20px;border-radius:100px}
+
+/* ── SECTION HEADERS ── */
+.section-header{padding:48px 0 24px;border-bottom:1px solid rgba(240,180,41,.2);margin-bottom:32px}
+.section-label{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.section-title{font-family:var(--font-d);font-size:clamp(2.4rem,5vw,3.8rem);line-height:1;letter-spacing:1px}
+
+/* ── CARDS ── */
+.card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);padding:28px;transition:var(--tr)}
+.card:hover{border-color:rgba(240,180,41,.3)}
+.card-title{font-family:var(--font-d);font-size:1.5rem;letter-spacing:1px;color:var(--gold);margin-bottom:6px}
+.card-subtitle{font-family:var(--font-h);font-size:.82rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-bottom:14px}
+
+/* ── GRIDS ── */
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.nav-logo{font-size:1rem}.nav-links a{padding:14px 9px;font-size:.72rem;letter-spacing:1px}}
+
+/* ── TABLES ── */
+.table-wrap{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow:hidden}
+.data-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.data-table th{background:var(--navy-mid);font-family:var(--font-h);font-weight:600;font-size:.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--gold);padding:12px 16px;text-align:left;border-bottom:2px solid var(--gold)}
+.data-table td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);color:var(--off-white)}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tbody tr:hover td{background:rgba(240,180,41,.05)}
+
+/* ── WELCOME ── */
+.welcome-block{background:linear-gradient(135deg,var(--card-bg),var(--navy-mid));border:1px solid rgba(240,180,41,.2);border-left:4px solid var(--gold);border-radius:var(--rl);padding:36px 40px;margin-bottom:40px}
+.welcome-block p{font-size:1.02rem;line-height:1.85;color:var(--off-white);max-width:820px}
+.welcome-block p+p{margin-top:14px}
+
+/* ── AWARDS ── */
+.award-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-top:3px solid var(--gold);border-radius:var(--r);padding:20px;transition:var(--tr)}
+.award-card:hover{transform:translateY(-2px);border-top-color:var(--gold-light)}
+.award-icon{font-size:1.8rem;margin-bottom:10px}
+.award-name{font-family:var(--font-d);font-size:1.25rem;letter-spacing:1px;color:var(--gold);margin-bottom:8px}
+.award-desc{font-size:.84rem;color:var(--grey);line-height:1.5}
+
+/* ── HOF ── */
+.hof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:768px){.hof-grid{grid-template-columns:1fr}}
+
+/* ── SCHEDULE ── */
+.day-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow:hidden;margin-bottom:20px}
+.day-header{background:linear-gradient(90deg,var(--navy-mid),var(--fairway-dark));border-bottom:2px solid var(--gold);padding:20px 28px;display:flex;align-items:center;gap:20px}
+.day-label{font-family:var(--font-d);font-size:2.8rem;color:var(--gold);line-height:1;min-width:90px}
+.day-info h3{font-family:var(--font-d);font-size:1.7rem;letter-spacing:1px}
+.day-info p{font-family:var(--font-h);font-size:.78rem;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
+.day-body{padding:24px 28px}
+.schedule-item{display:flex;gap:20px;align-items:flex-start;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.schedule-item:last-child{border-bottom:none}
+.schedule-time{font-family:var(--font-h);font-weight:700;font-size:.88rem;color:var(--gold);min-width:76px;padding-top:2px}
+.schedule-desc{color:var(--off-white);font-size:.93rem}
+.schedule-desc strong{color:var(--white)}
+
+/* ── COURSES ── */
+.course-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow:hidden}
+.course-header{background:linear-gradient(135deg,var(--fairway-dark),var(--navy-mid));border-bottom:2px solid var(--fairway);padding:24px 28px}
+.course-day-tag{display:inline-block;background:var(--gold);color:var(--navy);font-family:var(--font-h);font-weight:700;font-size:.68rem;letter-spacing:2px;text-transform:uppercase;padding:4px 12px;border-radius:100px;margin-bottom:10px}
+.course-name{font-family:var(--font-d);font-size:2.1rem;letter-spacing:1px}
+.course-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}
+.course-meta-item{font-family:var(--font-h);font-size:.78rem;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--grey)}
+.course-meta-item strong{color:var(--off-white)}
+.course-body{padding:24px 28px}
+.course-body p{color:var(--off-white);margin-bottom:12px;font-size:.93rem;line-height:1.75}
+.course-key-holes{background:rgba(45,106,79,.1);border:1px solid rgba(45,106,79,.3);border-radius:var(--r);padding:16px 20px;margin-top:16px}
+.course-key-holes h4{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--fairway);margin-bottom:8px}
+.course-key-holes p{color:var(--grey);font-size:.84rem;margin:0}
+
+/* ── ACCOM ── */
+.accom-card{background:linear-gradient(135deg,var(--card-bg),var(--navy-mid));border:1px solid rgba(240,180,41,.15);border-radius:var(--rl);padding:32px;margin-top:32px}
+.accom-card h3{font-family:var(--font-d);font-size:2rem;color:var(--gold);margin-bottom:8px}
+.accom-address{font-size:1rem;color:var(--off-white);margin-bottom:20px}
+.accom-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
+.accom-item{padding:16px;background:rgba(255,255,255,.04);border-radius:var(--r);border:1px solid rgba(255,255,255,.06)}
+.accom-item h4{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.accom-item p{font-size:.84rem;color:var(--grey)}
+@media(max-width:700px){.accom-grid{grid-template-columns:1fr}}
+
+/* ── PLAYERS ── */
+.player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:20px}
+.player-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow:hidden;transition:var(--tr)}
+.player-card:hover{transform:translateY(-3px);border-color:rgba(240,180,41,.4);box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.player-card-header{background:linear-gradient(135deg,var(--navy-mid),var(--fairway-dark));padding:20px;border-bottom:2px solid var(--gold);display:flex;justify-content:space-between;align-items:flex-start}
+.player-name{font-family:var(--font-d);font-size:1.45rem;letter-spacing:.5px;line-height:1.1}
+.player-hcp{background:var(--gold);color:var(--navy);font-family:var(--font-h);font-weight:700;font-size:1.15rem;padding:6px 14px;border-radius:var(--r);white-space:nowrap}
+.player-card-body{padding:16px 20px 20px}
+.player-bio{font-size:.84rem;line-height:1.65;color:var(--grey)}
+.player-tag{display:inline-block;margin-top:10px;background:rgba(240,180,41,.12);color:var(--gold);font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:100px;border:1px solid rgba(240,180,41,.3)}
+
+/* ── SCORECARD PAGE ── */
+.scoreboard-pin{position:sticky;top:58px;z-index:900;background:linear-gradient(90deg,var(--navy),var(--navy-mid),var(--navy));border-bottom:3px solid var(--gold)}
+.scoreboard-inner{max-width:1200px;margin:0 auto;padding:14px 24px;display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:12px}
+.sb-team{text-align:center}
+.sb-team-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-bottom:2px}
+.sb-total{font-family:var(--font-d);font-size:3.2rem;line-height:1}
+.team-a .sb-team-name,.team-a .sb-total{color:var(--team-a)}
+.team-b .sb-team-name,.team-b .sb-total{color:var(--team-b)}
+.sb-vs{font-family:var(--font-d);font-size:1.4rem;color:var(--grey);text-align:center}
+.sb-day-chips{display:flex;justify-content:center;gap:6px;margin-top:5px;flex-wrap:wrap}
+.sb-chip{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--grey)}
+.win-banner{background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));color:var(--navy);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 2s ease-in-out infinite}
+.sd-banner{background:linear-gradient(90deg,#7a0000,#c00,#7a0000);color:var(--white);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
+
+/* ── SC TABS ── */
+.sc-tabs{display:flex;gap:2px;border-bottom:2px solid rgba(255,255,255,.1);max-width:1200px;margin:0 auto;padding:20px 24px 0}
+.sc-tab{padding:10px 18px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--grey);background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;transition:var(--tr);margin-bottom:-2px}
+.sc-tab:hover{color:var(--white)}
+.sc-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.sc-panel{display:none}
+.sc-panel.active{display:block}
+
+/* ── TEAM SETUP ── */
+.team-setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+.team-col{background:var(--card-bg);border:2px solid;border-radius:var(--rl);padding:20px}
+.team-a-col{border-color:rgba(240,180,41,.5)}
+.team-b-col{border-color:rgba(74,158,255,.5)}
+.team-col-h{font-family:var(--font-d);font-size:1.7rem;margin-bottom:14px}
+.team-a-col .team-col-h{color:var(--team-a)}
+.team-b-col .team-col-h{color:var(--team-b)}
+.team-player-item{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-radius:var(--r);background:rgba(255,255,255,.04);margin-bottom:6px}
+.team-player-item span{color:var(--off-white);font-size:.9rem}
+.team-player-item small{color:var(--grey);font-size:.8rem}
+.move-btn{padding:4px 11px;font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(255,255,255,.2);background:transparent;color:var(--grey);border-radius:4px;cursor:pointer;transition:var(--tr)}
+.move-btn:hover{background:rgba(255,255,255,.1);color:var(--white)}
+@media(max-width:700px){.team-setup-grid{grid-template-columns:1fr}}
+
+/* ── MATCH CARDS ── */
+.match-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);margin-bottom:20px;overflow:hidden}
+.match-header{background:linear-gradient(90deg,var(--navy-mid),var(--navy));border-bottom:2px solid rgba(255,255,255,.1);padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.match-title{font-family:var(--font-d);font-size:1.4rem;letter-spacing:1px}
+.match-score-display{font-family:var(--font-d);font-size:1.7rem;display:flex;align-items:center;gap:6px}
+.msa{color:var(--team-a)}
+.msb{color:var(--team-b)}
+.mss{color:var(--grey);font-size:1.1rem}
+.match-players-row{padding:14px 22px;border-bottom:1px solid rgba(255,255,255,.06);display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
+.player-group{display:flex;flex-direction:column;gap:6px}
+.player-group.pb{align-items:flex-end}
+.pg-label{font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px}
+.pgl-a{color:var(--team-a)}
+.pgl-b{color:var(--team-b)}
+.vs-div{font-family:var(--font-h);font-size:.75rem;font-weight:700;letter-spacing:2px;color:var(--grey);text-align:center}
+select{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:var(--r);color:var(--white);padding:7px 10px;font-family:var(--font-b);font-size:.83rem;width:100%;cursor:pointer}
+select:focus{outline:none;border-color:var(--gold)}
+select option{background:var(--navy)}
+
+/* ── HOLE GRID ── */
+.hole-grid-wrap{padding:18px 22px 22px;overflow-x:auto}
+.hole-grid{display:grid;grid-template-columns:repeat(18,1fr);gap:3px;min-width:580px}
+.hole-cell{display:flex;flex-direction:column;align-items:center;gap:3px}
+.hole-num{font-family:var(--font-h);font-size:.58rem;font-weight:600;color:var(--grey)}
+.hole-btn{width:28px;height:20px;font-family:var(--font-h);font-size:.62rem;font-weight:700;border:1px solid rgba(255,255,255,.14);border-radius:3px;cursor:pointer;background:rgba(255,255,255,.04);color:var(--grey);transition:var(--tr)}
+.hole-btn:hover{opacity:.8}
+.hole-btn.ha{background:var(--team-a);color:var(--navy);border-color:var(--team-a)}
+.hole-btn.hh{background:rgba(255,255,255,.28);color:var(--white);border-color:rgba(255,255,255,.5)}
+.hole-btn.hb{background:var(--team-b);color:var(--white);border-color:var(--team-b)}
+.running-score-row{display:flex;justify-content:space-between;align-items:center;padding:0 22px 14px;font-family:var(--font-h);font-size:.78rem;font-weight:600;letter-spacing:1px;flex-wrap:wrap;gap:8px}
+.rs-label{color:var(--grey);text-transform:uppercase}
+
+/* ── DAY 2 ── */
+.scramble-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+@media(max-width:700px){.scramble-grid{grid-template-columns:1fr}}
+.scramble-team-card{background:var(--card-bg);border:2px solid;border-radius:var(--rl);padding:24px}
+.scramble-team-a{border-color:rgba(240,180,41,.4)}
+.scramble-team-b{border-color:rgba(74,158,255,.4)}
+.scramble-team-title{font-family:var(--font-d);font-size:1.55rem;margin-bottom:18px}
+.scramble-team-a .scramble-team-title{color:var(--team-a)}
+.scramble-team-b .scramble-team-title{color:var(--team-b)}
+.sig{margin-bottom:14px}
+.sig label{display:block;font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-bottom:7px}
+.sig-row{display:flex;align-items:center;gap:12px}
+input[type=number]{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:var(--r);color:var(--white);padding:9px 12px;font-family:var(--font-d);font-size:1.35rem;width:90px;text-align:center}
+input[type=number]:focus{outline:none;border-color:var(--gold)}
+.pts-badge{font-family:var(--font-d);font-size:1.35rem;color:var(--grey)}
+.pts-badge.live{color:var(--gold)}
+.day-total-row{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:11px 15px;margin-top:14px;font-family:var(--font-h);font-weight:600;letter-spacing:1px;display:flex;justify-content:space-between}
+.day-total-row .lbl{color:var(--grey);font-size:.78rem;text-transform:uppercase}
+.day-total-row .val{font-size:1.05rem}
+.scramble-team-a .day-total-row .val{color:var(--team-a)}
+.scramble-team-b .day-total-row .val{color:var(--team-b)}
+
+/* ── DAY 3 ── */
+.sf-table-wrap{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow:hidden}
+.sf-table{width:100%;border-collapse:collapse}
+.sf-table th{background:var(--navy-mid);font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:11px 14px;text-align:left;color:var(--gold);border-bottom:2px solid var(--gold)}
+.sf-table td{padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-size:.9rem}
+.sf-table tr:last-child td{border-bottom:none}
+.pos-cell{font-family:var(--font-d);font-size:1.25rem;color:var(--grey);text-align:center;width:44px}
+.pos-1{color:var(--gold)!important}
+.pos-2{color:#c0c0c0!important}
+.pos-3{color:#cd7f32!important}
+.pts-cell{font-family:var(--font-d);font-size:1.45rem;text-align:right}
+.row-a .pts-cell{color:var(--team-a)}
+.row-b .pts-cell{color:var(--team-b)}
+input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
+.team-badge{font-family:var(--font-h);font-size:.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:2px 9px;border-radius:100px}
+.ta-badge{background:rgba(240,180,41,.15);color:var(--team-a);border:1px solid rgba(240,180,41,.4)}
+.tb-badge{background:rgba(74,158,255,.15);color:var(--team-b);border:1px solid rgba(74,158,255,.4)}
+
+/* ── UTILS ── */
+.gold{color:var(--gold)}
+.grey{color:var(--grey)}
+.mt8{margin-top:8px}.mt16{margin-top:16px}.mt24{margin-top:24px}.mt32{margin-top:32px}
+.mb16{margin-bottom:16px}.mb24{margin-bottom:24px}
+.tc{text-align:center}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.12)}100%{transform:scale(1)}}
+.pop{animation:pop .28s ease}
+.info-box{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px 18px;font-size:.88rem;color:var(--off-white);margin-bottom:20px}
+.info-box strong{color:var(--gold)}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     NAVIGATION
+══════════════════════════════════════ -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <div class="nav-logo">THE WONGA CUP</div>
+    <ul class="nav-links">
+      <li><a href="#" class="active" data-page="overview">Overview</a></li>
+      <li><a href="#" data-page="schedule">Schedule</a></li>
+      <li><a href="#" data-page="field">The Field</a></li>
+      <li><a href="#" data-page="scorecard">Scorecard</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════
+     PAGE 1 — OVERVIEW
+══════════════════════════════════════ -->
+<section id="page-overview" class="page active">
+
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-pre">4th Annual Golf Extravaganza</div>
+      <h1 class="hero-title">THE<br><span>WONGA</span><br>CUP</h1>
+      <div class="hero-sub">Yarrawonga &nbsp;·&nbsp; August 7–9, 2026</div>
+      <span class="hero-badge">Est. 2023 &nbsp;·&nbsp; 12 Players &nbsp;·&nbsp; 3 Courses</span>
+    </div>
+  </div>
+
+  <div class="page-content">
+
+    <!-- Welcome -->
+    <div class="section-header">
+      <div class="section-label">Welcome</div>
+      <div class="section-title">The Tradition Continues</div>
+    </div>
+    <div class="welcome-block">
+      <p>What began as a cheeky mates trip — a few blokes, a golf bag, and the optimistic belief that a weekend away would somehow improve everyone's handicap — has graduated into a fully-fledged golfing tradition. The Wonga Cup is now in its fourth year, and the word "tradition" no longer feels like a stretch. It feels earned.</p>
+      <p>Twelve players. Three days. Three courses. One trophy. The format has evolved, the field has matured (in numbers if not always in conduct), and the stories have stacked up into something resembling a genuine tournament history. Yarrawonga's championship layout provides the perfect stage: the Murray Course, Black Bull, and Lake Course will test every part of the game — from tee shots to temperament.</p>
+      <p>From Friday's match play battles to Saturday's scramble chaos and Sunday's individual Stableford grind, there are points up for grabs at every turn. The Wonga Cup is awarded to the winning team. Individual glory beckons in the form of Longest Drive, Nearest the Pin, and the not-entirely-coveted Silly Goose Hat. May the best team win — and may everyone else at least have a story worth telling at dinner.</p>
+    </div>
+
+    <!-- Roll of Honour -->
+    <div class="section-header">
+      <div class="section-label">History</div>
+      <div class="section-title">Roll of Honour</div>
+    </div>
+    <div class="table-wrap mb24">
+      <table class="data-table">
+        <thead>
+          <tr><th>Year</th><th>Edition</th><th>Location</th><th>Winning Team</th><th>Individual Champion</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="gold">2023</td><td>1st Annual</td><td>Sandhurst Club, Sandhurst</td><td>Team B</td><td>Gary King</td></tr>
+          <tr><td class="gold">2024</td><td>2nd Annual</td><td>Cobram Barooga Golf Club</td><td>Team A</td><td>Brendan Cunningham</td></tr>
+          <tr><td class="gold">2025</td><td>3rd Annual</td><td>Albury Golf Club</td><td>Team A</td><td>James McIntyre</td></tr>
+          <tr><td class="gold">2026</td><td>4th Annual</td><td>Yarrawonga Mulwala Golf Club</td><td style="color:var(--grey)">TBD</td><td style="color:var(--grey)">TBD</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Hall of Fame -->
+    <div class="section-header">
+      <div class="section-label">Records</div>
+      <div class="section-title">Hall of Fame</div>
+    </div>
+    <div class="hof-grid mb24">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th colspan="2">Most Appearances</th></tr></thead>
+          <tbody>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">4</span></td><td>Brendan Cunningham</td></tr>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">4</span></td><td>Gary King</td></tr>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">4</span></td><td>Matthew Smith</td></tr>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">4</span></td><td>James McIntyre</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">3</span></td><td>Scott Rumbelow</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">3</span></td><td>Nathan Freestun</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th colspan="2">Most Team Wins</th></tr></thead>
+          <tbody>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">2</span></td><td>Brendan Cunningham</td></tr>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">2</span></td><td>Matthew Smith</td></tr>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">2</span></td><td>Nathan Freestun</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">1</span></td><td>Gary King</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">1</span></td><td>James McIntyre</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">1</span></td><td>Scott Rumbelow</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th colspan="3">Highest Match Win %</th></tr></thead>
+          <tbody>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">83%</span></td><td>Brendan Cunningham</td><td class="grey" style="font-size:.8rem">5/6</td></tr>
+            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">75%</span></td><td>Scott Rumbelow</td><td class="grey" style="font-size:.8rem">3/4</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--off-white)">67%</span></td><td>Gary King</td><td class="grey" style="font-size:.8rem">4/6</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--off-white)">67%</span></td><td>James McIntyre</td><td class="grey" style="font-size:.8rem">4/6</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--off-white)">60%</span></td><td>Matthew Smith</td><td class="grey" style="font-size:.8rem">3/5</td></tr>
+            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">50%</span></td><td>Nathan Freestun</td><td class="grey" style="font-size:.8rem">2/4</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Awards -->
+    <div class="section-header">
+      <div class="section-label">Trophies & Gongs</div>
+      <div class="section-title">Awards on Offer</div>
+    </div>
+    <div class="grid-4">
+      <div class="award-card">
+        <div class="award-icon">🏆</div>
+        <div class="award-name">The Wonga Cup</div>
+        <div class="award-desc">The big one. Awarded to the winning team across all three days of competition. Eternal bragging rights until next August.</div>
+      </div>
+      <div class="award-card">
+        <div class="award-icon">💨</div>
+        <div class="award-name">Longest Drive</div>
+        <div class="award-desc">Designated hole. Furthest drive down the fairway takes the prize. Carts not eligible.</div>
+      </div>
+      <div class="award-card">
+        <div class="award-icon">📍</div>
+        <div class="award-name">Nearest the Pin</div>
+        <div class="award-desc">Par 3 shootout. Closest tee shot to the flag on the designated hole wins the prestige.</div>
+      </div>
+      <div class="award-card">
+        <div class="award-icon">🪿</div>
+        <div class="award-name">Silly Goose Hat</div>
+        <div class="award-desc">You know what you did. Awarded for the single most baffling decision made on a golf course across the weekend.</div>
+      </div>
+      <div class="award-card">
+        <div class="award-icon">💥</div>
+        <div class="award-name">Worst Blow-Up</div>
+        <div class="award-desc">For the single highest score on one hole across the entire tournament. A badge of honour for the truly cursed.</div>
+      </div>
+      <div class="award-card">
+        <div class="award-icon">😤</div>
+        <div class="award-name">Meltdown Medal</div>
+        <div class="award-desc">When composure leaves the chat. Awarded for the most spectacular on-course emotional collapse of the weekend.</div>
+      </div>
+      <div class="award-card">
+        <div class="award-icon">🍺</div>
+        <div class="award-name">Pub Captain's Choice</div>
+        <div class="award-desc">The wildcard. The Pub Captain picks whoever made the weekend what it was — merit optional, entertainment mandatory.</div>
+      </div>
+    </div>
+
+  </div><!-- /page-content -->
+</section>
+
+<!-- ══════════════════════════════════════
+     PAGE 2 — SCHEDULE & COURSES
+══════════════════════════════════════ -->
+<section id="page-schedule" class="page">
+  <div class="hero" style="padding:60px 24px 48px">
+    <div class="hero-inner">
+      <div class="hero-pre">August 7–9, 2026</div>
+      <h1 class="hero-title" style="font-size:clamp(3rem,8vw,6rem)">SCHEDULE &<br><span>COURSES</span></h1>
+    </div>
+  </div>
+  <div class="page-content">
+
+    <!-- Day schedule cards -->
+    <div class="section-header">
+      <div class="section-label">Itinerary</div>
+      <div class="section-title">Weekend Programme</div>
+    </div>
+
+    <div class="day-card">
+      <div class="day-header">
+        <div class="day-label">FRI</div>
+        <div class="day-info">
+          <h3>Friday 7 August</h3>
+          <p>Day 1 — Match Play Best Ball</p>
+        </div>
+      </div>
+      <div class="day-body">
+        <div class="schedule-item"><div class="schedule-time">2:00 PM</div><div class="schedule-desc"><strong>Check-in</strong> opens — 45 Anchorage Way 2, Yarrawonga</div></div>
+        <div class="schedule-item"><div class="schedule-time">12:00 PM</div><div class="schedule-desc"><strong>Tee time</strong> — Murray Course, Yarrawonga Mulwala Golf Club Resort<br><span class="grey" style="font-size:.85rem">Format: Match Play Best Ball — one 1v1 singles, two 2v2 doubles. 10 players.</span></div></div>
+        <div class="schedule-item"><div class="schedule-time">Eve</div><div class="schedule-desc"><strong>Team dinner</strong> — venue TBC. Scores settled, stories started.</div></div>
+      </div>
+    </div>
+
+    <div class="day-card">
+      <div class="day-header">
+        <div class="day-label">SAT</div>
+        <div class="day-info">
+          <h3>Saturday 8 August</h3>
+          <p>Day 2 — Team Scramble (Stroke)</p>
+        </div>
+      </div>
+      <div class="day-body">
+        <div class="schedule-item"><div class="schedule-time">Morning</div><div class="schedule-desc"><strong>Cayden Woods & Ben Lepore arrive</strong> — full field of 12 assembled</div></div>
+        <div class="schedule-item"><div class="schedule-time">12:00 PM</div><div class="schedule-desc"><strong>Tee time</strong> — Black Bull Course, Yarrawonga Mulwala Golf Club Resort<br><span class="grey" style="font-size:.85rem">Format: Team Scramble. Each team splits into groups of 4 and 2. Net score vs par earns points.</span></div></div>
+        <div class="schedule-item"><div class="schedule-time">Eve</div><div class="schedule-desc"><strong>Dinner & Pub session</strong> — Pub Captain's Choice nominations open</div></div>
+      </div>
+    </div>
+
+    <div class="day-card">
+      <div class="day-header">
+        <div class="day-label">SUN</div>
+        <div class="day-info">
+          <h3>Sunday 9 August</h3>
+          <p>Day 3 — Individual Stableford</p>
+        </div>
+      </div>
+      <div class="day-body">
+        <div class="schedule-item"><div class="schedule-time">9:00 AM</div><div class="schedule-desc"><strong>Tee time</strong> — Lake Course, Yarrawonga Mulwala Golf Club Resort<br><span class="grey" style="font-size:.85rem">Format: Individual net Stableford. All 12 players. Points go to team total.</span></div></div>
+        <div class="schedule-item"><div class="schedule-time">Post-round</div><div class="schedule-desc"><strong>Presentation ceremony</strong> — Wonga Cup awarded, individual gongs distributed, Pub Captain has his say</div></div>
+        <div class="schedule-item"><div class="schedule-time">10:00 AM</div><div class="schedule-desc"><strong>Checkout</strong> deadline — 45 Anchorage Way 2</div></div>
+      </div>
+    </div>
+
+    <!-- Courses -->
+    <div class="section-header mt32">
+      <div class="section-label">The Venues</div>
+      <div class="section-title">Course Guide</div>
+    </div>
+    <div class="grid-3 mb24">
+
+      <div class="course-card">
+        <div class="course-header">
+          <div class="course-day-tag">Friday — Day 1</div>
+          <div class="course-name">Murray Course</div>
+          <div class="course-meta">
+            <div class="course-meta-item">Par <strong>72</strong></div>
+            <div class="course-meta-item">Length <strong>~6,095m</strong></div>
+            <div class="course-meta-item">Designer <strong>Peter Thomson</strong></div>
+          </div>
+        </div>
+        <div class="course-body">
+          <p>The opening act and the original jewel of Yarrawonga Mulwala. Designed by the legendary Peter Thomson — five-time Open champion — the Murray Course flows through the flats alongside its namesake river, with generous fairways that flatter off the tee before punishing anything loose.</p>
+          <p>Water comes into play on several holes and the subtle undulation of the fairways makes club selection trickier than the card suggests. The greens are firm and true — a consistent short game is rewarded, and inconsistency is exposed.</p>
+          <div class="course-key-holes">
+            <h4>Key Holes</h4>
+            <p><strong>Hole 7 (par 4):</strong> A dogleg right that demands a perfectly placed drive to open up the approach. Miss the fairway left and you're scrambling. <strong>Hole 14 (par 5):</strong> Reachable in two for the long hitters but water lurks right. The classic risk/reward battle that defines match play.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="course-card">
+        <div class="course-header">
+          <div class="course-day-tag">Saturday — Day 2</div>
+          <div class="course-name">Black Bull</div>
+          <div class="course-meta">
+            <div class="course-meta-item">Par <strong>72</strong></div>
+            <div class="course-meta-item">Length <strong>~6,256m</strong></div>
+            <div class="course-meta-item">Designers <strong>Thomson &amp; Perrett</strong></div>
+          </div>
+        </div>
+        <div class="course-body">
+          <p>The longest and most demanding of the three layouts. Designed by Thomson &amp; Perrett, Black Bull earns its reputation through width, rough, and relentless demand for accurate iron play. The fairways are wider in some places but the landing zones are deceptive.</p>
+          <p>The centrepiece is the infamous <strong>Bull Ring stretch</strong> — holes 4, 5 and 6 — a consecutive run of challenging par 4s that will define team scramble rounds. Bogey any of them and you're giving points away; birdie one and momentum swings.</p>
+          <div class="course-key-holes">
+            <h4>Key Holes — The Bull Ring (4–6)</h4>
+            <p><strong>Hole 4 (par 4):</strong> Tee shot over a ridge with a narrow fairway beyond. <strong>Hole 5 (par 4):</strong> Long approach into a well-bunkered green. <strong>Hole 6 (par 4):</strong> Slight dogleg left, out of bounds right — the one hole where caution beats aggression.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="course-card">
+        <div class="course-header">
+          <div class="course-day-tag">Sunday — Day 3</div>
+          <div class="course-name">Lake Course</div>
+          <div class="course-meta">
+            <div class="course-meta-item">Par <strong>72</strong></div>
+            <div class="course-meta-item">Length <strong>~5,957m</strong></div>
+            <div class="course-meta-item">Bunkers <strong>56</strong></div>
+          </div>
+        </div>
+        <div class="course-body">
+          <p>The shortest but most penal of the three tracks. With 56 bunkers — more than the other two courses combined — the Lake Course punishes any deviation from the short grass. Tee shots must be placed, not simply hit, and the approach game will separate the field.</p>
+          <p>The shorter overall distance makes it the ideal Stableford layout: accessible enough for higher handicappers to card solid Stableford points, but unforgiving enough that the bunkers claim ambition regularly. Sunday afternoon rankings will be decided here.</p>
+          <div class="course-key-holes">
+            <h4>Key Holes</h4>
+            <p><strong>Hole 3 (par 3):</strong> Bunkers front and both sides — the classic carry par 3 that nerves can ruin. <strong>Hole 16 (par 5):</strong> The Lake makes its appearance. Don't be greedy in two. <strong>Hole 18 (par 4):</strong> A finishing hole that plays towards the clubhouse with a closing bunker waiting right of the green.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Accommodation -->
+    <div class="accom-card">
+      <h3>Accommodation</h3>
+      <div class="accom-address">45 Anchorage Way 2, Yarrawonga VIC 3730</div>
+      <p style="color:var(--off-white);font-size:.93rem">The weekend base camp. A group property with enough space for the full field and enough atmosphere for post-round debrief sessions to run as long as necessary.</p>
+      <div class="accom-grid">
+        <div class="accom-item">
+          <h4>Check-in</h4>
+          <p>After 2:00 PM on Friday 7 August</p>
+        </div>
+        <div class="accom-item">
+          <h4>Check-out</h4>
+          <p>Before 10:00 AM on Sunday 9 August</p>
+        </div>
+        <div class="accom-item">
+          <h4>What's Provided</h4>
+          <p>Linen, towels, kitchen &amp; cookware, BBQ, TV, WiFi</p>
+        </div>
+        <div class="accom-item">
+          <h4>What to Bring</h4>
+          <p>Your own food and drinks, toiletries, clubs (obviously)</p>
+        </div>
+        <div class="accom-item">
+          <h4>Parking</h4>
+          <p>On-site parking available for all players</p>
+        </div>
+        <div class="accom-item">
+          <h4>Note</h4>
+          <p>Ben Lepore &amp; Cayden Woods arrive Saturday morning — arrange own Friday accommodation if needed</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     PAGE 3 — THE FIELD
+══════════════════════════════════════ -->
+<section id="page-field" class="page">
+  <div class="hero" style="padding:60px 24px 48px">
+    <div class="hero-inner">
+      <div class="hero-pre">12 Players · 3 Days</div>
+      <h1 class="hero-title" style="font-size:clamp(3rem,8vw,6rem)">THE<br><span>FIELD</span></h1>
+    </div>
+  </div>
+  <div class="page-content">
+    <div class="section-header">
+      <div class="section-label">2026 Competitors</div>
+      <div class="section-title">Player Profiles</div>
+    </div>
+    <div class="info-box"><strong>Teams TBD</strong> — allocated 31 May 2026 by handicap seeding. Seeds 1, 3, 5, 8, 10, 12 = Team A &nbsp;|&nbsp; Seeds 2, 4, 6, 7, 9, 11 = Team B. &nbsp;<strong>Note:</strong> Ben Lepore and Cayden Woods join Saturday &amp; Sunday only.</div>
+    <div class="player-grid">
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Brendan<br>Cunningham</div>
+          <div class="player-hcp">7.0</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">The reigning benchmark. Brendan brings a razor-sharp short game and the kind of course management that makes you question your own life choices. As the field's lowest marker, he's the man everyone is trying to beat — and the one most likely to remind you of it.</p>
+          <span class="player-tag">Seed 1 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Gary<br>King</div>
+          <div class="player-hcp">10.0</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">Wiry, crafty, and capable of an eagle on his worst day. Gary has played every year of the Wonga Cup and knows how to pick his moments. Don't let the easy smile fool you — he's calculating every angle from the first tee.</p>
+          <span class="player-tag">Seed 2 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Matthew<br>Smith</div>
+          <div class="player-hcp">15.8</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">The engine room of any team lucky enough to have him. Matty is a big hitter who keeps it largely straight, and with a 15-point-something handicap he is dangerous in any format — particularly formats where the scorecard matters.</p>
+          <span class="player-tag">Seed 3 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">James<br>McIntyre</div>
+          <div class="player-hcp">17.7</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">Steady as they come. James's consistent iron play and composure under pressure make him a critical points-contributor in team formats. Has the face of a man who has never three-putted, and the results to back it up.</p>
+          <span class="player-tag">Seed 4 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Cayden<br>Woods</div>
+          <div class="player-hcp">24.0</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">The young gun who doesn't arrive until the big matches — which says everything about his confidence. Swings it hard, smiles harder. Joining for Saturday and Sunday only, Cayden tends to show up exactly when his team needs him most.</p>
+          <span class="player-tag">Seed 5 · Sat–Sun Only</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Scott<br>Rumbelow</div>
+          <div class="player-hcp">25.0</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">The dark horse. Scotty is that player who posts a round that has you saying "how did he only get to 25?" Loves a scramble format and has the short game to back it up. Consistently underestimated. Consistently present at the business end.</p>
+          <span class="player-tag">Seed 6 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Matthew<br>Freestun</div>
+          <div class="player-hcp">26.7</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">Freestun senior. The family honour is on the line every year and Matty carries it with composure. Reliable chipper, dangerous from 150m in, and always good for a story at the dinner table — especially if the Freestun brothers end up on opposite teams.</p>
+          <span class="player-tag">Seed 7 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Nathan<br>Freestun</div>
+          <div class="player-hcp">27.0</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">Freestun junior. Technically the higher marker, though you'd never know it from his demeanour. Nate is the emotional fuel of any team — loudest celebration, most creative excuse, and the first to remind you he beat his brother last year.</p>
+          <span class="player-tag">Seed 8 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Steve<br>Koenig</div>
+          <div class="player-hcp">31.0</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">The heart of the field. Steve is not here to post the low round — he's here to love every second of it. Deceptively good from the bunker and the undisputed king of the post-round debrief. When his handicap strokes fall right, watch out.</p>
+          <span class="player-tag">Seed 9 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Jimmy<br>Hepburn</div>
+          <div class="player-hcp">TBC</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">The mystery entry. Jimmy's handicap remains under active negotiation, but his ability to make the weekend entertaining is fully confirmed. Wildcard status suits him down to the ground. Will either be the story of the tournament or the reason for one.</p>
+          <span class="player-tag">Seed 10 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Robert<br>Hughes</div>
+          <div class="player-hcp">38.0</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">The spirit of the Wonga Cup made flesh. Robbo has as much fun as anyone on the course, and when the handicap gods align — which they do, unpredictably — he can post a Stableford score that leaves jaws on the floor of the 19th hole.</p>
+          <span class="player-tag">Seed 11 · Fri–Sun</span>
+        </div>
+      </div>
+
+      <div class="player-card">
+        <div class="player-card-header">
+          <div class="player-name">Ben<br>Lepore</div>
+          <div class="player-hcp">44.0</div>
+        </div>
+        <div class="player-card-body">
+          <p class="player-bio">The crowd favourite. Ben arrives Saturday morning just as everyone else is finally warmed up, which is about the right time. Highest marker in the field but brings maximum energy and the occasional miracle chip-in that the room talks about for the rest of the weekend.</p>
+          <span class="player-tag">Seed 12 · Sat–Sun Only</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     PAGE 4 — LIVE SCORECARD
+══════════════════════════════════════ -->
+<section id="page-scorecard" class="page">
+
+  <!-- Pinned scoreboard -->
+  <div class="scoreboard-pin">
+    <div class="scoreboard-inner">
+      <div class="team-a">
+        <div class="sb-team-name">Team A</div>
+        <div class="sb-total" id="sb-total-a">0</div>
+        <div class="sb-day-chips" id="sb-chips-a">
+          <span class="sb-chip">D1: 0</span>
+          <span class="sb-chip">D2: 0</span>
+          <span class="sb-chip">D3: 0</span>
+        </div>
+      </div>
+      <div class="sb-vs">VS</div>
+      <div class="team-b">
+        <div class="sb-team-name">Team B</div>
+        <div class="sb-total" id="sb-total-b">0</div>
+        <div class="sb-day-chips" id="sb-chips-b">
+          <span class="sb-chip">D1: 0</span>
+          <span class="sb-chip">D2: 0</span>
+          <span class="sb-chip">D3: 0</span>
+        </div>
+      </div>
+    </div>
+    <div id="win-banner" style="display:none"></div>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div class="sc-tabs">
+    <button class="sc-tab active" data-tab="teams">Teams</button>
+    <button class="sc-tab" data-tab="day1">Day 1 · Match Play</button>
+    <button class="sc-tab" data-tab="day2">Day 2 · Scramble</button>
+    <button class="sc-tab" data-tab="day3">Day 3 · Stableford</button>
+  </div>
+
+  <!-- ── TEAMS PANEL ── -->
+  <div class="page-content">
+    <div class="sc-panel active" id="sc-teams">
+      <div class="section-header" style="padding-top:28px">
+        <div class="section-label">Setup</div>
+        <div class="section-title">Team Assignment</div>
+      </div>
+      <div class="info-box">Teams are allocated by handicap seeding on <strong>31 May 2026</strong>. Default seeding applied below — adjust as needed. <strong>Seeds 1,3,5,8,10,12 = Team A &nbsp;|&nbsp; Seeds 2,4,6,7,9,11 = Team B.</strong> Click "→ B" or "← A" to move a player.</div>
+      <div class="team-setup-grid">
+        <div class="team-col team-a-col">
+          <div class="team-col-h">Team A</div>
+          <div id="team-a-list"></div>
+        </div>
+        <div class="team-col team-b-col">
+          <div class="team-col-h">Team B</div>
+          <div id="team-b-list"></div>
+        </div>
+      </div>
+      <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid rgba(255,255,255,.2);color:var(--grey);border-radius:var(--r);cursor:pointer">Reset to Default Seeding</button>
+    </div>
+
+    <!-- ── DAY 1 PANEL ── -->
+    <div class="sc-panel" id="sc-day1">
+      <div class="section-header" style="padding-top:28px">
+        <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
+        <div class="section-title">Match Play Best Ball</div>
+      </div>
+      <div class="info-box">10 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday). Assign Friday players to matches below. For each hole, click <strong style="color:var(--team-a)">A</strong> (Team A wins hole), <strong style="color:var(--off-white)">H</strong> (Halved), or <strong style="color:var(--team-b)">B</strong> (Team B wins hole). <strong>Scoring:</strong> 1pt per hole won, 0.5pt halved, +2 bonus to match winner.</div>
+      <div id="day1-matches"></div>
+    </div>
+
+    <!-- ── DAY 2 PANEL ── -->
+    <div class="sc-panel" id="sc-day2">
+      <div class="section-header" style="padding-top:28px">
+        <div class="section-label">Saturday 8 August · Black Bull · 12:00pm</div>
+        <div class="section-title">Team Scramble</div>
+      </div>
+      <div class="info-box">Each team splits into a <strong>group of 4</strong> and a <strong>group of 2</strong>. Enter the net score vs par for each group (e.g. <strong>-2</strong> for two under par, <strong>+3</strong> for three over). Points: Par = 5pts, each stroke under = +1pt extra, each over = −1pt (min 0).</div>
+      <div class="scramble-grid">
+        <div class="scramble-team-card scramble-team-a">
+          <div class="scramble-team-title">Team A</div>
+          <div class="sig">
+            <label>Group of 4 — Net Score vs Par</label>
+            <div class="sig-row">
+              <input type="number" id="a4-score" placeholder="0" oninput="updateDay2()">
+              <div class="pts-badge" id="a4-pts">— pts</div>
+            </div>
+          </div>
+          <div class="sig">
+            <label>Group of 2 — Net Score vs Par</label>
+            <div class="sig-row">
+              <input type="number" id="a2-score" placeholder="0" oninput="updateDay2()">
+              <div class="pts-badge" id="a2-pts">— pts</div>
+            </div>
+          </div>
+          <div class="day-total-row"><span class="lbl">Team A Day 2 Total</span><span class="val" id="a-day2-total">0 pts</span></div>
+        </div>
+        <div class="scramble-team-card scramble-team-b">
+          <div class="scramble-team-title">Team B</div>
+          <div class="sig">
+            <label>Group of 4 — Net Score vs Par</label>
+            <div class="sig-row">
+              <input type="number" id="b4-score" placeholder="0" oninput="updateDay2()">
+              <div class="pts-badge" id="b4-pts">— pts</div>
+            </div>
+          </div>
+          <div class="sig">
+            <label>Group of 2 — Net Score vs Par</label>
+            <div class="sig-row">
+              <input type="number" id="b2-score" placeholder="0" oninput="updateDay2()">
+              <div class="pts-badge" id="b2-pts">— pts</div>
+            </div>
+          </div>
+          <div class="day-total-row"><span class="lbl">Team B Day 2 Total</span><span class="val" id="b-day2-total">0 pts</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DAY 3 PANEL ── -->
+    <div class="sc-panel" id="sc-day3">
+      <div class="section-header" style="padding-top:28px">
+        <div class="section-label">Sunday 9 August · Lake Course · 9:00am</div>
+        <div class="section-title">Individual Stableford</div>
+      </div>
+      <div class="info-box">Enter each player's <strong>net Stableford score</strong>. Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=12, 2nd=10, 3rd=9, 4th=8, 5th=7, 6th=6, 7th=5, 8th=4, 9th=3, 10th=2, 11th=1, 12th=0</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
+      <div class="sf-table-wrap">
+        <table class="sf-table">
+          <thead>
+            <tr>
+              <th style="width:44px">Pos</th>
+              <th>Player</th>
+              <th>Team</th>
+              <th>HCP</th>
+              <th>Net Stableford</th>
+              <th style="text-align:right">Pts</th>
+            </tr>
+          </thead>
+          <tbody id="sf-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /page-content -->
+</section>
+
+<!-- ══════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════ -->
+<script>
+/* ─────────────────────────────────────
+   DATA
+───────────────────────────────────── */
+const PLAYERS = [
+  { id:0,  name:'Brendan Cunningham', short:'B. Cunningham', hcp:'7.0',  seed:1,  friday:true  },
+  { id:1,  name:'Gary King',          short:'G. King',       hcp:'10.0', seed:2,  friday:true  },
+  { id:2,  name:'Matthew Smith',      short:'M. Smith',      hcp:'15.8', seed:3,  friday:true  },
+  { id:3,  name:'James McIntyre',     short:'J. McIntyre',   hcp:'17.7', seed:4,  friday:true  },
+  { id:4,  name:'Cayden Woods',       short:'C. Woods',      hcp:'24.0', seed:5,  friday:false },
+  { id:5,  name:'Scott Rumbelow',     short:'S. Rumbelow',   hcp:'25.0', seed:6,  friday:true  },
+  { id:6,  name:'Matthew Freestun',   short:'M. Freestun',   hcp:'26.7', seed:7,  friday:true  },
+  { id:7,  name:'Nathan Freestun',    short:'N. Freestun',   hcp:'27.0', seed:8,  friday:true  },
+  { id:8,  name:'Steve Koenig',       short:'S. Koenig',     hcp:'31.0', seed:9,  friday:true  },
+  { id:9,  name:'Jimmy Hepburn',      short:'J. Hepburn',    hcp:'TBC',  seed:10, friday:true  },
+  { id:10, name:'Robert Hughes',      short:'R. Hughes',     hcp:'38.0', seed:11, friday:true  },
+  { id:11, name:'Ben Lepore',         short:'B. Lepore',     hcp:'44.0', seed:12, friday:false }
+];
+
+// Default: seeds 1,3,5,8,10,12 = A;  seeds 2,4,6,7,9,11 = B
+const DEFAULT_A = new Set([0,2,4,7,9,11]);
+const DEFAULT_B = new Set([1,3,5,6,8,10]);
+
+/* ─────────────────────────────────────
+   STATE
+───────────────────────────────────── */
+const state = {
+  teamA: new Set(DEFAULT_A),
+  teamB: new Set(DEFAULT_B),
+  day1: {
+    matches: [
+      { type:'singles', pA:[null],       pB:[null],       holes:Array(18).fill(null) },
+      { type:'doubles', pA:[null,null],  pB:[null,null],  holes:Array(18).fill(null) },
+      { type:'doubles', pA:[null,null],  pB:[null,null],  holes:Array(18).fill(null) }
+    ]
+  },
+  day2: { a4:null, a2:null, b4:null, b2:null },
+  day3: {}  // id -> stableford score string
+};
+
+/* ─────────────────────────────────────
+   PERSISTENCE
+───────────────────────────────────── */
+function saveState() {
+  try {
+    const s = {
+      teamA: [...state.teamA],
+      teamB: [...state.teamB],
+      day1:  JSON.parse(JSON.stringify(state.day1)),
+      day2:  state.day2,
+      day3:  state.day3
+    };
+    localStorage.setItem('wongaCup2026', JSON.stringify(s));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('wongaCup2026');
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.teamA) state.teamA = new Set(s.teamA);
+    if (s.teamB) state.teamB = new Set(s.teamB);
+    if (s.day1)  state.day1  = s.day1;
+    if (s.day2)  state.day2  = s.day2;
+    if (s.day3)  state.day3  = s.day3;
+  } catch(e) {}
+}
+
+/* ─────────────────────────────────────
+   NAVIGATION
+───────────────────────────────────── */
+document.querySelectorAll('.nav-links a').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const pg = a.dataset.page;
+    document.querySelectorAll('.nav-links a').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    document.getElementById('page-' + pg).classList.add('active');
+    window.scrollTo(0,0);
+  });
+});
+
+document.querySelectorAll('.sc-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sc-tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.sc-panel').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('sc-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ─────────────────────────────────────
+   TEAM SETUP
+───────────────────────────────────── */
+function renderTeams() {
+  const aList = document.getElementById('team-a-list');
+  const bList = document.getElementById('team-b-list');
+  aList.innerHTML = '';
+  bList.innerHTML = '';
+
+  PLAYERS.forEach(p => {
+    const inA = state.teamA.has(p.id);
+    const el = document.createElement('div');
+    el.className = 'team-player-item';
+    el.innerHTML = `
+      <div>
+        <span>${p.name}</span>
+        <small style="display:block">HCP ${p.hcp} · Seed ${p.seed}${!p.friday ? ' · Sat–Sun' : ''}</small>
+      </div>
+      <button class="move-btn" onclick="movePlayer(${p.id},${inA ? 'true' : 'false'})">
+        ${inA ? '→ B' : '← A'}
+      </button>`;
+    (inA ? aList : bList).appendChild(el);
+  });
+  saveState();
+  updateScoreboard();
+  renderDay1();
+  renderDay3();
+}
+
+function movePlayer(id, fromA) {
+  if (fromA) { state.teamA.delete(id); state.teamB.add(id); }
+  else        { state.teamB.delete(id); state.teamA.add(id); }
+  renderTeams();
+}
+
+function resetTeams() {
+  state.teamA = new Set(DEFAULT_A);
+  state.teamB = new Set(DEFAULT_B);
+  renderTeams();
+}
+
+/* ─────────────────────────────────────
+   DAY 1 — MATCH PLAY
+───────────────────────────────────── */
+function fridayPlayers(team) {
+  return PLAYERS.filter(p => p.friday && (team === 'A' ? state.teamA : state.teamB).has(p.id));
+}
+
+function playerOptions(team, matchIdx, slot, currentId) {
+  const pool = fridayPlayers(team);
+  const usedInOthers = new Set();
+  state.day1.matches.forEach((m, mi) => {
+    if (mi === matchIdx) return;
+    (m.pA || []).forEach(x => { if (x !== null) usedInOthers.add(x); });
+    (m.pB || []).forEach(x => { if (x !== null) usedInOthers.add(x); });
+  });
+  // Also used in same match different slots
+  const match = state.day1.matches[matchIdx];
+  const sameTeamArr = team === 'A' ? match.pA : match.pB;
+  const usedSameMatch = new Set(sameTeamArr.filter((x,i) => i !== slot && x !== null));
+
+  let opts = `<option value="">— pick player —</option>`;
+  pool.forEach(p => {
+    const disabled = usedInOthers.has(p.id) || usedSameMatch.has(p.id) ? 'disabled' : '';
+    const sel = p.id === currentId ? 'selected' : '';
+    opts += `<option value="${p.id}" ${disabled} ${sel}>${p.short} (${p.hcp})</option>`;
+  });
+  return opts;
+}
+
+function renderDay1() {
+  const container = document.getElementById('day1-matches');
+  container.innerHTML = '';
+  const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Doubles (2v2)', 'Match 3 — Doubles (2v2)'];
+
+  state.day1.matches.forEach((match, mi) => {
+    const { pA, pB, holes, type } = match;
+    const slots = type === 'singles' ? 1 : 2;
+
+    // Calculate running score
+    let scoreA = 0, scoreB = 0, played = 0;
+    holes.forEach(h => {
+      if (h === null) return;
+      played++;
+      if (h === 'A') scoreA += 1;
+      else if (h === 'B') scoreB += 1;
+      else { scoreA += 0.5; scoreB += 0.5; }
+    });
+    const matchDone = played === 18;
+    let bonusA = 0, bonusB = 0;
+    if (matchDone) { if (scoreA > scoreB) bonusA = 2; else if (scoreB > scoreA) bonusB = 2; }
+    const displayA = scoreA + bonusA;
+    const displayB = scoreB + bonusB;
+
+    const card = document.createElement('div');
+    card.className = 'match-card';
+
+    // Header
+    const hd = document.createElement('div');
+    hd.className = 'match-header';
+    hd.innerHTML = `
+      <div class="match-title">${titles[mi]}</div>
+      <div class="match-score-display">
+        <span class="msa" id="m${mi}-sa">${fmt(displayA)}</span>
+        <span class="mss">—</span>
+        <span class="msb" id="m${mi}-sb">${fmt(displayB)}</span>
+      </div>`;
+    card.appendChild(hd);
+
+    // Player assignments
+    const pr = document.createElement('div');
+    pr.className = 'match-players-row';
+
+    // Team A side
+    let aHtml = `<div class="player-group"><div class="pg-label pgl-a">TEAM A</div>`;
+    for (let s = 0; s < slots; s++) {
+      aHtml += `<select onchange="setMatchPlayer(${mi},'A',${s},this.value)">${playerOptions('A',mi,s,pA[s])}</select>`;
+    }
+    aHtml += `</div>`;
+
+    const vsHtml = `<div class="vs-div">VS</div>`;
+
+    let bHtml = `<div class="player-group pb"><div class="pg-label pgl-b" style="text-align:right">TEAM B</div>`;
+    for (let s = 0; s < slots; s++) {
+      bHtml += `<select onchange="setMatchPlayer(${mi},'B',${s},this.value)">${playerOptions('B',mi,s,pB[s])}</select>`;
+    }
+    bHtml += `</div>`;
+
+    pr.innerHTML = aHtml + vsHtml + bHtml;
+    card.appendChild(pr);
+
+    // Hole grid
+    const hw = document.createElement('div');
+    hw.className = 'hole-grid-wrap';
+    let holeHtml = '<div class="hole-grid">';
+    for (let h = 0; h < 18; h++) {
+      const val = holes[h];
+      holeHtml += `
+        <div class="hole-cell">
+          <div class="hole-num">${h+1}</div>
+          <div class="hole-btns">
+            <button class="hole-btn ${val==='A'?'ha':''}" onclick="setHole(${mi},${h},'A')" title="Team A wins">A</button>
+            <button class="hole-btn ${val==='H'?'hh':''}" onclick="setHole(${mi},${h},'H')" title="Halved">H</button>
+            <button class="hole-btn ${val==='B'?'hb':''}" onclick="setHole(${mi},${h},'B')" title="Team B wins">B</button>
+          </div>
+        </div>`;
+    }
+    holeHtml += '</div>';
+    hw.innerHTML = holeHtml;
+    card.appendChild(hw);
+
+    // Running score row
+    const rs = document.createElement('div');
+    rs.className = 'running-score-row';
+    const thru = played === 0 ? '—' : (played === 18 ? '18 (F)' : `thru ${played}`);
+    let status = '';
+    if (matchDone) {
+      if (scoreA > scoreB) status = `<span style="color:var(--team-a)">TEAM A WINS (+2 bonus)</span>`;
+      else if (scoreB > scoreA) status = `<span style="color:var(--team-b)">TEAM B WINS (+2 bonus)</span>`;
+      else status = `<span style="color:var(--grey)">ALL SQUARE — no bonus</span>`;
+    } else if (played > 0) {
+      const diff = scoreA - scoreB;
+      if (diff > 0) status = `<span style="color:var(--team-a)">Team A leads ${fmt(diff)} up</span>`;
+      else if (diff < 0) status = `<span style="color:var(--team-b)">Team B leads ${fmt(Math.abs(diff))} up</span>`;
+      else status = `<span style="color:var(--grey)">All Square</span>`;
+    }
+    rs.innerHTML = `<span class="rs-label">Holes played: ${thru}</span>${status}`;
+    card.appendChild(rs);
+
+    container.appendChild(card);
+  });
+}
+
+function fmt(n) {
+  if (n === Math.floor(n)) return n.toString();
+  return n.toFixed(1);
+}
+
+function setMatchPlayer(matchIdx, team, slot, val) {
+  const id = val === '' ? null : parseInt(val);
+  if (team === 'A') state.day1.matches[matchIdx].pA[slot] = id;
+  else              state.day1.matches[matchIdx].pB[slot] = id;
+  saveState();
+  renderDay1();
+  updateScoreboard();
+}
+
+function setHole(matchIdx, hole, winner) {
+  const cur = state.day1.matches[matchIdx].holes[hole];
+  state.day1.matches[matchIdx].holes[hole] = cur === winner ? null : winner;
+  saveState();
+  renderDay1();
+  updateScoreboard();
+}
+
+/* ─────────────────────────────────────
+   DAY 2 — SCRAMBLE
+───────────────────────────────────── */
+function scramblePoints(val) {
+  if (val === '' || val === null || val === undefined) return null;
+  const n = parseInt(val);
+  if (isNaN(n)) return null;
+  return Math.max(0, 5 - n);
+}
+
+function updateDay2() {
+  const ids = ['a4','a2','b4','b2'];
+  ids.forEach(id => {
+    const inp = document.getElementById(id + '-score');
+    const pts = scramblePoints(inp.value);
+    const badge = document.getElementById(id + '-pts');
+    state.day2[id] = inp.value;
+    if (pts !== null) {
+      badge.textContent = pts + ' pts';
+      badge.classList.add('live');
+    } else {
+      badge.textContent = '— pts';
+      badge.classList.remove('live');
+    }
+  });
+
+  const aTotal = (scramblePoints(state.day2.a4)||0) + (scramblePoints(state.day2.a2)||0);
+  const bTotal = (scramblePoints(state.day2.b4)||0) + (scramblePoints(state.day2.b2)||0);
+  document.getElementById('a-day2-total').textContent = aTotal + ' pts';
+  document.getElementById('b-day2-total').textContent = bTotal + ' pts';
+
+  saveState();
+  updateScoreboard();
+}
+
+function restoreDay2() {
+  ['a4','a2','b4','b2'].forEach(id => {
+    const el = document.getElementById(id + '-score');
+    if (el && state.day2[id] !== null && state.day2[id] !== undefined) {
+      el.value = state.day2[id];
+    }
+  });
+  updateDay2();
+}
+
+/* ─────────────────────────────────────
+   DAY 3 — STABLEFORD
+───────────────────────────────────── */
+const POS_PTS = [12,10,9,8,7,6,5,4,3,2,1,0];
+
+function computeDay3() {
+  const entries = PLAYERS.map(p => ({
+    id:    p.id,
+    name:  p.name,
+    hcp:   p.hcp,
+    team:  state.teamA.has(p.id) ? 'A' : 'B',
+    score: state.day3[p.id] !== undefined && state.day3[p.id] !== '' ? parseInt(state.day3[p.id]) : null
+  }));
+
+  // Sort by score desc (nulls last)
+  const sorted = [...entries].sort((a,b) => {
+    if (a.score === null && b.score === null) return 0;
+    if (a.score === null) return 1;
+    if (b.score === null) return -1;
+    return b.score - a.score;
+  });
+
+  // Assign positions with tie handling
+  let i = 0;
+  while (i < sorted.length) {
+    if (sorted[i].score === null) { sorted[i].pos = null; sorted[i].pts = 0; i++; continue; }
+    let j = i;
+    while (j < sorted.length && sorted[j].score === sorted[i].score) j++;
+    let totalPts = 0;
+    for (let k = i; k < j; k++) totalPts += (POS_PTS[k] || 0);
+    const avgPts = totalPts / (j - i);
+    for (let k = i; k < j; k++) { sorted[k].pos = i + 1; sorted[k].pts = avgPts; }
+    i = j;
+  }
+
+  return { sorted, entries };
+}
+
+function renderDay3() {
+  const tbody = document.getElementById('sf-tbody');
+  if (!tbody) return;
+  const { sorted } = computeDay3();
+  tbody.innerHTML = '';
+  sorted.forEach(p => {
+    const row = document.createElement('tr');
+    row.className = p.team === 'A' ? 'row-a' : 'row-b';
+    const posClass = p.pos === 1 ? 'pos-1' : p.pos === 2 ? 'pos-2' : p.pos === 3 ? 'pos-3' : '';
+    const posText  = p.pos ? (p.pos === 1 ? '🥇' : p.pos === 2 ? '🥈' : p.pos === 3 ? '🥉' : p.pos) : '—';
+    const ptsText  = p.score !== null ? (p.pts % 1 === 0 ? p.pts : p.pts.toFixed(1)) : '—';
+    row.innerHTML = `
+      <td class="pos-cell ${posClass}">${posText}</td>
+      <td style="color:var(--off-white)">${p.name}</td>
+      <td><span class="${p.team === 'A' ? 'ta-badge' : 'tb-badge'} team-badge">Team ${p.team}</span></td>
+      <td class="grey" style="font-size:.84rem">${p.hcp}</td>
+      <td><input type="number" class="sf-in" placeholder="—" value="${state.day3[p.id]||''}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
+      <td class="pts-cell">${ptsText}</td>`;
+    tbody.appendChild(row);
+  });
+  updateScoreboard();
+}
+
+function setStableford(pid, val) {
+  state.day3[pid] = val;
+  saveState();
+  renderDay3();
+}
+
+/* ─────────────────────────────────────
+   SCORING CALCULATIONS
+───────────────────────────────────── */
+function calcDay1() {
+  let a = 0, b = 0;
+  state.day1.matches.forEach(match => {
+    let ma = 0, mb = 0;
+    match.holes.forEach(h => {
+      if (h === 'A') ma += 1;
+      else if (h === 'B') mb += 1;
+      else if (h === 'H') { ma += 0.5; mb += 0.5; }
+    });
+    a += ma; b += mb;
+    if (ma > mb) a += 2;
+    else if (mb > ma) b += 2;
+  });
+  return { a, b };
+}
+
+function calcDay2() {
+  const a = (scramblePoints(state.day2.a4)||0) + (scramblePoints(state.day2.a2)||0);
+  const b = (scramblePoints(state.day2.b4)||0) + (scramblePoints(state.day2.b2)||0);
+  return { a, b };
+}
+
+function calcDay3() {
+  const { sorted } = computeDay3();
+  let a = 0, b = 0;
+  sorted.forEach(p => {
+    if (p.team === 'A') a += p.pts;
+    else                b += p.pts;
+  });
+  return { a, b };
+}
+
+function isDay1Complete() {
+  return state.day1.matches.every(m => m.holes.every(h => h !== null));
+}
+
+function isDay2Complete() {
+  return ['a4','a2','b4','b2'].every(k => state.day2[k] !== null && state.day2[k] !== '');
+}
+
+function isDay3Complete() {
+  return PLAYERS.every(p => state.day3[p.id] !== undefined && state.day3[p.id] !== '');
+}
+
+/* ─────────────────────────────────────
+   SCOREBOARD UPDATE
+───────────────────────────────────── */
+function updateScoreboard() {
+  const d1 = calcDay1();
+  const d2 = calcDay2();
+  const d3 = calcDay3();
+  const totalA = d1.a + d2.a + d3.a;
+  const totalB = d1.b + d2.b + d3.b;
+
+  const sbA = document.getElementById('sb-total-a');
+  const sbB = document.getElementById('sb-total-b');
+
+  const prevA = parseFloat(sbA.textContent) || 0;
+  const prevB = parseFloat(sbB.textContent) || 0;
+
+  sbA.textContent = fmt(totalA);
+  sbB.textContent = fmt(totalB);
+
+  if (fmt(totalA) !== fmt(prevA)) { sbA.classList.remove('pop'); void sbA.offsetWidth; sbA.classList.add('pop'); }
+  if (fmt(totalB) !== fmt(prevB)) { sbB.classList.remove('pop'); void sbB.offsetWidth; sbB.classList.add('pop'); }
+
+  document.getElementById('sb-chips-a').innerHTML =
+    `<span class="sb-chip">D1: ${fmt(d1.a)}</span><span class="sb-chip">D2: ${fmt(d2.a)}</span><span class="sb-chip">D3: ${fmt(d3.a)}</span>`;
+  document.getElementById('sb-chips-b').innerHTML =
+    `<span class="sb-chip">D1: ${fmt(d1.b)}</span><span class="sb-chip">D2: ${fmt(d2.b)}</span><span class="sb-chip">D3: ${fmt(d3.b)}</span>`;
+
+  const banner = document.getElementById('win-banner');
+  const allDone = isDay1Complete() && isDay2Complete() && isDay3Complete();
+  if (allDone) {
+    if (totalA > totalB) {
+      banner.className = 'win-banner';
+      banner.textContent = `🏆 TEAM A WIN THE WONGA CUP — ${fmt(totalA)} to ${fmt(totalB)} 🏆`;
+      banner.style.display = '';
+    } else if (totalB > totalA) {
+      banner.className = 'win-banner';
+      banner.textContent = `🏆 TEAM B WIN THE WONGA CUP — ${fmt(totalB)} to ${fmt(totalA)} 🏆`;
+      banner.style.display = '';
+    } else {
+      banner.className = 'sd-banner';
+      banner.textContent = `⚡ SUDDEN DEATH PUTT-OFF REQUIRED — ${fmt(totalA)} ALL ⚡`;
+      banner.style.display = '';
+    }
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+/* ─────────────────────────────────────
+   INIT
+───────────────────────────────────── */
+loadState();
+renderTeams();
+renderDay1();
+restoreDay2();
+renderDay3();
+updateScoreboard();
+</script>
+</body>
+</html>
