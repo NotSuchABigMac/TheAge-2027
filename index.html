@@ -1749,11 +1749,9 @@ syncToHash();
 // Load from Supabase on init if configured
 if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   loadFromSupabase().then(() => updateScoreboard());
-  // Auto-poll every 30s in background when not in spectator mode
+  // Auto-poll every 30s for everyone (live scores for all players)
   setInterval(() => {
-    if (!spectatorTimer) {
-      loadFromSupabase().then(() => updateScoreboard());
-    }
+    loadFromSupabase().then(() => updateScoreboard());
   }, 30000);
 }
 </script>
