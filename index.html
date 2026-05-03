@@ -1407,11 +1407,13 @@ function setMatchPlayer(matchIdx, team, slot, val) {
 }
 
 function setMatchResult(matchIdx, winner) {
-  state.day1.matches[matchIdx].winner = winner;
-  if (winner === 'AS') state.day1.matches[matchIdx].margin = null;
-  saveState();
-  renderDay1();
-  updateScoreboard();
+  requireUsername(() => {
+    state.day1.matches[matchIdx].winner = winner;
+    if (winner === 'AS') state.day1.matches[matchIdx].margin = null;
+    saveState();
+    renderDay1();
+    updateScoreboard();
+  });
 }
 
 function setMatchMargin(matchIdx, val) {
@@ -1430,6 +1432,9 @@ function scramblePoints(val) {
 }
 
 function updateDay2() {
+  requireUsername(() => _doUpdateDay2());
+}
+function _doUpdateDay2() {
   const ids = ['a4','a2','b4','b2'];
   ids.forEach(id => {
     const inp = document.getElementById(id + '-score');
@@ -1539,21 +1544,23 @@ function renderDay3() {
 }
 
 function setStableford(pid, val) {
-  state.day3[pid] = val;
-  saveState();
-  const { sorted } = computeDay3();
-  const player = sorted.find(p => p.id === pid);
-  if (player) {
-    const row = document.querySelector(`[data-pid="${pid}"]`)?.closest('tr');
-    if (row) {
-      const ptsCell = row.querySelector('.pts-cell');
-      if (ptsCell) ptsCell.textContent = player.pts > 0 ? (player.pts % 1 === 0 ? player.pts : player.pts.toFixed(1)) : '—';
-      const intensity = player.pts > 0 ? 0.05 + (player.pts / POS_PTS[0]) * 0.28 : 0.03;
-      const rgb = player.team === 'A' ? '240,180,41' : '74,158,255';
-      row.style.background = `rgba(${rgb},${intensity.toFixed(3)})`;
+  requireUsername(() => {
+    state.day3[pid] = val;
+    saveState();
+    const { sorted } = computeDay3();
+    const player = sorted.find(p => p.id === pid);
+    if (player) {
+      const row = document.querySelector(`[data-pid="${pid}"]`)?.closest('tr');
+      if (row) {
+        const ptsCell = row.querySelector('.pts-cell');
+        if (ptsCell) ptsCell.textContent = player.pts > 0 ? (player.pts % 1 === 0 ? player.pts : player.pts.toFixed(1)) : '—';
+        const intensity = player.pts > 0 ? 0.05 + (player.pts / POS_PTS[0]) * 0.28 : 0.03;
+        const rgb = player.team === 'A' ? '240,180,41' : '74,158,255';
+        row.style.background = `rgba(${rgb},${intensity.toFixed(3)})`;
+      }
     }
-  }
-  updateScoreboard();
+    updateScoreboard();
+  });
 }
 
 /* ─────────────────────────────────────
@@ -1802,38 +1809,41 @@ async function loadFromSupabase() {
 /* ─────────────────────────────────────
    USERNAME & LOGIN
 ───────────────────────────────────── */
+var _pendingAction = null;
+
+function requireUsername(action) {
+  if (currentUsername) { if (action) action(); return; }
+  _pendingAction = action || null;
+  document.getElementById('username-modal').classList.remove('hidden');
+  document.getElementById('username-input').focus();
+}
+
 function confirmUsername() {
   const input = document.getElementById('username-input');
   const name = input.value.trim();
-
   if (!name) {
     input.style.borderColor = 'var(--gold)';
     setTimeout(() => { input.style.borderColor = ''; }, 300);
     return;
   }
-
   currentUsername = name;
   sessionStorage.setItem('wongaCup_username', name);
   document.getElementById('username-modal').classList.add('hidden');
   document.getElementById('username-badge').textContent = `🎯 ${name}`;
   document.getElementById('username-badge').style.display = 'block';
+  if (_pendingAction) { _pendingAction(); _pendingAction = null; }
 }
 
 function initUsername() {
   const saved = sessionStorage.getItem('wongaCup_username');
   if (saved) {
     currentUsername = saved;
-    document.getElementById('username-modal').classList.add('hidden');
     document.getElementById('username-badge').textContent = `🎯 ${saved}`;
     document.getElementById('username-badge').style.display = 'block';
-  } else {
-    document.getElementById('username-modal').classList.remove('hidden');
-    const input = document.getElementById('username-input');
-    input.focus();
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') confirmUsername();
-    });
   }
+  document.getElementById('username-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmUsername();
+  });
 }
 
 
@@ -1910,13 +1920,15 @@ if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
    MINI SCOREBOARD
 ───────────────────────────────────── */
 function saveTeamNames() {
-  const a = document.getElementById('tn-input-a').value.trim();
-  const b = document.getElementById('tn-input-b').value.trim();
-  if (a) state.teamNameA = a;
-  if (b) state.teamNameB = b;
-  saveState();
-  updateTeamNames();
-  renderDay1();
+  requireUsername(() => {
+    const a = document.getElementById('tn-input-a').value.trim();
+    const b = document.getElementById('tn-input-b').value.trim();
+    if (a) state.teamNameA = a;
+    if (b) state.teamNameB = b;
+    saveState();
+    updateTeamNames();
+    renderDay1();
+  });
 }
 
 function updateTeamNames() {
