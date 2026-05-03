@@ -365,7 +365,7 @@ body{padding-bottom:52px}
     <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
   </div>
 </div>
-<div id="yt-player" style="position:fixed;width:300px;height:168px;opacity:0;pointer-events:none;bottom:0;left:0"></div>
+<audio id="bg-audio" src="TheSong.mp3" loop preload="none" style="display:none"></audio>
 
 <!-- Username Picker Modal -->
 <div id="username-modal" class="username-modal">
@@ -1813,54 +1813,12 @@ function initUsername() {
 
 
 /* ─────────────────────────────────────
-   MUSIC — YouTube IFrame API
-   Start muted so ads are silent; unmute
-   the moment our video's ID appears.
+   MUSIC
 ───────────────────────────────────── */
-var _ytPlayer;
-var YT_VIDEO_ID = 'PEsa8NHhTAw';
-
-function onYouTubeIframeAPIReady() {
-  if (window._ytPendingCreate) { window._ytPendingCreate(); }
-}
-
-function loadYouTubeMusic() {
-  function createPlayer() {
-    _ytPlayer = new YT.Player('yt-player', {
-      width: 300, height: 168,
-      videoId: YT_VIDEO_ID,
-      playerVars: { autoplay:1, loop:1, playlist:YT_VIDEO_ID, controls:0, mute:1 },
-      events: {
-        onStateChange: function(e) {
-          if (e.data === YT.PlayerState.PLAYING) {
-            // Check duration after a brief delay — ads are <60s, our track is ~5min
-            setTimeout(function() {
-              try {
-                if (_ytPlayer.getDuration() > 90) {
-                  _ytPlayer.unMute();
-                  _ytPlayer.setVolume(80);
-                }
-              } catch(err) {}
-            }, 500);
-          }
-        }
-      }
-    });
-  }
-  if (window.YT && window.YT.Player) {
-    createPlayer();
-  } else {
-    window._ytPendingCreate = createPlayer;
-    var tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    document.head.appendChild(tag);
-  }
-}
-
 function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   sessionStorage.setItem('musicConsented', '1');
-  loadYouTubeMusic();
+  document.getElementById('bg-audio').play();
 }
 
 function dismissMusic() {
@@ -1871,11 +1829,10 @@ function dismissMusic() {
 /* ─────────────────────────────────────
    INIT
 ───────────────────────────────────── */
-// Show music modal unless already consented this session
 if (!sessionStorage.getItem('musicConsented')) {
   document.getElementById('music-modal').classList.remove('hidden');
 } else if (sessionStorage.getItem('musicConsented') === '1') {
-  loadYouTubeMusic();
+  document.getElementById('bg-audio').play();
 }
 
 initUsername();
