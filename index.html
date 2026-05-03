@@ -365,7 +365,9 @@ body{padding-bottom:52px}
     <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
   </div>
 </div>
-<div id="yt-player" style="position:fixed;width:300px;height:166px;opacity:0;pointer-events:none;bottom:0;left:0"></div>
+<iframe id="sc-player" width="300" height="166" scrolling="no" frameborder="no" allow="autoplay"
+  src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/jessebloch/totoafricapsyeditjessebloch&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"
+  style="position:fixed;width:300px;height:166px;opacity:0;pointer-events:none;bottom:0;left:0"></iframe>
 
 <!-- Username Picker Modal -->
 <div id="username-modal" class="username-modal">
@@ -645,8 +647,8 @@ body{padding-bottom:52px}
         </div>
       </div>
       <div class="day-body">
-        <div class="schedule-item"><div class="schedule-time">2:00 PM</div><div class="schedule-desc"><strong>Check-in</strong> opens — 45 Anchorage Way 2, Yarrawonga</div></div>
         <div class="schedule-item"><div class="schedule-time">12:00 PM</div><div class="schedule-desc"><strong>Tee time</strong> — Murray Course, Yarrawonga Mulwala Golf Club Resort<br><span class="grey" style="font-size:.85rem">Format: Match Play Best Ball — one 1v1 singles, two 2v2 doubles. 10 players.</span></div></div>
+        <div class="schedule-item"><div class="schedule-time">2:00 PM</div><div class="schedule-desc"><strong>Check-in</strong> opens — 45 Anchorage Way 2, Yarrawonga</div></div>
         <div class="schedule-item"><div class="schedule-time">Eve</div><div class="schedule-desc"><strong>Team dinner</strong> — venue TBC. Scores settled, stories started.</div></div>
       </div>
     </div>
@@ -1815,12 +1817,16 @@ function initUsername() {
 /* ─────────────────────────────────────
    MUSIC
 ───────────────────────────────────── */
+function scPlay() {
+  const iframe = document.getElementById('sc-player');
+  if (iframe) iframe.contentWindow.postMessage(JSON.stringify({method:'play'}), '*');
+}
+
 function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
-  const player = document.getElementById('yt-player');
-  player.innerHTML = `<iframe width="300" height="166" scrolling="no" frameborder="no" allow="autoplay"
-    src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/jessebloch/totoafricapsyeditjessebloch&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"></iframe>`;
   sessionStorage.setItem('musicConsented', '1');
+  // iframe is already loaded — send play while user gesture is still active
+  scPlay();
 }
 
 function dismissMusic() {
@@ -1835,10 +1841,8 @@ function dismissMusic() {
 if (!sessionStorage.getItem('musicConsented')) {
   document.getElementById('music-modal').classList.remove('hidden');
 } else if (sessionStorage.getItem('musicConsented') === '1') {
-  // Re-start music if they consented earlier in this session
-  const player = document.getElementById('yt-player');
-  player.innerHTML = `<iframe width="300" height="166" scrolling="no" frameborder="no" allow="autoplay"
-    src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/jessebloch/totoafricapsyeditjessebloch&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"></iframe>`;
+  // Consented earlier — play once iframe is ready
+  document.getElementById('sc-player').addEventListener('load', () => setTimeout(scPlay, 300));
 }
 
 initUsername();
