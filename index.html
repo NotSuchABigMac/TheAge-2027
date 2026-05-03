@@ -365,7 +365,7 @@ body{padding-bottom:52px}
     <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
   </div>
 </div>
-<div id="yt-player" style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;left:0"></div>
+<div id="yt-player" style="position:fixed;width:300px;height:166px;opacity:0;pointer-events:none;bottom:0;left:0"></div>
 
 <!-- Username Picker Modal -->
 <div id="username-modal" class="username-modal">
@@ -1818,9 +1818,8 @@ function initUsername() {
 function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   const player = document.getElementById('yt-player');
-  player.innerHTML = `<iframe width="1" height="1"
-    src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/jessebloch/totoafricapsyeditjessebloch&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"
-    allow="autoplay" frameborder="0"></iframe>`;
+  player.innerHTML = `<iframe width="300" height="166" scrolling="no" frameborder="no" allow="autoplay"
+    src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/jessebloch/totoafricapsyeditjessebloch&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"></iframe>`;
   sessionStorage.setItem('musicConsented', '1');
 }
 
@@ -1838,9 +1837,8 @@ if (!sessionStorage.getItem('musicConsented')) {
 } else if (sessionStorage.getItem('musicConsented') === '1') {
   // Re-start music if they consented earlier in this session
   const player = document.getElementById('yt-player');
-  player.innerHTML = `<iframe width="1" height="1"
-    src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/jessebloch/totoafricapsyeditjessebloch&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"
-    allow="autoplay" frameborder="0"></iframe>`;
+  player.innerHTML = `<iframe width="300" height="166" scrolling="no" frameborder="no" allow="autoplay"
+    src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/jessebloch/totoafricapsyeditjessebloch&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"></iframe>`;
 }
 
 initUsername();
