@@ -365,9 +365,7 @@ body{padding-bottom:52px}
     <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
   </div>
 </div>
-<iframe id="sc-player" width="300" height="166" scrolling="no" frameborder="no" allow="autoplay"
-  src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/jessebloch/totoafricapsyeditjessebloch&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false"
-  style="position:fixed;width:300px;height:166px;opacity:0;pointer-events:none;bottom:0;left:0"></iframe>
+<div id="yt-player" style="position:fixed;width:300px;height:168px;opacity:0;pointer-events:none;bottom:0;left:0"></div>
 
 <!-- Username Picker Modal -->
 <div id="username-modal" class="username-modal">
@@ -1815,18 +1813,52 @@ function initUsername() {
 
 
 /* ─────────────────────────────────────
-   MUSIC
+   MUSIC — YouTube IFrame API
+   Start muted so ads are silent; unmute
+   the moment our video's ID appears.
 ───────────────────────────────────── */
-function scPlay() {
-  const iframe = document.getElementById('sc-player');
-  if (iframe) iframe.contentWindow.postMessage(JSON.stringify({method:'play'}), '*');
+var _ytPlayer;
+var YT_VIDEO_ID = 'PEsa8NHhTAw';
+
+function onYouTubeIframeAPIReady() {
+  if (window._ytPendingCreate) { window._ytPendingCreate(); }
+}
+
+function loadYouTubeMusic() {
+  function createPlayer() {
+    _ytPlayer = new YT.Player('yt-player', {
+      width: 300, height: 168,
+      videoId: YT_VIDEO_ID,
+      playerVars: { autoplay:1, loop:1, playlist:YT_VIDEO_ID, controls:0, mute:1 },
+      events: {
+        onStateChange: function(e) {
+          if (e.data === YT.PlayerState.PLAYING) {
+            // Unmute only when our actual video is playing (not an ad)
+            try {
+              if (_ytPlayer.getVideoData().video_id === YT_VIDEO_ID) {
+                _ytPlayer.unMute();
+                _ytPlayer.setVolume(80);
+              }
+            } catch(err) {}
+          }
+        }
+      }
+    });
+  }
+  if (window.YT && window.YT.Player) {
+    createPlayer();
+  } else {
+    window._ytPendingCreate = createPlayer;
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+  }
 }
 
 function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   sessionStorage.setItem('musicConsented', '1');
-  // iframe is already loaded — send play while user gesture is still active
-  scPlay();
+  loadYouTubeMusic();
 }
 
 function dismissMusic() {
@@ -1841,8 +1873,7 @@ function dismissMusic() {
 if (!sessionStorage.getItem('musicConsented')) {
   document.getElementById('music-modal').classList.remove('hidden');
 } else if (sessionStorage.getItem('musicConsented') === '1') {
-  // Consented earlier — play once iframe is ready
-  document.getElementById('sc-player').addEventListener('load', () => setTimeout(scPlay, 300));
+  loadYouTubeMusic();
 }
 
 initUsername();
