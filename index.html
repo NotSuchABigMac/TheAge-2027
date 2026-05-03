@@ -1833,13 +1833,15 @@ function loadYouTubeMusic() {
       events: {
         onStateChange: function(e) {
           if (e.data === YT.PlayerState.PLAYING) {
-            // Unmute only when our actual video is playing (not an ad)
-            try {
-              if (_ytPlayer.getVideoData().video_id === YT_VIDEO_ID) {
-                _ytPlayer.unMute();
-                _ytPlayer.setVolume(80);
-              }
-            } catch(err) {}
+            // Check duration after a brief delay — ads are <60s, our track is ~5min
+            setTimeout(function() {
+              try {
+                if (_ytPlayer.getDuration() > 90) {
+                  _ytPlayer.unMute();
+                  _ytPlayer.setVolume(80);
+                }
+              } catch(err) {}
+            }, 500);
           }
         }
       }
