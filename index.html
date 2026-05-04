@@ -1185,6 +1185,7 @@ const SUPABASE_CONFIG = {
   tournamentId: 'wonga-cup-2026',
   sessionKey: 'wonga-cup-2026'
 };
+const LAST_SYNC_KEY = 'wongaCup2026_lastSync';
 
 let currentUsername = null;
 let isOffline = false;
@@ -1249,9 +1250,6 @@ function saveState() {
     localStorage.setItem('wongaCup2026', JSON.stringify(s));
   } catch(e) {}
   lastSaveTime = Date.now();
-  if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
-    saveToSupabase();
-  }
 }
 
 function loadState() {
@@ -1325,6 +1323,9 @@ function renderTeams() {
 function movePlayer(id, fromA) {
   if (fromA) { state.teamA.delete(id); state.teamB.add(id); }
   else        { state.teamB.delete(id); state.teamA.add(id); }
+  saveState();
+  insertUpdate('team_assign', { field_key: 'A', value: JSON.stringify([...state.teamA]) });
+  insertUpdate('team_assign', { field_key: 'B', value: JSON.stringify([...state.teamB]) });
   renderTeams();
 }
 
@@ -1454,6 +1455,7 @@ function setMatchResult(matchIdx, winner) {
     state.day1.matches[matchIdx].winner = winner;
     if (winner === 'AS') state.day1.matches[matchIdx].margin = null;
     saveState();
+    insertUpdate('day1_match', { match_idx: matchIdx, value: winner });
     renderDay1();
     updateScoreboard();
   });
@@ -1462,6 +1464,7 @@ function setMatchResult(matchIdx, winner) {
 function setMatchMargin(matchIdx, val) {
   state.day1.matches[matchIdx].margin = val === '' ? null : parseInt(val);
   saveState();
+  insertUpdate('day1_margin', { match_idx: matchIdx, value: val === '' ? null : parseInt(val) });
 }
 
 /* ─────────────────────────────────────
@@ -1475,7 +1478,12 @@ function scramblePoints(val) {
 }
 
 function updateDay2() {
-  requireUsername(() => _doUpdateDay2());
+  requireUsername(() => {
+    _doUpdateDay2();
+    ['a4','a2','b4','b2'].forEach(id => {
+      insertUpdate('day2_score', { field_key: id, value: state.day2[id] });
+    });
+  });
 }
 function _doUpdateDay2() {
   const ids = ['a4','a2','b4','b2'];
@@ -1590,6 +1598,7 @@ function setStableford(pid, val) {
   requireUsername(() => {
     state.day3[pid] = val;
     saveState();
+    insertUpdate('day3_stableford', { player_id: pid, value: val });
     const { sorted } = computeDay3();
     const player = sorted.find(p => p.id === pid);
     if (player) {
@@ -1717,83 +1726,70 @@ function showSaveToast(message, type) {
   }
 }
 
-async function saveToSupabase() {
-  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) {
-    console.log('Supabase not configured or no username');
-    return;
-  }
-
+async function insertUpdate(updateType, fields) {
+  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) return;
   showSaveToast('Saving...', 'saving');
-
+  const row = {
+    tournament_id: SUPABASE_CONFIG.tournamentId,
+    update_type: updateType,
+    updated_by: currentUsername,
+    match_idx:  fields.match_idx  !== undefined ? fields.match_idx  : null,
+    player_id:  fields.player_id  !== undefined ? fields.player_id  : null,
+    field_key:  fields.field_key  !== undefined ? String(fields.field_key) : null,
+    value:      fields.value      !== null && fields.value !== undefined ? String(fields.value) : null
+  };
   try {
-    const stateJson = JSON.stringify({
-      teamA: [...state.teamA],
-      teamB: [...state.teamB],
-      day1: state.day1,
-      day2: state.day2,
-      day3: state.day3
-    });
-
-    const patchUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&session_key=eq.${SUPABASE_CONFIG.sessionKey}`;
-    console.log('Attempting PATCH to shared record');
-
-    const patchResp = await fetch(patchUrl, {
-      method: 'PATCH',
+    const resp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates`, {
+      method: 'POST',
       headers: {
         'apikey': SUPABASE_CONFIG.apiKey,
         'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+        'Prefer': 'return=minimal'
       },
-      body: JSON.stringify({
-        state_json: stateJson,
-        updated_by: currentUsername,
-        updated_at: new Date().toISOString()
-      })
+      body: JSON.stringify(row)
     });
-
-    if (!patchResp.ok) {
-      console.error(`PATCH failed with status ${patchResp.status}:`, await patchResp.text());
-      throw new Error(`PATCH failed: ${patchResp.status}`);
-    }
-
-    const patchData = await patchResp.json();
-    console.log('PATCH response rows:', patchData.length);
-
-    // If PATCH updated 0 rows, the record doesn't exist yet - create it
-    if (patchData.length === 0) {
-      console.log('No existing record found, creating via POST');
-      const postResp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_CONFIG.apiKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify({
-          tournament_id: SUPABASE_CONFIG.tournamentId,
-          session_key: SUPABASE_CONFIG.sessionKey,
-          state_json: stateJson,
-          updated_by: currentUsername,
-          updated_at: new Date().toISOString()
-        })
-      });
-      if (!postResp.ok) {
-        console.error(`POST failed with status ${postResp.status}:`, await postResp.text());
-        throw new Error(`POST failed: ${postResp.status}`);
-      }
-      console.log('Record created successfully');
-    } else {
-      console.log('Record updated successfully');
-    }
-
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
     isOffline = false;
     document.getElementById('offline-banner').style.display = 'none';
     showSaveToast('✓ Saved', 'success');
   } catch(err) {
-    console.error('Supabase save failed:', err.message);
+    console.error('Supabase insert failed:', err.message);
     isOffline = true;
     document.getElementById('offline-banner').style.display = 'block';
-    showSaveToast('✗ Save Failed', 'error');
+    showSaveToast('✗ Offline', 'error');
+  }
+}
+
+function applyUpdate(row) {
+  const v = row.value;
+  switch (row.update_type) {
+    case 'day1_match':
+      if (row.match_idx !== null && row.match_idx !== undefined) {
+        state.day1.matches[row.match_idx].winner = v;
+        if (v === 'AS') state.day1.matches[row.match_idx].margin = null;
+      }
+      break;
+    case 'day1_margin':
+      if (row.match_idx !== null && row.match_idx !== undefined) {
+        state.day1.matches[row.match_idx].margin = v === null || v === 'null' ? null : parseInt(v);
+      }
+      break;
+    case 'day2_score':
+      if (row.field_key) state.day2[row.field_key] = v === null || v === 'null' ? null : v;
+      break;
+    case 'day3_stableford':
+      if (row.player_id !== null && row.player_id !== undefined) {
+        state.day3[row.player_id] = v === null || v === 'null' ? null : v;
+      }
+      break;
+    case 'team_name':
+      if (row.field_key === 'A') state.teamNameA = v;
+      else if (row.field_key === 'B') state.teamNameB = v;
+      break;
+    case 'team_assign':
+      if (row.field_key === 'A') state.teamA = new Set(JSON.parse(v));
+      else if (row.field_key === 'B') state.teamB = new Set(JSON.parse(v));
+      break;
   }
 }
 
@@ -1802,45 +1798,21 @@ async function loadFromSupabase() {
     console.log('Supabase not configured');
     return false;
   }
-
+  const lastSync = localStorage.getItem(LAST_SYNC_KEY) || '1970-01-01T00:00:00.000Z';
   try {
-    const loadUrl = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_scores?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&order=updated_at.desc&limit=1`;
-    console.log('Loading from Supabase');
-
-    const response = await fetch(loadUrl, {
-      method: 'GET',
-      headers: {
-        'apikey': SUPABASE_CONFIG.apiKey,
-        'Content-Type': 'application/json'
-      }
+    const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gt.${encodeURIComponent(lastSync)}&order=updated_at.asc&limit=500`;
+    const resp = await fetch(url, {
+      headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' }
     });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    console.log('Supabase load result:', data.length > 0 ? 'Got data' : 'No data');
-
-    if (data.length === 0) {
-      console.log('No records found in Supabase');
-      return false;
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const rows = await resp.json();
+    if (rows.length > 0) {
+      rows.forEach(row => applyUpdate(row));
+      localStorage.setItem(LAST_SYNC_KEY, rows[rows.length - 1].updated_at);
     }
-
-    const remoteState = JSON.parse(data[0].state_json);
-    console.log('Loaded state from Supabase, updated by:', data[0].updated_by);
-    console.log('Remote state:', remoteState);
-
-    // Take the remote state as-is (server is source of truth)
-    // Auto-saves prevent significant data loss
-    state.teamA = new Set(remoteState.teamA);
-    state.teamB = new Set(remoteState.teamB);
-    state.day1 = remoteState.day1;
-    state.day2 = remoteState.day2;
-    state.day3 = remoteState.day3;
-    console.log('State updated from remote');
-
     isOffline = false;
     document.getElementById('offline-banner').style.display = 'none';
-    return true;
+    return rows.length > 0;
   } catch(err) {
     console.error('Supabase load failed:', err.message);
     isOffline = true;
@@ -1966,8 +1938,8 @@ function saveTeamNames() {
   requireUsername(() => {
     const a = document.getElementById('tn-input-a').value.trim();
     const b = document.getElementById('tn-input-b').value.trim();
-    if (a) state.teamNameA = a;
-    if (b) state.teamNameB = b;
+    if (a) { state.teamNameA = a; insertUpdate('team_name', { field_key: 'A', value: a }); }
+    if (b) { state.teamNameB = b; insertUpdate('team_name', { field_key: 'B', value: b }); }
     saveState();
     updateTeamNames();
     renderDay1();
