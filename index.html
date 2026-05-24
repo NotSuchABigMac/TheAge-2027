@@ -440,6 +440,9 @@ body{padding-bottom:52px}
       <p>From Friday's match play battles to Saturday's scramble chaos and Sunday's individual Stableford grind, there are points up for grabs at every turn. The Wonga Cup is awarded to the winning team. Individual glory beckons in the form of Longest Drive, Nearest the Pin, and the not-entirely-coveted Silly Goose Hat. May the best team win — and may everyone else at least have a story worth telling at dinner.</p>
     </div>
 
+    <!-- Teams -->
+    <div id="overview-teams"></div>
+
     <!-- Roll of Honour -->
     <div class="section-header">
       <div class="section-label">History</div>
@@ -866,7 +869,7 @@ body{padding-bottom:52px}
     </div>
     <div class="player-grid">
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="0">
         <div class="player-card-header">
           <div class="player-name">Brendan<br>Cunningham</div>
           <div class="player-hcp">7.0</div>
@@ -877,7 +880,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="1">
         <div class="player-card-header">
           <div class="player-name">Gary<br>King</div>
           <div class="player-hcp">10.0</div>
@@ -888,7 +891,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="2">
         <div class="player-card-header">
           <div class="player-name">Matthew<br>Smith</div>
           <div class="player-hcp">15.8</div>
@@ -899,7 +902,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="3">
         <div class="player-card-header">
           <div class="player-name">James<br>McIntyre</div>
           <div class="player-hcp">17.7</div>
@@ -910,7 +913,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="4">
         <div class="player-card-header">
           <div class="player-name">Cayden<br>Woods</div>
           <div class="player-hcp">24.0</div>
@@ -921,7 +924,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="5">
         <div class="player-card-header">
           <div class="player-name">Scott<br>Rumbelow</div>
           <div class="player-hcp">25.0</div>
@@ -932,7 +935,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="6">
         <div class="player-card-header">
           <div class="player-name">Matthew<br>Freestun</div>
           <div class="player-hcp">26.7</div>
@@ -943,7 +946,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="7">
         <div class="player-card-header">
           <div class="player-name">Nathan<br>Freestun</div>
           <div class="player-hcp">27.0</div>
@@ -954,7 +957,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="8">
         <div class="player-card-header">
           <div class="player-name">Steve<br>Koenig</div>
           <div class="player-hcp">31.0</div>
@@ -965,7 +968,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="9">
         <div class="player-card-header">
           <div class="player-name">Jimmy<br>Hepburn</div>
           <div class="player-hcp">TBC</div>
@@ -976,7 +979,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="10">
         <div class="player-card-header">
           <div class="player-name">Robert<br>Hughes</div>
           <div class="player-hcp">38.0</div>
@@ -987,7 +990,7 @@ body{padding-bottom:52px}
         </div>
       </div>
 
-      <div class="player-card">
+      <div class="player-card" data-field-pid="11">
         <div class="player-card-header">
           <div class="player-name">Ben<br>Lepore</div>
           <div class="player-hcp">44.0</div>
@@ -1317,6 +1320,8 @@ function renderTeams() {
   updateScoreboard();
   renderDay1();
   renderDay3();
+  renderOverviewTeams();
+  renderFieldTeamBadges();
 }
 
 function movePlayer(id, fromA) {
@@ -1332,6 +1337,54 @@ function resetTeams() {
   state.teamA = new Set(DEFAULT_A);
   state.teamB = new Set(DEFAULT_B);
   renderTeams();
+}
+
+function renderOverviewTeams() {
+  const el = document.getElementById('overview-teams');
+  if (!el) return;
+  const nameA = state.teamNameA || 'Team A';
+  const nameB = state.teamNameB || 'Team B';
+  const playersA = PLAYERS.filter(p => state.teamA.has(p.id));
+  const playersB = PLAYERS.filter(p => state.teamB.has(p.id));
+  const makeList = (players) => players.map(p =>
+    `<li style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+      <span style="color:var(--off-white)">${p.name}</span>
+      <span style="font-size:.8rem;color:var(--grey)">HCP ${p.hcp}</span>
+    </li>`
+  ).join('');
+  el.innerHTML = `
+    <div class="section-header" style="padding-top:32px">
+      <div class="section-label">2026</div>
+      <div class="section-title">The Teams</div>
+    </div>
+    <div class="grid-2" style="gap:16px;margin-bottom:32px">
+      <div class="card">
+        <div style="font-family:var(--font-h);font-size:.72rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:12px">${nameA}</div>
+        <ul style="list-style:none;padding:0;margin:0">${makeList(playersA)}</ul>
+      </div>
+      <div class="card">
+        <div style="font-family:var(--font-h);font-size:.72rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:12px">${nameB}</div>
+        <ul style="list-style:none;padding:0;margin:0">${makeList(playersB)}</ul>
+      </div>
+    </div>`;
+}
+
+function renderFieldTeamBadges() {
+  PLAYERS.forEach(p => {
+    const card = document.querySelector(`[data-field-pid="${p.id}"]`);
+    if (!card) return;
+    let badge = card.querySelector('.field-team-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      const body = card.querySelector('.player-card-body');
+      if (body) body.insertBefore(badge, body.firstChild);
+    }
+    const inA = state.teamA.has(p.id);
+    const teamName = inA ? (state.teamNameA || 'Team A') : (state.teamNameB || 'Team B');
+    badge.className = `field-team-badge team-badge ${inA ? 'ta-badge' : 'tb-badge'}`;
+    badge.style.cssText = 'display:inline-block;margin-bottom:10px';
+    badge.textContent = teamName;
+  });
 }
 
 /* ─────────────────────────────────────
@@ -1904,6 +1957,8 @@ function refreshAllDays() {
     console.log('Day 3 rendered');
     updateScoreboard();
     console.log('Scoreboard updated');
+    renderOverviewTeams();
+    renderFieldTeamBadges();
   } catch(e) {
     console.error('Error rendering days:', e);
   }
