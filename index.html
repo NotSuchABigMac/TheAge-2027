@@ -26,25 +26,41 @@
 <!-- ═══════════════════════════════════════════════════════════════════════
      MASTHEAD
 ═══════════════════════════════════════════════════════════════════════ -->
-<header class="masthead">
+<header class="masthead" id="masthead">
   <div class="masthead-inner">
     <div class="masthead-left">
-      <span>Inaugural Edition</span>
+      <span>A.G.E.</span>
       <span class="moto">·</span>
       <span class="moto">2026</span>
     </div>
-    <a href="index.html" class="masthead-center">The Wonga Cup</a>
-    <nav class="masthead-right">
-      <a href="#welcome">Welcome</a>
-      <a href="#honour">Honours</a>
-      <a href="#field">Field</a>
-      <a href="#course">Course</a>
-      <a href="#programme">Schedule</a>
-      <a href="#kit">Kit List</a>
-      <a href="scorecard.html" class="nav-cta">Live Scorecard ↗</a>
-    </nav>
+    <a href="index.html" class="masthead-center">A.G.E IV: The Wonga Cup</a>
+    <div class="masthead-right">
+      <nav>
+        <a href="#welcome">Welcome</a>
+        <a href="#honour">Honours</a>
+        <a href="#field">Field</a>
+        <a href="#course">Course</a>
+        <a href="#programme">Schedule</a>
+        <a href="#kit">Kit List</a>
+        <a href="scorecard.html" class="nav-cta">Scorecard ↗</a>
+      </nav>
+      <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
   </div>
 </header>
+
+<!-- Mobile nav -->
+<nav class="mobile-menu" id="mobile-menu" aria-hidden="true">
+  <a href="#welcome" class="mm-link" onclick="closeMenu()">Welcome</a>
+  <a href="#honour" class="mm-link" onclick="closeMenu()">Honours</a>
+  <a href="#field" class="mm-link" onclick="closeMenu()">Field</a>
+  <a href="#course" class="mm-link" onclick="closeMenu()">Course</a>
+  <a href="#programme" class="mm-link" onclick="closeMenu()">Schedule</a>
+  <a href="#kit" class="mm-link" onclick="closeMenu()">Kit List</a>
+  <a href="scorecard.html" class="mm-link mm-cta">Live Scorecard ↗</a>
+</nav>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
      HERO
@@ -53,22 +69,10 @@
   <div class="hero-photo" style="background-image:url('images/course-black-bull.jpg')"></div>
   <div class="hero-scrim"></div>
   <div class="hero-inner">
-    <div class="hero-top">
-      <div class="lhs">
-        <span>The Wonga Cup</span>
-        <span>·</span>
-        <span>Est. 2023</span>
-      </div>
-      <div class="rhs">
-        <div>Yarrawonga · Murray Border</div>
-        <div>7 — 9 August 2026</div>
-      </div>
-    </div>
-
     <div class="hero-middle">
       <div class="hero-edition">IV</div>
       <div class="hero-title">The Wonga Cup</div>
-      <div class="hero-sub">Fourth annual. Yarrawonga, August 2026.</div>
+      <div class="hero-sub">Annual Golf Extravaganza · Fourth Edition · Yarrawonga 2026</div>
     </div>
 
     <div class="hero-bottom">
@@ -847,6 +851,28 @@ if (!sessionStorage.getItem('musicConsented')) {
   window.addEventListener('scroll', update, { passive: true });
   update();
 })();
+
+// Hamburger menu
+function toggleMenu() {
+  const menu = document.getElementById('mobile-menu');
+  const btn = document.getElementById('hamburger');
+  const open = menu.classList.toggle('is-open');
+  btn.classList.toggle('is-open', open);
+  btn.setAttribute('aria-expanded', open);
+  menu.setAttribute('aria-hidden', !open);
+  // Lock page scroll while menu is open
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+function closeMenu() {
+  const menu = document.getElementById('mobile-menu');
+  const btn = document.getElementById('hamburger');
+  menu.classList.remove('is-open');
+  btn.classList.remove('is-open');
+  btn.setAttribute('aria-expanded', 'false');
+  menu.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+document.getElementById('hamburger').addEventListener('click', toggleMenu);
 </script>
 
 </body>
