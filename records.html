@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="green" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>History &amp; Records · The Wonga Cup · MMXXVI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Music Warning Modal -->
+<div id="music-modal" class="music-modal hidden">
+  <div class="music-modal-card">
+    <div class="music-modal-icon">🔊</div>
+    <div class="music-modal-title">⚠ WARNING</div>
+    <div class="music-modal-body">This site contains <strong>appropriate music.</strong><br><br>Click YES to agree to play music.<br><br><strong>Turn your volume all the way up.</strong></div>
+    <button class="music-yes" onclick="startMusic()">YES, I AGREE</button><br>
+    <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
+  </div>
+</div>
+<audio id="bg-audio" src="TheSong.mp3" loop preload="none" style="display:none"></audio>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     MASTHEAD
+═══════════════════════════════════════════════════════════════════════ -->
+<header class="masthead masthead--scrolled" id="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-left">
+      <span>A.G.E.</span>
+      <span class="moto">·</span>
+      <span class="moto">2026</span>
+    </div>
+    <a href="index.html" class="masthead-center">A.G.E IV: The Wonga Cup</a>
+    <div class="masthead-right">
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="golfers.html">Golfers</a>
+        <a href="records.html">Records</a>
+        <a href="practical.html">Practical</a>
+        <a href="scorecard.html" class="nav-cta">Scorecard ↗</a>
+      </nav>
+      <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile nav -->
+<nav class="mobile-menu" id="mobile-menu" aria-hidden="true">
+  <a href="index.html" class="mm-link" onclick="closeMenu()">Home</a>
+  <a href="golfers.html" class="mm-link" onclick="closeMenu()">Golfers</a>
+  <a href="records.html" class="mm-link" onclick="closeMenu()">Records</a>
+  <a href="practical.html" class="mm-link" onclick="closeMenu()">Practical</a>
+  <a href="scorecard.html" class="mm-link mm-cta">Live Scorecard ↗</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ROLL OF HONOUR
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="honour" style="padding-top:96px">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>01</span>
+        <span class="num">Honours</span>
+        <span>Past Champions</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">Three editions in, <em class="serif--italic">three different winners</em>.</h2>
+        <p class="standfirst">Started as an individual contest. Has been team-versus-team since 2024. Hasn't left Victoria yet.</p>
+      </div>
+    </div>
+
+    <div class="honour-grid">
+      <div>
+        <table class="ed-table">
+          <thead>
+            <tr><th style="width:80px">Year</th><th>Champion</th><th>Venue</th><th class="r">Margin</th></tr>
+          </thead>
+          <tbody>
+            <tr class="feat">
+              <td>2025</td>
+              <td>Team Underdogs<span class="smol">S. Rumbelow · S. Koenig · R. Hughes · N. Freestun</span></td>
+              <td>Mornington Peninsula<span class="smol">Moonah · Eagle Ridge · Devilbend</span></td>
+              <td class="r">60.5 — 38.5</td>
+            </tr>
+            <tr>
+              <td>2024</td>
+              <td>Six Foreskins<span class="smol">M. Freestun · S. Koenig · B. Lepore · C. Woods</span></td>
+              <td>Ballarat<span class="smol">Ballarat G.C. · RACV Goldfields · Buninyong</span></td>
+              <td class="r">31.5 — 21.5</td>
+            </tr>
+            <tr>
+              <td>2023</td>
+              <td>S. Koenig <em class="cap-italic muted" style="font-size:0.9em">(individual)</em><span class="smol">Inaugural — no teams contested</span></td>
+              <td>Bellarine Peninsula<span class="smol">Curlewis · Curlewis Mini · Portarlington</span></td>
+              <td class="r">+7</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Minor Awards History -->
+        <div style="margin-top:48px">
+          <h3 class="h-large" style="margin-bottom:24px">Minor Awards History</h3>
+          <table class="ed-table">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Longest Drive</th>
+                <th>Meltdown Medal</th>
+                <th>Pub Captain</th>
+                <th>Silly Goose Hat</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>2023</td><td>N. Freestun 229m</td><td class="tag">N/A</td><td>R. Hughes</td><td class="tag">Not introduced</td></tr>
+              <tr><td>2024</td><td>M. Freestun 255m</td><td>S. Rumbelow</td><td>R. Hughes</td><td class="tag">Not introduced</td></tr>
+              <tr><td>2025</td><td>G. King 272m</td><td>N. Freestun</td><td>R. Hughes</td><td>G. King</td></tr>
+              <tr><td>2026</td><td class="tag">TBD</td><td class="tag">TBD</td><td class="tag">TBD</td><td class="tag">TBD</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="honour-photo" style="background-image:url('images/teams-photo.png');background-position:center 20%"></div>
+        <div class="cap">Defending Champions · Team Underdogs, Moonah Links 2025</div>
+
+        <!-- Records -->
+        <div style="margin-top:40px">
+          <h3 class="h-large" style="margin-bottom:16px">All-Time Records</h3>
+          <div class="records" style="grid-template-columns:1fr">
+            <div class="col">
+              <h4>Most Appearances</h4>
+              <div class="row"><div class="n">3</div><div class="who">J. McIntyre · M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · S. Koenig</div></div>
+            </div>
+            <div class="col" style="margin-top:16px">
+              <h4>Most Team Wins</h4>
+              <div class="row"><div class="n">2</div><div class="who">S. Koenig</div></div>
+              <div class="row"><div class="n">1</div><div class="who">M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · B. Lepore · C. Woods</div></div>
+              <div class="row"><div class="n muted">0</div><div class="who muted">J. McIntyre · B. Cunningham · G. King</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     TROPHIES ON OFFER
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="trophies" class="alt">
+  <div class="shell shell--wide">
+    <div class="section-head">
+      <div class="meta">
+        <span>02</span>
+        <span class="num">Trophies</span>
+        <span>On the Line</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">One Cup. <em class="serif--italic">Six side honours.</em></h2>
+        <p class="standfirst">The Wonga Cup is contested between sides. The six minor honours are decided across individuals, hole records, and the verdict of a Pub Captain whose tenure is yet to be challenged.</p>
+      </div>
+    </div>
+
+    <div class="awards">
+      <div class="award">
+        <span class="l">Cup</span>
+        <span class="name">The <em>Wonga</em> Cup</span>
+        <p>Awarded to the winning side across all three days. Bragging rights until the following August.</p>
+        <span class="holder">Holders · Team Underdogs '25</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">Longest <em>Drive</em></span>
+        <p>Furthest measured drive on the nominated hole. Carts ineligible.</p>
+        <span class="holder">Holder · G. King · 272m</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">Nearest the <em>Pin</em></span>
+        <p>Closest tee shot to the flag on the nominated par 3.</p>
+        <span class="holder">Holder · vacant</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">The <em>Silly Goose</em> Hat</span>
+        <p>For the single most baffling decision made on a golf course across the weekend.</p>
+        <span class="holder">Holder · G. King</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">Worst <em>Blow-Up</em></span>
+        <p>Highest single-hole score in the tournament. A badge of honour for the genuinely cursed.</p>
+        <span class="holder">Holder · S. Rumbelow · −13</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">The <em>Meltdown</em> Medal</span>
+        <p>For the most spectacular loss of composure observed on the course.</p>
+        <span class="holder">Holder · N. Freestun</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">Pub Captain's <em>Choice</em></span>
+        <p>The wildcard. Awarded by the Pub Captain on merit or entertainment, whichever applies.</p>
+        <span class="holder">Holder · R. Hughes ×3</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ALL-TIME RECORDS
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="records" class="dense">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>03</span>
+        <span class="num">Records</span>
+        <span>All-Time</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">Three editions in. <em class="serif--italic">The book starts to write itself.</em></h2>
+      </div>
+    </div>
+
+    <div class="records">
+      <div class="col">
+        <h4>Most Appearances</h4>
+        <div class="row"><div class="n">III</div><div class="who">J. McIntyre · M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · S. Koenig</div></div>
+        <div class="row"><div class="n">II</div><div class="who">G. King · B. Cunningham</div></div>
+        <div class="row"><div class="n">I</div><div class="who">B. Lepore · C. Woods</div></div>
+      </div>
+
+      <div class="col">
+        <h4>Most Team Victories</h4>
+        <div class="row"><div class="n">II</div><div class="who">S. Koenig</div></div>
+        <div class="row"><div class="n">I</div><div class="who">M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · B. Lepore · C. Woods</div></div>
+        <div class="row"><div class="n muted">0</div><div class="who muted">J. McIntyre · B. Cunningham · G. King</div></div>
+      </div>
+
+      <div class="col">
+        <h4>Career Numbers</h4>
+        <div class="row"><div class="n">272m</div><div class="who">Longest measured drive · G. King · 2025</div></div>
+        <div class="row"><div class="n">−7</div><div class="who">Inaugural weekend medal · S. Koenig · 2023</div></div>
+        <div class="row"><div class="n">36–7</div><div class="who">Largest Stableford margin on a single round · 2025</div></div>
+        <div class="row"><div class="n">×3</div><div class="who">R. Hughes — Pub Captain's Choice, every edition</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════════════════════════════════ -->
+<footer class="foot">
+  <div class="shell">
+    <div class="row1">
+      <div class="col">
+        <h5>The Tournament</h5>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="golfers.html">Golfers</a></li>
+          <li><a href="records.html">History &amp; Records</a></li>
+          <li><a href="practical.html">Practical Info</a></li>
+          <li><a href="scorecard.html">Live Scorecard ↗</a></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h5>Host Club</h5>
+        <ul>
+          <li>Yarrawonga &amp; Mulwala G.C.</li>
+          <li>Park &amp; Murray Streets</li>
+          <li>Mulwala NSW 2647</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h5>Accommodation</h5>
+        <ul>
+          <li>45 Anchorage Way 2</li>
+          <li>Yarrawonga VIC 3730</li>
+          <li>Check-in from 2:00 PM, Friday</li>
+          <li>Checkout before 10:00 AM, Sunday</li>
+        </ul>
+      </div>
+    </div>
+    <div class="colophon">
+      <div>The Wonga Cup · Fourth Edition · 2026</div>
+      <div>Set in Cormorant &amp; Geist</div>
+    </div>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     THEME SWITCHER
+═══════════════════════════════════════════════════════════════════════ -->
+<div class="theme-switcher" id="theme-switcher" hidden>
+  <div class="tlabel">Coat of Paint</div>
+  <div class="row" role="radiogroup" aria-label="theme">
+    <button data-theme="green"  aria-label="green theme">Green</button>
+    <button data-theme="claret" aria-label="claret theme">Claret</button>
+    <button data-theme="navy"   aria-label="navy theme">Navy</button>
+  </div>
+  <div class="tlabel">Mode</div>
+  <div class="row" role="radiogroup" aria-label="light or dark">
+    <button data-mode="light">Light</button>
+    <button data-mode="dark">Dark</button>
+  </div>
+</div>
+
+<script src="theme.js"></script>
+<script>
+// Music consent modal
+function startMusic() {
+  document.getElementById('music-modal').classList.add('hidden');
+  sessionStorage.setItem('musicConsented', '1');
+  document.getElementById('bg-audio').play();
+}
+function dismissMusic() {
+  document.getElementById('music-modal').classList.add('hidden');
+  sessionStorage.setItem('musicConsented', 'dismissed');
+}
+if (!sessionStorage.getItem('musicConsented')) {
+  document.getElementById('music-modal').classList.remove('hidden');
+} else if (sessionStorage.getItem('musicConsented') === '1') {
+  document.getElementById('bg-audio').play();
+}
+
+// Hamburger menu
+function toggleMenu() {
+  const menu = document.getElementById('mobile-menu');
+  const btn = document.getElementById('hamburger');
+  const open = menu.classList.toggle('is-open');
+  btn.classList.toggle('is-open', open);
+  btn.setAttribute('aria-expanded', open);
+  menu.setAttribute('aria-hidden', !open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+function closeMenu() {
+  const menu = document.getElementById('mobile-menu');
+  const btn = document.getElementById('hamburger');
+  menu.classList.remove('is-open');
+  btn.classList.remove('is-open');
+  btn.setAttribute('aria-expanded', 'false');
+  menu.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+document.getElementById('hamburger').addEventListener('click', toggleMenu);
+</script>
+
+</body>
+</html>
