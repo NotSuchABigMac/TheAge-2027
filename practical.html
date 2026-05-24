@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="green" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Practical Info · The Wonga Cup · MMXXVI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Music Warning Modal -->
+<div id="music-modal" class="music-modal hidden">
+  <div class="music-modal-card">
+    <div class="music-modal-icon">🔊</div>
+    <div class="music-modal-title">⚠ WARNING</div>
+    <div class="music-modal-body">This site contains <strong>appropriate music.</strong><br><br>Click YES to agree to play music.<br><br><strong>Turn your volume all the way up.</strong></div>
+    <button class="music-yes" onclick="startMusic()">YES, I AGREE</button><br>
+    <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
+  </div>
+</div>
+<audio id="bg-audio" src="TheSong.mp3" loop preload="none" style="display:none"></audio>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     MASTHEAD
+═══════════════════════════════════════════════════════════════════════ -->
+<header class="masthead masthead--scrolled" id="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-left">
+      <span>A.G.E.</span>
+      <span class="moto">·</span>
+      <span class="moto">2026</span>
+    </div>
+    <a href="index.html" class="masthead-center">A.G.E IV: The Wonga Cup</a>
+    <div class="masthead-right">
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="golfers.html">Golfers</a>
+        <a href="records.html">Records</a>
+        <a href="practical.html">Practical</a>
+        <a href="scorecard.html" class="nav-cta">Scorecard ↗</a>
+      </nav>
+      <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile nav -->
+<nav class="mobile-menu" id="mobile-menu" aria-hidden="true">
+  <a href="index.html" class="mm-link" onclick="closeMenu()">Home</a>
+  <a href="golfers.html" class="mm-link" onclick="closeMenu()">Golfers</a>
+  <a href="records.html" class="mm-link" onclick="closeMenu()">Records</a>
+  <a href="practical.html" class="mm-link" onclick="closeMenu()">Practical</a>
+  <a href="scorecard.html" class="mm-link mm-cta">Live Scorecard ↗</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     KIT LIST & LOGISTICS
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="kit" style="padding-top:96px">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>01</span>
+        <span class="num">Kit List</span>
+        <span>What to Bring</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">Pack like an adult. <em class="serif--italic">Play like a child.</em></h2>
+        <p class="standfirst">August in Yarrawonga: frost at sunrise, low twenties by lunch, a chance of a westerly off the lake. Pack for all three.</p>
+      </div>
+    </div>
+
+    <div class="kit-grid">
+      <div class="kit-col">
+        <h4>The Obvious</h4>
+        <ul class="kit-list">
+          <li><b>Clubs.</b> <span class="aside">A full set. Borrowing a wedge mid-round counts as a meltdown moment.</span></li>
+          <li><b>Balls.</b> <span class="aside">A dozen minimum. Two dozen if you play the lake holes the way you usually do.</span></li>
+          <li><b>Tees.</b> <span class="aside">Bring twice what you think you need.</span></li>
+          <li><b>Glove.</b> <span class="aside">Two, if there's any rain in the forecast.</span></li>
+          <li><b>Shoes.</b> <span class="aside">Spikeless or soft spikes. Pro shop is fussy.</span></li>
+        </ul>
+      </div>
+
+      <div class="kit-col">
+        <h4>On Course</h4>
+        <ul class="kit-list">
+          <li><b>Collared shirts × 3.</b> <span class="aside">Clubhouse rules. No singlets, no exceptions.</span></li>
+          <li><b>Rain jacket.</b> <span class="aside">It's August. Don't be the bloke borrowing one.</span></li>
+          <li><b>Layers.</b> <span class="aside">A puffer or vest for the early tee.</span></li>
+          <li><b>Hat.</b> <span class="aside">Cap or bucket. The Goose Hat is issued separately.</span></li>
+          <li><b>Sunscreen.</b> <span class="aside">Yes, even in August. UV doesn't read calendars.</span></li>
+          <li><b>Towel.</b> <span class="aside">For clubs. Not for crying.</span></li>
+        </ul>
+      </div>
+
+      <div class="kit-col">
+        <h4>Accommodation</h4>
+        <ul class="kit-list">
+          <li><b>Sheets &amp; pillowcases.</b> <span class="aside">Not provided — pack accordingly or air-dry.</span></li>
+          <li><b>Towels.</b> <span class="aside">Bath towels not provided.</span></li>
+          <li><b>Food &amp; drinks.</b> <span class="aside">For the house — kitchen &amp; BBQ are available.</span></li>
+          <li><b>Toiletries.</b> <span class="aside">All the usual suspects.</span></li>
+          <li><b>Warm layers.</b> <span class="aside">Yarrawonga evenings get cold in August.</span></li>
+        </ul>
+
+        <h4 style="margin-top:32px">Wallet</h4>
+        <ul class="kit-list">
+          <li><b>$200 cash.</b> <span class="aside">$100 for skins &amp; side bets. $100 for the pub.</span></li>
+          <li><b>Card.</b> <span class="aside">Accommodation, dinners, green fees, that round you owe Hughesy.</span></li>
+          <li><b>Medicare card.</b> <span class="aside">Optimistic. Possible.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Logistics rail -->
+    <div class="logistics">
+      <div class="ll">
+        <span class="k">House</span>
+        <span class="v">45 Anchorage Way 2<small>Yarrawonga VIC 3730 · on-site parking</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Check-in</span>
+        <span class="v">From 2:00 PM Friday<small>B. Lepore &amp; C. Woods — arrange own Friday accommodation</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Tee Times</span>
+        <span class="v">Fri 12:00 · Sat 12:00 · Sun 10:00<small>Be on the practice green 20 mins prior</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Checkout</span>
+        <span class="v">Before 10:00 AM Sunday<small>After the presentations</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Provided</span>
+        <span class="v">Doona covers, pillows, kitchen &amp; cookware, BBQ, TV, WiFi<small>Sheets, pillowcases &amp; towels NOT provided</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Scores</span>
+        <span class="v">Track live on the scorecard<small>Enter scores as you play — syncs across devices</small></span>
+      </div>
+    </div>
+
+    <!-- Live scoring CTA -->
+    <a class="live-strip" href="scorecard.html">
+      <div class="l">Live Scorecard</div>
+      <div class="t">Track the Cup live from noon Friday. <em class="cap-italic">Track points, holes &amp; honours from your phone.</em></div>
+      <span class="go">Open the scorecard ↗</span>
+    </a>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════════════════════════════════ -->
+<footer class="foot">
+  <div class="shell">
+    <div class="row1">
+      <div class="col">
+        <h5>The Tournament</h5>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="golfers.html">Golfers</a></li>
+          <li><a href="records.html">History &amp; Records</a></li>
+          <li><a href="practical.html">Practical Info</a></li>
+          <li><a href="scorecard.html">Live Scorecard ↗</a></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h5>Host Club</h5>
+        <ul>
+          <li>Yarrawonga &amp; Mulwala G.C.</li>
+          <li>Park &amp; Murray Streets</li>
+          <li>Mulwala NSW 2647</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h5>Accommodation</h5>
+        <ul>
+          <li>45 Anchorage Way 2</li>
+          <li>Yarrawonga VIC 3730</li>
+          <li>Check-in from 2:00 PM, Friday</li>
+          <li>Checkout before 10:00 AM, Sunday</li>
+        </ul>
+      </div>
+    </div>
+    <div class="colophon">
+      <div>The Wonga Cup · Fourth Edition · 2026</div>
+      <div>Set in Cormorant &amp; Geist</div>
+    </div>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     THEME SWITCHER
+═══════════════════════════════════════════════════════════════════════ -->
+<div class="theme-switcher" id="theme-switcher" hidden>
+  <div class="tlabel">Coat of Paint</div>
+  <div class="row" role="radiogroup" aria-label="theme">
+    <button data-theme="green"  aria-label="green theme">Green</button>
+    <button data-theme="claret" aria-label="claret theme">Claret</button>
+    <button data-theme="navy"   aria-label="navy theme">Navy</button>
+  </div>
+  <div class="tlabel">Mode</div>
+  <div class="row" role="radiogroup" aria-label="light or dark">
+    <button data-mode="light">Light</button>
+    <button data-mode="dark">Dark</button>
+  </div>
+</div>
+
+<script src="theme.js"></script>
+<script>
+// Music consent modal
+function startMusic() {
+  document.getElementById('music-modal').classList.add('hidden');
+  sessionStorage.setItem('musicConsented', '1');
+  document.getElementById('bg-audio').play();
+}
+function dismissMusic() {
+  document.getElementById('music-modal').classList.add('hidden');
+  sessionStorage.setItem('musicConsented', 'dismissed');
+}
+if (!sessionStorage.getItem('musicConsented')) {
+  document.getElementById('music-modal').classList.remove('hidden');
+} else if (sessionStorage.getItem('musicConsented') === '1') {
+  document.getElementById('bg-audio').play();
+}
+
+// Hamburger menu
+function toggleMenu() {
+  const menu = document.getElementById('mobile-menu');
+  const btn = document.getElementById('hamburger');
+  const open = menu.classList.toggle('is-open');
+  btn.classList.toggle('is-open', open);
+  btn.setAttribute('aria-expanded', open);
+  menu.setAttribute('aria-hidden', !open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+function closeMenu() {
+  const menu = document.getElementById('mobile-menu');
+  const btn = document.getElementById('hamburger');
+  menu.classList.remove('is-open');
+  btn.classList.remove('is-open');
+  btn.setAttribute('aria-expanded', 'false');
+  menu.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+document.getElementById('hamburger').addEventListener('click', toggleMenu);
+</script>
+
+</body>
+</html>
