@@ -215,11 +215,16 @@ hr.rule-ink { border-top-width: 1.5px; border-top-color: var(--ink); }
 
 /* ── masthead / nav ── */
 .masthead {
-  border-bottom: 1px solid var(--rule-strong);
-  background: var(--canvas);
+  border-bottom: 1px solid transparent;
+  background: transparent;
   position: sticky;
   top: 0;
   z-index: 50;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+.masthead--scrolled {
+  background: var(--canvas);
+  border-bottom-color: var(--rule-strong);
 }
 .masthead-inner {
   display: grid;
@@ -1554,4 +1559,54 @@ html[data-mode="dark"] .hero-photo {
 .no-wrap { white-space: nowrap; }
 .acc { color: var(--accent); }
 .muted { color: var(--ink-mute); }
+
+/* ── music consent modal (shared) ── */
+.music-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.85);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 99999;
+  backdrop-filter: blur(6px);
+}
+.music-modal.hidden { display: none; }
+.music-modal-card {
+  background: var(--ink);
+  color: var(--canvas);
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  padding: 40px 36px;
+  max-width: 400px;
+  width: calc(100% - 48px);
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5);
+}
+.music-modal-icon { font-size: 2.5rem; margin-bottom: 14px; }
+.music-modal-title {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 1.6rem;
+  color: var(--canvas);
+  margin-bottom: 12px;
+}
+.music-modal-body { font-size: .9rem; line-height: 1.7; margin-bottom: 28px; color: var(--canvas); opacity: .85; }
+.music-modal-body strong { color: var(--canvas); opacity: 1; font-weight: 600; }
+.music-yes {
+  display: block; width: 100%;
+  padding: 14px 20px;
+  font-family: var(--mono); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase;
+  background: var(--canvas); color: var(--ink);
+  border: none; border-radius: 2px;
+  cursor: pointer;
+  transition: opacity .2s;
+  margin-bottom: 10px;
+}
+.music-yes:hover { opacity: .85; }
+.music-no {
+  background: none; border: none;
+  color: var(--canvas); opacity: .4;
+  font-family: var(--mono); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.music-no:hover { opacity: .7; }
 .center { text-align: center; }

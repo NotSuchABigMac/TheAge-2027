@@ -11,13 +11,25 @@
 </head>
 <body>
 
+<!-- Music Warning Modal -->
+<div id="music-modal" class="music-modal hidden">
+  <div class="music-modal-card">
+    <div class="music-modal-icon">🔊</div>
+    <div class="music-modal-title">⚠ WARNING</div>
+    <div class="music-modal-body">This site contains <strong>appropriate music.</strong><br><br>Click YES to agree to play music.<br><br><strong>Turn your volume all the way up.</strong></div>
+    <button class="music-yes" onclick="startMusic()">YES, I AGREE</button><br>
+    <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
+  </div>
+</div>
+<audio id="bg-audio" src="TheSong.mp3" loop preload="none" style="display:none"></audio>
+
 <!-- ═══════════════════════════════════════════════════════════════════════
      MASTHEAD
 ═══════════════════════════════════════════════════════════════════════ -->
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-left">
-      <span>Fourth Edition</span>
+      <span>Inaugural Edition</span>
       <span class="moto">·</span>
       <span class="moto">2026</span>
     </div>
@@ -102,7 +114,7 @@
       <div class="meta">
         <span>01</span>
         <span class="num">Welcome</span>
-        <span>Fourth Edition</span>
+        <span>Inaugural Edition</span>
       </div>
       <div class="title-block">
         <h2 class="h-section">Same blokes. <em class="serif--italic">Same trophy.</em> New course.</h2>
@@ -113,7 +125,7 @@
     <div class="address-grid">
       <div class="body">
         <div class="first">
-          <p class="dropcap">What began as a cheeky mates trip — a few blokes, a golf bag, and the optimistic belief that a weekend away would somehow improve everyone's handicap — has graduated into a fully-fledged golfing tradition. The Wonga Cup is now in its fourth year, and the word "tradition" no longer feels like a stretch. It feels earned.</p>
+          <p class="dropcap">What began as a cheeky mates trip — a few blokes, a golf bag, and the optimistic belief that a weekend away would somehow improve everyone's handicap — has graduated into a fully-fledged golfing tradition. Four years in, the annual pilgrimage to Yarrawonga has earned its own name: The Wonga Cup. Inaugural edition. The word "tradition" no longer feels like a stretch. It feels earned.</p>
           <p>Twelve players. Three days. Three courses. One trophy. The format has evolved, the field has matured (in numbers if not always in conduct), and the stories have stacked up into something resembling a genuine tournament history. Yarrawonga's championship layout provides the perfect stage: the Murray Course, Black Bull, and Lake Course will test every part of the game — from tee shots to temperament.</p>
           <p>From Friday's match play battles to Saturday's scramble chaos and Sunday's individual Stableford grind, there are points up for grabs at every turn. The Wonga Cup is awarded to the winning team. Individual glory beckons in the form of Longest Drive, Nearest the Pin, and the not-entirely-coveted Silly Goose Hat. May the best team win — and may everyone else at least have a story worth telling at dinner.</p>
         </div>
@@ -784,7 +796,7 @@
       </div>
     </div>
     <div class="colophon">
-      <div>The Wonga Cup · Fourth Edition · 2026</div>
+      <div>The Wonga Cup · Inaugural Edition · 2026</div>
       <div>Set in Cormorant &amp; Geist</div>
     </div>
   </div>
@@ -808,6 +820,34 @@
 </div>
 
 <script src="theme.js"></script>
+<script>
+// Music consent modal
+function startMusic() {
+  document.getElementById('music-modal').classList.add('hidden');
+  sessionStorage.setItem('musicConsented', '1');
+  document.getElementById('bg-audio').play();
+}
+function dismissMusic() {
+  document.getElementById('music-modal').classList.add('hidden');
+  sessionStorage.setItem('musicConsented', 'dismissed');
+}
+if (!sessionStorage.getItem('musicConsented')) {
+  document.getElementById('music-modal').classList.remove('hidden');
+} else if (sessionStorage.getItem('musicConsented') === '1') {
+  document.getElementById('bg-audio').play();
+}
+
+// Masthead: transparent at top, solid once scrolled
+(function () {
+  const mast = document.querySelector('.masthead');
+  if (!mast) return;
+  function update() {
+    mast.classList.toggle('masthead--scrolled', window.scrollY > 80);
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
 
 </body>
 </html>

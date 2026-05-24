@@ -1379,6 +1379,17 @@ function updateCountdown() {
 }
 updateCountdown();
 setInterval(updateCountdown, 1000);
+
+// Masthead scroll behaviour (mirrors index.html)
+(function () {
+  const mast = document.querySelector('.masthead');
+  if (!mast) return;
+  function update() {
+    mast.classList.toggle('masthead--scrolled', window.scrollY > 80);
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
 </script>
 
 </body>
