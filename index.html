@@ -1,2079 +1,813 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="green" data-mode="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Wonga Cup 2026 — 4th Annual Golf Extravaganza</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Wonga Cup · MMXXVI · Yarrawonga</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
-:root {
-  --navy:#0b1a0d; --navy-light:#162e18; --navy-mid:#1c3a20;
-  --gold:#f0b429; --gold-dark:#c8941e; --gold-light:#ffd166;
-  --white:#fff; --off-white:#f0f5ee;
-  --fairway:#2d6a4f; --fairway-dark:#1a4731;
-  --grey:#8a9e8c; --light-grey:#d4e0d6;
-  --card-bg:#132415;
-  --team-a:#f0b429; --team-b:#6ab8f7;
-  --font-d:'Bebas Neue',sans-serif;
-  --font-h:'Oswald',sans-serif;
-  --font-b:'Inter',sans-serif;
-  --tr:all .22s ease; --r:8px; --rl:16px;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{
-  background-color:var(--navy);
-  background-image:repeating-linear-gradient(-45deg,rgba(45,106,79,.06),rgba(45,106,79,.06) 1px,transparent 1px,transparent 14px);
-  color:var(--white);font-family:var(--font-b);min-height:100vh;font-size:16px;line-height:1.6
-}
-a{color:var(--gold);text-decoration:none}
-a:hover{color:var(--gold-light)}
-
-/* ── NAV ── */
-.site-nav{position:sticky;top:0;z-index:1000;background:rgba(11,26,13,.97);border-bottom:2px solid var(--gold);backdrop-filter:blur(10px)}
-.nav-inner{max-width:1200px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.nav-logo{font-family:var(--font-d);font-size:1.4rem;color:var(--gold);letter-spacing:1px;white-space:nowrap;padding:12px 0;flex-shrink:0}
-.nav-links{display:flex;list-style:none;gap:0}
-.nav-links a{display:block;padding:16px 14px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--white);transition:var(--tr);border-bottom:3px solid transparent}
-.nav-links a:hover,.nav-links a.active{color:var(--gold);border-bottom-color:var(--gold)}
-
-/* ── PAGE SYSTEM ── */
-.page{display:none}
-.page.active{display:block}
-.page-content{max-width:1200px;margin:0 auto;padding:0 24px 64px}
-
-/* ── HERO ── */
-.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--fairway-dark) 45%,#0e2a18 100%);border-bottom:4px solid var(--gold);padding:80px 24px 64px;text-align:center;position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 30px,rgba(240,180,41,.03) 30px,rgba(240,180,41,.03) 60px)}
-.hero-inner{position:relative;max-width:1000px;margin:0 auto}
-.hero-pre{font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:var(--gold);margin-bottom:12px}
-.hero-title{font-family:var(--font-d);font-size:clamp(4.5rem,14vw,11rem);line-height:.9;color:var(--white);letter-spacing:3px;text-shadow:0 4px 24px rgba(0,0,0,.5);margin-bottom:16px}
-.hero-title span{color:var(--gold)}
-.hero-sub{font-family:var(--font-h);font-size:clamp(.95rem,2.5vw,1.5rem);font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--off-white);margin-bottom:24px}
-.hero-badge{display:inline-block;background:var(--gold);color:var(--navy);font-family:var(--font-h);font-weight:700;font-size:.8rem;letter-spacing:2px;text-transform:uppercase;padding:8px 20px;border-radius:100px}
-
-/* ── SECTION HEADERS ── */
-.section-header{padding:48px 0 24px;border-bottom:1px solid rgba(240,180,41,.2);margin-bottom:32px}
-.section-label{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
-.section-title{font-family:var(--font-d);font-size:clamp(2.4rem,5vw,3.8rem);line-height:1;letter-spacing:1px}
-
-/* ── CARDS ── */
-.card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);padding:28px;transition:var(--tr)}
-.card:hover{border-color:rgba(240,180,41,.3)}
-.card-title{font-family:var(--font-d);font-size:1.5rem;letter-spacing:1px;color:var(--gold);margin-bottom:6px}
-.card-subtitle{font-family:var(--font-h);font-size:.82rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-bottom:14px}
-
-/* ── GRIDS ── */
-.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-@media(max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:600px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.nav-logo{font-size:1rem}.nav-links a{padding:14px 9px;font-size:.72rem;letter-spacing:1px}}
-
-/* ── TABLES ── */
-.table-wrap{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow-x:auto;-webkit-overflow-scrolling:touch}
-.data-table{width:100%;min-width:520px;border-collapse:collapse;font-size:.9rem}
-.data-table th{background:var(--navy-mid);font-family:var(--font-h);font-weight:600;font-size:.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--gold);padding:12px 16px;text-align:left;border-bottom:2px solid var(--gold)}
-.data-table td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);color:var(--off-white)}
-.data-table tr:last-child td{border-bottom:none}
-.data-table tbody tr:hover td{background:rgba(240,180,41,.05)}
-
-/* ── WELCOME ── */
-.welcome-block{background:linear-gradient(135deg,var(--card-bg),var(--navy-mid));border:1px solid rgba(240,180,41,.2);border-left:4px solid var(--gold);border-radius:var(--rl);padding:36px 40px;margin-bottom:40px}
-.welcome-block p{font-size:1.02rem;line-height:1.85;color:var(--off-white);max-width:820px}
-.welcome-block p+p{margin-top:14px}
-
-/* ── AWARDS ── */
-.award-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-top:3px solid var(--gold);border-radius:var(--r);padding:20px;transition:var(--tr)}
-.award-card:hover{transform:translateY(-2px);border-top-color:var(--gold-light)}
-.award-icon{font-size:1.8rem;margin-bottom:10px}
-.award-name{font-family:var(--font-d);font-size:1.25rem;letter-spacing:1px;color:var(--gold);margin-bottom:8px}
-.award-desc{font-size:.84rem;color:var(--grey);line-height:1.5}
-
-/* ── HOF ── */
-.hof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-@media(max-width:768px){.hof-grid{grid-template-columns:1fr}}
-
-/* ── SCHEDULE ── */
-.day-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow:hidden;margin-bottom:20px}
-.day-header{background:linear-gradient(90deg,var(--navy-mid),var(--fairway-dark));border-bottom:2px solid var(--gold);padding:20px 28px;display:flex;align-items:center;gap:20px}
-.day-label{font-family:var(--font-d);font-size:2.8rem;color:var(--gold);line-height:1;min-width:90px}
-.day-info h3{font-family:var(--font-d);font-size:1.7rem;letter-spacing:1px}
-.day-info p{font-family:var(--font-h);font-size:.78rem;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
-.day-body{padding:24px 28px}
-.schedule-item{display:flex;gap:20px;align-items:flex-start;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05)}
-.schedule-item:last-child{border-bottom:none}
-.schedule-time{font-family:var(--font-h);font-weight:700;font-size:.88rem;color:var(--gold);min-width:76px;padding-top:2px}
-.schedule-desc{color:var(--off-white);font-size:.93rem}
-.schedule-desc strong{color:var(--white)}
-
-/* ── COURSES ── */
-.course-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow:hidden}
-.course-header{background:linear-gradient(135deg,var(--fairway-dark),var(--navy-mid));border-bottom:2px solid var(--fairway);padding:24px 28px}
-.course-day-tag{display:inline-block;background:var(--gold);color:var(--navy);font-family:var(--font-h);font-weight:700;font-size:.68rem;letter-spacing:2px;text-transform:uppercase;padding:4px 12px;border-radius:100px;margin-bottom:10px}
-.course-name{font-family:var(--font-d);font-size:2.1rem;letter-spacing:1px}
-.course-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}
-.course-meta-item{font-family:var(--font-h);font-size:.78rem;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--grey)}
-.course-meta-item strong{color:var(--off-white)}
-.course-body{padding:24px 28px}
-.course-body p{color:var(--off-white);margin-bottom:12px;font-size:.93rem;line-height:1.75}
-.course-key-holes{background:rgba(45,106,79,.1);border:1px solid rgba(45,106,79,.3);border-radius:var(--r);padding:16px 20px;margin-top:16px}
-.course-key-holes h4{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--fairway);margin-bottom:8px}
-.course-key-holes p{color:var(--grey);font-size:.84rem;margin:0}
-
-/* ── ACCOM ── */
-.accom-card{background:linear-gradient(135deg,var(--card-bg),var(--navy-mid));border:1px solid rgba(240,180,41,.15);border-radius:var(--rl);padding:32px;margin-top:32px}
-.accom-card h3{font-family:var(--font-d);font-size:2rem;color:var(--gold);margin-bottom:8px}
-.accom-address{font-size:1rem;color:var(--off-white);margin-bottom:20px}
-.accom-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
-.accom-item{padding:16px;background:rgba(255,255,255,.04);border-radius:var(--r);border:1px solid rgba(255,255,255,.06)}
-.accom-item h4{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
-.accom-item p{font-size:.84rem;color:var(--grey)}
-@media(max-width:700px){.accom-grid{grid-template-columns:1fr}}
-
-/* ── PLAYERS ── */
-.player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:20px}
-.player-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow:hidden;transition:var(--tr)}
-.player-card:hover{transform:translateY(-3px);border-color:rgba(240,180,41,.4);box-shadow:0 8px 32px rgba(0,0,0,.3)}
-.player-card-header{background:linear-gradient(135deg,var(--navy-mid),var(--fairway-dark));padding:20px;border-bottom:2px solid var(--gold);display:flex;justify-content:space-between;align-items:flex-start}
-.player-name{font-family:var(--font-d);font-size:1.45rem;letter-spacing:.5px;line-height:1.1}
-.player-hcp{background:var(--gold);color:var(--navy);font-family:var(--font-h);font-weight:700;font-size:1.15rem;padding:6px 14px;border-radius:var(--r);white-space:nowrap}
-.player-card-body{padding:16px 20px 20px}
-.player-bio{font-size:.84rem;line-height:1.65;color:var(--grey)}
-.player-tag{display:inline-block;margin-top:10px;background:rgba(240,180,41,.12);color:var(--gold);font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:100px;border:1px solid rgba(240,180,41,.3)}
-
-/* ── SCORECARD PAGE ── */
-.scoreboard-pin{position:sticky;top:58px;z-index:900;background:linear-gradient(90deg,var(--navy),var(--navy-mid),var(--navy));border-bottom:3px solid var(--gold)}
-.scoreboard-inner{max-width:1200px;margin:0 auto;padding:14px 24px;display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:12px}
-.sb-team{text-align:center}
-.sb-team-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-bottom:2px}
-.sb-total{font-family:var(--font-d);font-size:3.2rem;line-height:1}
-.team-a .sb-team-name,.team-a .sb-total{color:var(--team-a)}
-.team-b .sb-team-name,.team-b .sb-total{color:var(--team-b)}
-.sb-vs{font-family:var(--font-d);font-size:1.4rem;color:var(--grey);text-align:center}
-.sb-day-chips{display:flex;justify-content:center;gap:6px;margin-top:5px;flex-wrap:wrap}
-.sb-chip{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--grey)}
-.win-banner{background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));color:var(--navy);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 2s ease-in-out infinite}
-.sd-banner{background:linear-gradient(90deg,#7a0000,#c00,#7a0000);color:var(--white);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 1.4s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
-.photo-banner{width:100%;max-height:340px;object-fit:cover;border-radius:var(--rl);margin-bottom:24px;display:block}
-.photo-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
-.photo-pair img{width:100%;height:200px;object-fit:cover;border-radius:var(--r)}
-@media(max-width:600px){.photo-pair{grid-template-columns:1fr}}
-.refresh-btn{background:rgba(240,180,41,.15);color:var(--gold);border:1px solid var(--gold);padding:8px 14px;border-radius:var(--r);font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:var(--tr)}
-.refresh-btn:hover{background:rgba(240,180,41,.25)}
-
-/* ── SC TABS ── */
-.sc-tabs{display:flex;gap:2px;border-bottom:2px solid rgba(255,255,255,.1);max-width:1200px;margin:0 auto;padding:20px 24px 0}
-.sc-tab{padding:10px 18px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--grey);background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;transition:var(--tr);margin-bottom:-2px}
-.sc-tab:hover{color:var(--white)}
-.sc-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
-.sc-panel{display:none}
-.sc-panel.active{display:block}
-
-/* ── TEAM SETUP ── */
-.team-setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
-.team-col{background:var(--card-bg);border:2px solid;border-radius:var(--rl);padding:20px}
-.team-a-col{border-color:rgba(240,180,41,.5)}
-.team-b-col{border-color:rgba(74,158,255,.5)}
-.team-col-h{font-family:var(--font-d);font-size:1.7rem;margin-bottom:14px}
-.team-a-col .team-col-h{color:var(--team-a)}
-.team-b-col .team-col-h{color:var(--team-b)}
-.team-player-item{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-radius:var(--r);background:rgba(255,255,255,.04);margin-bottom:6px}
-.team-player-item span{color:var(--off-white);font-size:.9rem}
-.team-player-item small{color:var(--grey);font-size:.8rem}
-.move-btn{padding:4px 11px;font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(255,255,255,.2);background:transparent;color:var(--grey);border-radius:4px;cursor:pointer;transition:var(--tr)}
-.move-btn:hover{background:rgba(255,255,255,.1);color:var(--white)}
-@media(max-width:700px){.team-setup-grid{grid-template-columns:1fr}}
-
-/* ── MATCH CARDS ── */
-.match-card{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);margin-bottom:20px;overflow:hidden;transition:border-color .3s,box-shadow .3s}
-.match-card.win-a{border-color:rgba(240,180,41,.6);box-shadow:0 0 20px rgba(240,180,41,.15);border-left:4px solid var(--team-a)}
-.match-card.win-b{border-color:rgba(74,158,255,.6);box-shadow:0 0 20px rgba(74,158,255,.15);border-left:4px solid var(--team-b)}
-.match-card.win-as{border-color:rgba(255,255,255,.25);border-left:4px solid rgba(255,255,255,.3)}
-.match-header{background:linear-gradient(90deg,var(--navy-mid),var(--navy));border-bottom:2px solid rgba(255,255,255,.1);padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
-.match-title{font-family:var(--font-d);font-size:1.4rem;letter-spacing:1px}
-.match-score-display{font-family:var(--font-d);font-size:1.7rem;display:flex;align-items:center;gap:6px}
-.msa{color:var(--team-a)}
-.msb{color:var(--team-b)}
-.mss{color:var(--grey);font-size:1.1rem}
-.match-players-row{padding:14px 22px;border-bottom:1px solid rgba(255,255,255,.06);display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
-.player-group{display:flex;flex-direction:column;gap:6px}
-.player-group.pb{align-items:flex-end}
-.pg-label{font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px}
-.pgl-a{color:var(--team-a)}
-.pgl-b{color:var(--team-b)}
-.vs-div{font-family:var(--font-h);font-size:.75rem;font-weight:700;letter-spacing:2px;color:var(--grey);text-align:center}
-select{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:var(--r);color:var(--white);padding:7px 10px;font-family:var(--font-b);font-size:.83rem;width:100%;cursor:pointer}
-select:focus{outline:none;border-color:var(--gold)}
-select option{background:var(--navy)}
-
-/* ── HOLE GRID ── */
-.hole-grid-wrap{padding:18px 22px 22px;overflow-x:auto}
-.hole-grid{display:grid;grid-template-columns:repeat(18,1fr);gap:3px;min-width:580px}
-.hole-cell{display:flex;flex-direction:column;align-items:center;gap:3px}
-.hole-num{font-family:var(--font-h);font-size:.58rem;font-weight:600;color:var(--grey)}
-.hole-btn{width:28px;height:20px;font-family:var(--font-h);font-size:.62rem;font-weight:700;border:1px solid rgba(255,255,255,.14);border-radius:3px;cursor:pointer;background:rgba(255,255,255,.04);color:var(--grey);transition:var(--tr)}
-.hole-btn:hover{opacity:.8}
-.hole-btn.ha{background:var(--team-a);color:var(--navy);border-color:var(--team-a)}
-.hole-btn.hh{background:rgba(255,255,255,.28);color:var(--white);border-color:rgba(255,255,255,.5)}
-.hole-btn.hb{background:var(--team-b);color:var(--white);border-color:var(--team-b)}
-.running-score-row{display:flex;justify-content:space-between;align-items:center;padding:0 22px 14px;font-family:var(--font-h);font-size:.78rem;font-weight:600;letter-spacing:1px;flex-wrap:wrap;gap:8px}
-.rs-label{color:var(--grey);text-transform:uppercase}
-
-/* ── DAY 2 ── */
-.scramble-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-@media(max-width:700px){.scramble-grid{grid-template-columns:1fr}}
-.scramble-team-card{background:var(--card-bg);border:2px solid;border-radius:var(--rl);padding:24px}
-.scramble-team-a{border-color:rgba(240,180,41,.4);transition:border-color .3s,background .3s,box-shadow .3s}
-.scramble-team-b{border-color:rgba(74,158,255,.4);transition:border-color .3s,background .3s,box-shadow .3s}
-.scramble-team-a.leading{border-color:var(--team-a);background:linear-gradient(135deg,rgba(240,180,41,.12),var(--card-bg));box-shadow:0 0 24px rgba(240,180,41,.12)}
-.scramble-team-b.leading{border-color:var(--team-b);background:linear-gradient(135deg,rgba(74,158,255,.12),var(--card-bg));box-shadow:0 0 24px rgba(74,158,255,.12)}
-.scramble-team-title{font-family:var(--font-d);font-size:1.55rem;margin-bottom:18px}
-.scramble-team-a .scramble-team-title{color:var(--team-a)}
-.scramble-team-b .scramble-team-title{color:var(--team-b)}
-.sig{margin-bottom:14px}
-.sig label{display:block;font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-bottom:7px}
-.sig-row{display:flex;align-items:center;gap:12px}
-.sig-row input{min-height:44px;min-width:80px;font-size:1rem}
-input[type=number]{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:var(--r);color:var(--white);padding:9px 12px;font-family:var(--font-d);font-size:1.35rem;width:90px;text-align:center}
-input[type=number]:focus{outline:none;border-color:var(--gold)}
-.pts-badge{font-family:var(--font-d);font-size:1.35rem;color:var(--grey)}
-.pts-badge.live{color:var(--gold)}
-.day-total-row{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:11px 15px;margin-top:14px;font-family:var(--font-h);font-weight:600;letter-spacing:1px;display:flex;justify-content:space-between}
-.day-total-row .lbl{color:var(--grey);font-size:.78rem;text-transform:uppercase}
-.day-total-row .val{font-size:1.05rem}
-.scramble-team-a .day-total-row .val{color:var(--team-a)}
-.scramble-team-b .day-total-row .val{color:var(--team-b)}
-
-/* ── DAY 3 ── */
-.sf-table-wrap{background:var(--card-bg);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);overflow-x:auto;-webkit-overflow-scrolling:touch}
-.sf-table{width:100%;min-width:480px;border-collapse:collapse}
-.sf-table th{background:var(--navy-mid);font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:11px 14px;text-align:left;color:var(--gold);border-bottom:2px solid var(--gold)}
-.sf-table td{padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-size:.9rem}
-.sf-table tr:last-child td{border-bottom:none}
-.pos-cell{font-family:var(--font-d);font-size:1.25rem;color:var(--grey);text-align:center;width:44px}
-.pos-1{color:var(--gold)!important}
-.pos-2{color:#c0c0c0!important}
-.pos-3{color:#cd7f32!important}
-.pts-cell{font-family:var(--font-d);font-size:1.45rem;text-align:right}
-.row-a .pts-cell{color:var(--team-a)}
-.row-b .pts-cell{color:var(--team-b)}
-.row-a.top-scorer{background:rgba(240,180,41,.07);border-left:3px solid var(--team-a)}
-.row-b.top-scorer{background:rgba(74,158,255,.07);border-left:3px solid var(--team-b)}
-input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
-.team-badge{font-family:var(--font-h);font-size:.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:2px 9px;border-radius:100px}
-.ta-badge{background:rgba(240,180,41,.15);color:var(--team-a);border:1px solid rgba(240,180,41,.4)}
-.tb-badge{background:rgba(74,158,255,.15);color:var(--team-b);border:1px solid rgba(74,158,255,.4)}
-
-/* ── UTILS ── */
-.gold{color:var(--gold)}
-.grey{color:var(--grey)}
-.mt8{margin-top:8px}.mt16{margin-top:16px}.mt24{margin-top:24px}.mt32{margin-top:32px}
-.mb16{margin-bottom:16px}.mb24{margin-bottom:24px}
-.tc{text-align:center}
-@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.12)}100%{transform:scale(1)}}
-.pop{animation:pop .28s ease}
-.info-box{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px 18px;font-size:.88rem;color:var(--off-white);margin-bottom:20px}
-.info-box strong{color:var(--gold)}
-
-/* ── COURSE IMAGES ── */
-.course-img-frame{position:relative;overflow:hidden;border-bottom:2px solid rgba(45,106,79,.5)}
-.course-img{width:100%;height:200px;object-fit:cover;display:none}
-.course-img.loaded{display:block}
-.course-ph{width:100%;height:200px;background:linear-gradient(135deg,var(--fairway-dark) 0%,var(--navy-mid) 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
-.course-ph-icon{font-size:2.8rem;opacity:.6}
-.course-ph-label{font-family:var(--font-d);font-size:1.1rem;letter-spacing:3px;color:rgba(255,255,255,.35);text-transform:uppercase}
-.course-ph-sub{font-family:var(--font-h);font-size:.65rem;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.2)}
-
-/* ── LIVE SYNC BAR ── */
-.sync-bar{max-width:1200px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid rgba(240,180,41,.12);background:rgba(240,180,41,.04)}
-.sync-label{font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);display:flex;align-items:center;gap:6px}
-.live-dot{width:8px;height:8px;border-radius:50%;background:#44dd88;animation:blink 1.5s ease-in-out infinite;display:inline-block}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
-.sync-btn{padding:7px 16px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:var(--gold);color:var(--navy);border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
-.sync-btn:hover{background:var(--gold-light)}
-.sync-btn.sec{background:transparent;color:var(--grey);border:1px solid rgba(255,255,255,.18)}
-.sync-btn.sec:hover{color:var(--white);border-color:rgba(255,255,255,.45)}
-.save-toast{position:fixed;bottom:24px;left:24px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:12px 16px;border-radius:var(--r);opacity:0;transition:opacity .3s;pointer-events:none;z-index:100}
-.save-toast.show{opacity:1}
-.save-toast.saving{background:rgba(240,180,41,.2);color:var(--gold);border:1px solid var(--gold)}
-.save-toast.success{background:rgba(68,221,136,.2);color:#44dd88;border:1px solid #44dd88}
-.save-toast.error{background:rgba(220,0,0,.2);color:#ff6b6b;border:1px solid #ff6b6b}
-.sync-spacer{flex:1}
-
-/* ── USERNAME PICKER MODAL ── */
-.username-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px)}
-.username-modal.hidden{display:none}
-.username-modal-card{background:var(--card-bg);border:2px solid var(--gold);border-radius:var(--rl);padding:40px;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-.username-modal-title{font-family:var(--font-d);font-size:2rem;letter-spacing:2px;color:var(--gold);margin-bottom:8px}
-.username-modal-desc{font-size:.95rem;color:var(--grey);margin-bottom:24px}
-.username-input{width:100%;padding:12px 16px;font-family:var(--font-b);font-size:1rem;border:1px solid rgba(255,255,255,.2);border-radius:var(--r);background:rgba(255,255,255,.06);color:var(--white);margin-bottom:16px;transition:var(--tr)}
-.username-input:focus{outline:none;border-color:var(--gold);background:rgba(255,255,255,.1)}
-.username-input::placeholder{color:rgba(255,255,255,.3)}
-.username-btn{width:100%;padding:12px 20px;font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:var(--navy);border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
-.username-btn:hover{background:var(--gold-light)}
-.username-btn:disabled{opacity:.5;cursor:not-allowed}
-.username-badge{position:absolute;top:16px;right:24px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.3);padding:6px 14px;border-radius:100px;z-index:100}
-.offline-banner{position:fixed;top:60px;right:24px;background:rgba(200,0,0,.9);color:var(--white);padding:8px 16px;border-radius:var(--r);font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;z-index:999;animation:slideIn .3s ease}
-@keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
-/* ── MINI SCOREBOARD ── */
-.mini-sb{background:rgba(11,26,13,.97);border-bottom:1px solid rgba(240,180,41,.2);padding:7px 24px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
-.mini-sb-team{display:flex;align-items:center;gap:8px;font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase}
-.mini-sb-name{color:var(--grey)}
-.mini-sb-score{font-family:var(--font-d);font-size:1.4rem;line-height:1}
-.mini-sb-a .mini-sb-score{color:var(--team-a)}
-.mini-sb-b .mini-sb-score{color:var(--team-b)}
-.mini-sb-vs{font-family:var(--font-d);font-size:.9rem;color:var(--grey)}
-.mini-sb-days{display:flex;gap:6px}
-.mini-sb-chip{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.05);color:var(--grey)}
-.mini-sb-chip.live-a{background:rgba(240,180,41,.15);color:var(--team-a)}
-.mini-sb-chip.live-b{background:rgba(74,158,255,.15);color:var(--team-b)}
-/* ── COUNTDOWN BAR ── */
-.countdown-bar{position:fixed;bottom:0;left:0;right:0;z-index:990;background:rgba(11,26,13,.97);border-top:2px solid var(--gold);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:6px}
-.cd-label{font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-right:4px}
-.cd-unit{display:flex;flex-direction:column;align-items:center;min-width:38px}
-.cd-num{font-family:var(--font-d);font-size:1.4rem;color:var(--gold);line-height:1}
-.cd-sub{font-family:var(--font-h);font-size:.5rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--grey)}
-.cd-sep{font-family:var(--font-d);font-size:1.2rem;color:var(--gold);opacity:.4;align-self:flex-start;padding-top:2px}
-.cd-live{font-family:var(--font-d);font-size:1.1rem;letter-spacing:2px;color:var(--gold)}
-body{padding-bottom:52px}
-@media(max-width:600px){.mini-sb-days{display:none}.cd-num{font-size:1.1rem}.cd-label{display:none}}
-.music-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(6px)}
-.music-modal.hidden{display:none}
-.music-modal-card{background:var(--card-bg);border:2px solid var(--gold);border-radius:var(--rl);padding:40px 36px;max-width:440px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6)}
-.music-modal-icon{font-size:3rem;margin-bottom:16px}
-.music-modal-title{font-family:var(--font-d);font-size:1.6rem;letter-spacing:2px;color:var(--gold);margin-bottom:12px}
-.music-modal-body{font-size:.95rem;color:var(--off-white);line-height:1.7;margin-bottom:28px}
-.music-modal-body strong{color:var(--gold)}
-.music-yes{width:100%;padding:14px 20px;font-family:var(--font-d);font-size:1.3rem;letter-spacing:2px;background:var(--gold);color:var(--navy);border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr);margin-bottom:10px}
-.music-yes:hover{background:var(--gold-light)}
-.music-no{background:none;border:none;color:var(--grey);font-family:var(--font-h);font-size:.75rem;letter-spacing:1px;cursor:pointer;text-transform:uppercase}
-.music-no:hover{color:var(--white)}
-</style>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<!-- Music Warning Modal -->
-<div id="music-modal" class="music-modal hidden">
-  <div class="music-modal-card">
-    <div class="music-modal-icon">🔊</div>
-    <div class="music-modal-title">⚠ WARNING</div>
-    <div class="music-modal-body">This site contains <strong>appropriate music.</strong><br><br>Click YES to agree to play music.<br><br><strong>Turn your volume all the way up.</strong></div>
-    <button class="music-yes" onclick="startMusic()">YES, I AGREE</button><br>
-    <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     MASTHEAD
+═══════════════════════════════════════════════════════════════════════ -->
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-left">
+      <span>Fourth Edition</span>
+      <span class="moto">·</span>
+      <span class="moto">2026</span>
+    </div>
+    <a href="index.html" class="masthead-center">The Wonga Cup</a>
+    <nav class="masthead-right">
+      <a href="#welcome">Welcome</a>
+      <a href="#honour">Honours</a>
+      <a href="#field">Field</a>
+      <a href="#course">Course</a>
+      <a href="#programme">Schedule</a>
+      <a href="#kit">Kit List</a>
+      <a href="scorecard.html" class="nav-cta">Live Scorecard ↗</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     HERO
+═══════════════════════════════════════════════════════════════════════ -->
+<section class="hero bleed no-rule" id="top">
+  <div class="hero-photo" style="background-image:url('images/course-black-bull.jpg')"></div>
+  <div class="hero-scrim"></div>
+  <div class="hero-inner">
+    <div class="hero-top">
+      <div class="lhs">
+        <span>The Wonga Cup</span>
+        <span>·</span>
+        <span>Est. 2023</span>
+      </div>
+      <div class="rhs">
+        <div>Yarrawonga · Murray Border</div>
+        <div>7 — 9 August 2026</div>
+      </div>
+    </div>
+
+    <div class="hero-middle">
+      <div class="hero-edition">IV</div>
+      <div class="hero-title">The Wonga Cup</div>
+      <div class="hero-sub">Fourth annual. Yarrawonga, August 2026.</div>
+    </div>
+
+    <div class="hero-bottom">
+      <div class="col">
+        <span>Host Club</span>
+        <span class="v">Yarrawonga &amp; Mulwala G.C.</span>
+      </div>
+      <div class="col">
+        <span>Field</span>
+        <span class="v">Twelve Starters · Six per Side</span>
+      </div>
+      <div class="col">
+        <span>Format</span>
+        <span class="v">Three Rounds · Three Courses</span>
+      </div>
+      <div class="col">
+        <span>Prize</span>
+        <span class="v">The Cup &amp; six minor honours</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     KEY FACTS RIBBON
+═══════════════════════════════════════════════════════════════════════ -->
+<div class="tagline-strip">
+  <div class="tagline-strip-inner">
+    <div class="item"><span>Dates</span><span class="v">7 — 9 Aug</span></div>
+    <div class="item"><span>Rounds</span><span class="v">III</span></div>
+    <div class="item"><span>Courses</span><span class="v">Murray · Black Bull · Lake</span></div>
+    <div class="item"><span>Format</span><span class="v">Match · Scramble · Stableford</span></div>
+    <div class="item"><span>Holders</span><span class="v cap-italic">Team Underdogs</span></div>
   </div>
 </div>
-<audio id="bg-audio" src="TheSong.mp3" loop preload="none" style="display:none"></audio>
 
-<!-- Username Picker Modal -->
-<div id="username-modal" class="username-modal hidden">
-  <div class="username-modal-card">
-    <div class="username-modal-title">THE WONGA CUP</div>
-    <div class="username-modal-desc">Enter your name to start scoring</div>
-    <input type="text" id="username-input" class="username-input" placeholder="Your name" maxlength="30" autofocus>
-    <button class="username-btn" onclick="confirmUsername()">Enter Tournament</button>
-    <div class="username-modal-desc" style="font-size:.75rem;margin-top:16px;color:rgba(255,255,255,.2)">Your scores will sync live across all devices</div>
-  </div>
-</div>
-
-<!-- Username Badge & Offline Alert -->
-<div id="username-badge" class="username-badge" style="display:none"></div>
-<div id="offline-banner" class="offline-banner" style="display:none">⚠ Offline — Using Local Storage</div>
-<div id="save-toast" class="save-toast"></div>
-
-<!-- ══════════════════════════════════════
-     NAVIGATION
-══════════════════════════════════════ -->
-<nav class="site-nav">
-  <div class="nav-inner">
-    <div class="nav-logo">THE WONGA CUP</div>
-    <ul class="nav-links">
-      <li><a href="#" class="active" data-page="overview">Overview</a></li>
-      <li><a href="#" data-page="schedule">Schedule</a></li>
-      <li><a href="#" data-page="field">The Field</a></li>
-      <li><a href="#" data-page="scorecard">Scorecard</a></li>
-    </ul>
-  </div>
-</nav>
-
-<!-- Mini Scoreboard -->
-<div class="mini-sb" id="mini-sb">
-  <div class="mini-sb-team mini-sb-a">
-    <span class="mini-sb-name" id="mini-name-a">Team Beer</span>
-    <span class="mini-sb-score" id="mini-score-a">0</span>
-  </div>
-  <span class="mini-sb-vs">vs</span>
-  <div class="mini-sb-team mini-sb-b">
-    <span class="mini-sb-score" id="mini-score-b">0</span>
-    <span class="mini-sb-name" id="mini-name-b">Team Golf</span>
-  </div>
-  <div class="mini-sb-days" id="mini-sb-days"></div>
-</div>
-
-<!-- ══════════════════════════════════════
-     PAGE 1 — OVERVIEW
-══════════════════════════════════════ -->
-<section id="page-overview" class="page active">
-
-  <div class="hero">
-    <div class="hero-inner">
-      <div class="hero-pre">4th Annual Golf Extravaganza</div>
-      <img src="./images/wonga-cup-badge.png" alt="The Wonga Cup" style="max-width:340px;height:auto;margin:0 auto">
-      <div class="hero-sub">Yarrawonga &nbsp;·&nbsp; August 7–9, 2026</div>
-      <span class="hero-badge">Est. 2023 &nbsp;·&nbsp; 12 Players &nbsp;·&nbsp; 3 Courses</span>
-    </div>
-  </div>
-
-  <div class="page-content">
-
-    <!-- Welcome -->
-    <div class="section-header">
-      <div class="section-label">Welcome</div>
-      <div class="section-title">The Tradition Continues</div>
-    </div>
-    <div class="welcome-block">
-      <p>What began as a cheeky mates trip — a few blokes, a golf bag, and the optimistic belief that a weekend away would somehow improve everyone's handicap — has graduated into a fully-fledged golfing tradition. The Wonga Cup is now in its fourth year, and the word "tradition" no longer feels like a stretch. It feels earned.</p>
-      <p>Twelve players. Three days. Three courses. One trophy. The format has evolved, the field has matured (in numbers if not always in conduct), and the stories have stacked up into something resembling a genuine tournament history. Yarrawonga's championship layout provides the perfect stage: the Murray Course, Black Bull, and Lake Course will test every part of the game — from tee shots to temperament.</p>
-      <p>From Friday's match play battles to Saturday's scramble chaos and Sunday's individual Stableford grind, there are points up for grabs at every turn. The Wonga Cup is awarded to the winning team. Individual glory beckons in the form of Longest Drive, Nearest the Pin, and the not-entirely-coveted Silly Goose Hat. May the best team win — and may everyone else at least have a story worth telling at dinner.</p>
-    </div>
-
-    <!-- Teams -->
-    <div id="overview-teams"></div>
-
-    <!-- Roll of Honour -->
-    <div class="section-header">
-      <div class="section-label">History</div>
-      <div class="section-title">Roll of Honour</div>
-    </div>
-    <img src="./images/teams-photo.png" alt="Teams lined up at a previous Golf Extravaganza" class="photo-banner" width="1176" height="716" style="object-position:center top;max-height:260px;max-width:1176px">
-
-    <div class="card mb24">
-      <div style="display:flex;gap:12px;align-items:baseline;margin-bottom:16px">
-        <span style="font-family:var(--font-d);font-size:2.4rem;color:var(--gold);line-height:1">2023</span>
-        <span style="font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey)">1st Annual · Bellarine Peninsula</span>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ADDRESS FROM THE COMMITTEE
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="welcome">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>01</span>
+        <span class="num">Welcome</span>
+        <span>Fourth Edition</span>
       </div>
-      <p style="font-size:.85rem;color:var(--grey);margin-bottom:14px">Curlewis GC · Curlewis Mini Golf · Portarlington GC — No teams. Individual competition.</p>
-      <div class="grid-3" style="gap:12px;margin-bottom:14px">
-        <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px">
-          <div style="font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px">Curlewis Medal</div>
-          <div style="font-family:var(--font-d);font-size:1.2rem">S. Koenig</div>
-          <div style="font-size:.8rem;color:var(--grey)">+7</div>
-        </div>
-        <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px">
-          <div style="font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px">Mini Golf</div>
-          <div style="font-family:var(--font-d);font-size:1.2rem">A. Freestun</div>
-          <div style="font-size:.8rem;color:var(--grey)">Champion</div>
-        </div>
-        <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:14px">
-          <div style="font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px">Portarlington Medal</div>
-          <div style="font-family:var(--font-d);font-size:1.2rem">J. McIntyre</div>
-          <div style="font-size:.8rem;color:var(--grey)">+6</div>
-        </div>
-      </div>
-      <p style="font-size:.82rem;color:var(--grey);font-style:italic">⛳ Brutal wind at Portarlington — drivers couldn't reach par 3 greens.</p>
-    </div>
-
-    <div class="card mb24">
-      <div style="display:flex;gap:12px;align-items:baseline;margin-bottom:16px">
-        <span style="font-family:var(--font-d);font-size:2.4rem;color:var(--gold);line-height:1">2024</span>
-        <span style="font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey)">2nd Annual · Ballarat</span>
-      </div>
-      <p style="font-size:.85rem;color:var(--grey);margin-bottom:14px">Ballarat GC · RACV Goldfields · Buninyong GC</p>
-      <div class="grid-2" style="gap:12px;margin-bottom:14px">
-        <div style="background:rgba(240,180,41,.06);border:1px solid rgba(240,180,41,.15);border-radius:var(--r);padding:14px">
-          <div style="font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-bottom:6px">Six Foreskins 🏆 31.5</div>
-          <div style="font-size:.85rem;color:var(--off-white)">M. Freestun · S. Koenig · B. Lepore · C. Woods</div>
-        </div>
-        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:var(--r);padding:14px">
-          <div style="font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-bottom:6px">Team Donuts · 21.5</div>
-          <div style="font-size:.85rem;color:var(--off-white)">S. Rumbelow · J. McIntyre · R. Hughes · N. Freestun</div>
-        </div>
-      </div>
-      <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:12px;margin-bottom:12px;display:inline-block">
-        <span style="font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold)">Weekend Medal: </span>
-        <span style="font-size:.9rem;color:var(--off-white)">M. Freestun −7</span>
-      </div>
-      <p style="font-size:.82rem;color:var(--grey);font-style:italic">⛳ M. Freestun built an 8-skin lead over 2 days. S. Rumbelow snapped a 6-iron on a golf cart. J. McIntyre embarked on an unscheduled solo rally driving adventure 🚙</p>
-    </div>
-
-    <div class="card mb24">
-      <div style="display:flex;gap:12px;align-items:baseline;margin-bottom:16px">
-        <span style="font-family:var(--font-d);font-size:2.4rem;color:var(--gold);line-height:1">2025</span>
-        <span style="font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey)">3rd Annual · Rosebud</span>
-      </div>
-      <p style="font-size:.85rem;color:var(--grey);margin-bottom:14px">Moonah Links Legends · Eagle Ridge · Devilbend</p>
-      <div class="grid-2" style="gap:12px;margin-bottom:14px">
-        <div style="background:rgba(240,180,41,.06);border:1px solid rgba(240,180,41,.15);border-radius:var(--r);padding:14px">
-          <div style="font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-bottom:6px">Team Underdogs 🏆 60.5</div>
-          <div style="font-size:.85rem;color:var(--off-white)">S. Rumbelow · S. Koenig · R. Hughes · N. Freestun</div>
-        </div>
-        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:var(--r);padding:14px">
-          <div style="font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-bottom:6px">Hole Hunters · 38.5</div>
-          <div style="font-size:.85rem;color:var(--off-white)">G. King · J. McIntyre · M. Freestun · B. Cunningham</div>
-        </div>
-      </div>
-      <p style="font-size:.82rem;color:var(--grey);font-style:italic">⛳ Including a 36–7 Stableford blowout on Sunday. R. Hughes pulled driver on a 151m par 3 at Eagle Ridge, scattering players on the green.</p>
-    </div>
-
-    <img src="./images/golf-course.png" alt="Golf course from a previous Golf Extravaganza" class="photo-banner" width="916" height="1084" style="max-height:220px;object-position:center center;max-width:916px">
-
-    <!-- Minor Awards History -->
-    <div class="section-header" style="padding-top:32px">
-      <div class="section-label">Records</div>
-      <div class="section-title">Minor Awards History</div>
-    </div>
-    <div class="table-wrap mb24">
-      <table class="data-table">
-        <thead>
-          <tr><th>Year</th><th>Longest Drive</th><th>Meltdown Medal</th><th>Pub Captain's Choice</th><th>Worst Score</th><th>Silly Goose Hat</th></tr>
-        </thead>
-        <tbody>
-          <tr><td class="gold">2023</td><td>N. Freestun 229m</td><td style="color:var(--grey)">N/A</td><td>R. Hughes</td><td>A. Freestun −19</td><td style="color:var(--grey)">Not yet introduced</td></tr>
-          <tr><td class="gold">2024</td><td>M. Freestun 255m</td><td>S. Rumbelow</td><td>R. Hughes</td><td>S. Koenig −13</td><td style="color:var(--grey)">Not yet introduced</td></tr>
-          <tr><td class="gold">2025</td><td>G. King 272m</td><td>N. Freestun</td><td>R. Hughes</td><td>S. Rumbelow −13</td><td>G. King 🪿</td></tr>
-          <tr><td class="gold">2026</td><td style="color:var(--grey)">TBD</td><td style="color:var(--grey)">TBD</td><td style="color:var(--grey)">TBD</td><td style="color:var(--grey)">TBD</td><td style="color:var(--grey)">TBD</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Hall of Fame -->
-    <div class="section-header" style="padding-top:32px">
-      <div class="section-label">All-Time Records</div>
-      <div class="section-title">Hall of Fame</div>
-    </div>
-    <div class="hof-grid mb24">
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th colspan="2">Most Appearances</th></tr></thead>
-          <tbody>
-            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">3</span></td><td>J. McIntyre · M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · S. Koenig</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th colspan="2">Most Team Wins</th></tr></thead>
-          <tbody>
-            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">2</span></td><td>S. Koenig</td></tr>
-            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">1</span></td><td>M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · B. Lepore · C. Woods</td></tr>
-            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">0</span></td><td style="color:var(--grey)">J. McIntyre · B. Cunningham · G. King</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th colspan="2">Team Win %</th></tr></thead>
-          <tbody>
-            <tr><td><span class="gold" style="font-family:var(--font-d);font-size:1.3rem">100%</span></td><td>S. Koenig · B. Lepore · C. Woods</td></tr>
-            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--off-white)">50%</span></td><td>M. Freestun · N. Freestun · R. Hughes · S. Rumbelow</td></tr>
-            <tr><td><span style="font-family:var(--font-d);font-size:1.3rem;color:var(--grey)">0%</span></td><td style="color:var(--grey)">J. McIntyre · B. Cunningham · G. King</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <div class="welcome-block" style="padding:20px 24px;margin-bottom:32px">
-      <p style="font-size:.9rem">🍺 <strong>R. Hughes</strong> has won Pub Captain's Choice all three years running. &nbsp;|&nbsp; 😬 <strong>J. McIntyre</strong> has played every edition and is yet to win a team event.</p>
-    </div>
-
-    <!-- Awards -->
-    <div class="section-header">
-      <div class="section-label">Trophies & Gongs</div>
-      <div class="section-title">Awards on Offer</div>
-    </div>
-    <div class="grid-4">
-      <div class="award-card">
-        <div class="award-icon">🏆</div>
-        <div class="award-name">The Wonga Cup</div>
-        <div class="award-desc">The big one. Awarded to the winning team across all three days of competition. Eternal bragging rights until next August.</div>
-      </div>
-      <div class="award-card">
-        <div class="award-icon">💨</div>
-        <div class="award-name">Longest Drive</div>
-        <div class="award-desc">Designated hole. Furthest drive down the fairway takes the prize. Carts not eligible.</div>
-      </div>
-      <div class="award-card">
-        <div class="award-icon">📍</div>
-        <div class="award-name">Nearest the Pin</div>
-        <div class="award-desc">Par 3 shootout. Closest tee shot to the flag on the designated hole wins the prestige.</div>
-      </div>
-      <div class="award-card">
-        <div class="award-icon">🪿</div>
-        <div class="award-name">Silly Goose Hat</div>
-        <div class="award-desc">You know what you did. Awarded for the single most baffling decision made on a golf course across the weekend.</div>
-      </div>
-      <div class="award-card">
-        <div class="award-icon">💥</div>
-        <div class="award-name">Worst Blow-Up</div>
-        <div class="award-desc">For the single highest score on one hole across the entire tournament. A badge of honour for the truly cursed.</div>
-      </div>
-      <div class="award-card">
-        <div class="award-icon">😤</div>
-        <div class="award-name">Meltdown Medal</div>
-        <div class="award-desc">When composure leaves the chat. Awarded for the most spectacular on-course emotional collapse of the weekend.</div>
-      </div>
-      <div class="award-card">
-        <div class="award-icon">🍺</div>
-        <div class="award-name">Pub Captain's Choice</div>
-        <div class="award-desc">The wildcard. The Pub Captain picks whoever made the weekend what it was — merit optional, entertainment mandatory.</div>
+      <div class="title-block">
+        <h2 class="h-section">Same blokes. <em class="serif--italic">Same trophy.</em> New course.</h2>
+        <p class="standfirst">It started as a long weekend with golf bags. Four years on, twelve of us, three courses, one cup. Yarrawonga is host for 2026.</p>
       </div>
     </div>
 
-  </div><!-- /page-content -->
-</section>
-
-<!-- ══════════════════════════════════════
-     PAGE 2 — SCHEDULE & COURSES
-══════════════════════════════════════ -->
-<section id="page-schedule" class="page">
-  <div class="hero" style="padding:60px 24px 48px">
-    <div class="hero-inner">
-      <div class="hero-pre">August 7–9, 2026</div>
-      <h1 class="hero-title" style="font-size:clamp(3rem,8vw,6rem)">SCHEDULE &<br><span>COURSES</span></h1>
-    </div>
-  </div>
-  <div class="page-content">
-
-    <!-- Day schedule cards -->
-    <div class="section-header">
-      <div class="section-label">Itinerary</div>
-      <div class="section-title">Weekend Programme</div>
-    </div>
-
-    <div class="day-card">
-      <div class="day-header">
-        <div class="day-label">FRI</div>
-        <div class="day-info">
-          <h3>Friday 7 August</h3>
-          <p>Day 1 — Match Play Best Ball</p>
+    <div class="address-grid">
+      <div class="body">
+        <div class="first">
+          <p class="dropcap">What began as a cheeky mates trip — a few blokes, a golf bag, and the optimistic belief that a weekend away would somehow improve everyone's handicap — has graduated into a fully-fledged golfing tradition. The Wonga Cup is now in its fourth year, and the word "tradition" no longer feels like a stretch. It feels earned.</p>
+          <p>Twelve players. Three days. Three courses. One trophy. The format has evolved, the field has matured (in numbers if not always in conduct), and the stories have stacked up into something resembling a genuine tournament history. Yarrawonga's championship layout provides the perfect stage: the Murray Course, Black Bull, and Lake Course will test every part of the game — from tee shots to temperament.</p>
+          <p>From Friday's match play battles to Saturday's scramble chaos and Sunday's individual Stableford grind, there are points up for grabs at every turn. The Wonga Cup is awarded to the winning team. Individual glory beckons in the form of Longest Drive, Nearest the Pin, and the not-entirely-coveted Silly Goose Hat. May the best team win — and may everyone else at least have a story worth telling at dinner.</p>
         </div>
-      </div>
-      <div class="day-body">
-        <div class="schedule-item"><div class="schedule-time">12:00 PM</div><div class="schedule-desc"><strong>Tee time</strong> — Murray Course, Yarrawonga Mulwala Golf Club Resort<br><span class="grey" style="font-size:.85rem">Format: Match Play Best Ball — one 1v1 singles, two 2v2 doubles. 10 players.</span></div></div>
-        <div class="schedule-item"><div class="schedule-time">2:00 PM</div><div class="schedule-desc"><strong>Check-in</strong> opens — 45 Anchorage Way 2, Yarrawonga</div></div>
-        <div class="schedule-item"><div class="schedule-time">Eve</div><div class="schedule-desc"><strong>Team dinner</strong> — venue TBC. Scores settled, stories started.</div></div>
-      </div>
-    </div>
-
-    <div class="day-card">
-      <div class="day-header">
-        <div class="day-label">SAT</div>
-        <div class="day-info">
-          <h3>Saturday 8 August</h3>
-          <p>Day 2 — Team Scramble (Stroke)</p>
-        </div>
-      </div>
-      <div class="day-body">
-        <div class="schedule-item"><div class="schedule-time">Morning</div><div class="schedule-desc"><strong>Cayden Woods & Ben Lepore arrive</strong> — full field of 12 assembled</div></div>
-        <div class="schedule-item"><div class="schedule-time">12:00 PM</div><div class="schedule-desc"><strong>Tee time</strong> — Black Bull Golf Course, Yarrawonga<br><span class="grey" style="font-size:.85rem">Format: Team Scramble. Each team splits into groups of 4 and 2. Net score vs par earns points.</span></div></div>
-        <div class="schedule-item"><div class="schedule-time">Eve</div><div class="schedule-desc"><strong>Dinner & Pub session</strong> — Pub Captain's Choice nominations open</div></div>
-      </div>
-    </div>
-
-    <div class="day-card">
-      <div class="day-header">
-        <div class="day-label">SUN</div>
-        <div class="day-info">
-          <h3>Sunday 9 August</h3>
-          <p>Day 3 — Individual Stableford</p>
-        </div>
-      </div>
-      <div class="day-body">
-        <div class="schedule-item"><div class="schedule-time">9:00 AM</div><div class="schedule-desc"><strong>Tee time</strong> — Lake Course, Yarrawonga Mulwala Golf Club Resort<br><span class="grey" style="font-size:.85rem">Format: Individual net Stableford. All 12 players. Points go to team total.</span></div></div>
-        <div class="schedule-item"><div class="schedule-time">Post-round</div><div class="schedule-desc"><strong>Presentation ceremony</strong> — Wonga Cup awarded, individual gongs distributed, Pub Captain has his say</div></div>
-        <div class="schedule-item"><div class="schedule-time">10:00 AM</div><div class="schedule-desc"><strong>Checkout</strong> deadline — 45 Anchorage Way 2</div></div>
-      </div>
-    </div>
-
-    <!-- Courses -->
-    <div class="section-header mt32">
-      <div class="section-label">The Venues</div>
-      <div class="section-title">Course Guide</div>
-    </div>
-    <div class="grid-3 mb24">
-
-      <div class="course-card">
-        <div class="course-img-frame">
-          <div class="course-ph">
-            <div class="course-ph-icon">⛳</div>
-            <div class="course-ph-label">Murray Course</div>
-            <div class="course-ph-sub">Add photo → /images/murray-course.jpg</div>
-          </div>
-          <img src="./images/course-murray.webp" alt="Murray Course, Yarrawonga Mulwala Golf Club Resort" class="course-img" onload="this.previousElementSibling.style.display='none';this.classList.add('loaded')">
-        </div>
-        <div class="course-header">
-          <div class="course-day-tag">Friday — Day 1</div>
-          <div class="course-name">Murray Course</div>
-          <div class="course-meta">
-            <div class="course-meta-item">Par <strong>72</strong></div>
-            <div class="course-meta-item">Length <strong>~6,095m</strong></div>
-            <div class="course-meta-item">Designers <strong>Thomson &amp; Wolveridge</strong></div>
-            <div class="course-meta-item">Opened <strong>1986</strong></div>
-          </div>
-        </div>
-        <div class="course-body">
-          <p>The flagship layout at Yarrawonga Mulwala Golf Club Resort, designed by Peter Thomson (five-time Open champion) and Michael Wolveridge. The Murray Course opened in 1986 and winds through century-old river red gums and native bushland on the sandy flats of the Murray River — an out-and-back routing that keeps the river scenery in play throughout.</p>
-          <p>Generous fairways flatter off the tee, but the undulating greens and well-positioned water features make scoring harder than the card suggests. Ranked among Australia's Top 100 public access courses, it's a fitting stage for Day 1 match play.</p>
+        <div class="sig">
+          — The Committee
+          <small>May 2026</small>
         </div>
       </div>
 
-      <div class="course-card">
-        <div class="course-img-frame">
-          <div class="course-ph">
-            <div class="course-ph-icon">🐂</div>
-            <div class="course-ph-label">Black Bull</div>
-            <div class="course-ph-sub">Add photo → /images/black-bull.jpg</div>
-          </div>
-          <img src="./images/course-black-bull.jpg" alt="Black Bull Golf Course, Yarrawonga" class="course-img" onload="this.previousElementSibling.style.display='none';this.classList.add('loaded')">
+      <aside class="stat-stack">
+        <div class="stat">
+          <div class="k">Edition</div>
+          <div class="v">4<sup style="font-size:0.5em;letter-spacing:0">th</sup></div>
         </div>
-        <div class="course-header">
-          <div class="course-day-tag">Saturday — Day 2</div>
-          <div class="course-name">Black Bull</div>
-          <div class="course-meta">
-            <div class="course-meta-item">Par <strong>72</strong></div>
-            <div class="course-meta-item">Length <strong>~6,256m</strong></div>
-            <div class="course-meta-item">Designers <strong>Thomson &amp; Ross Perrett</strong></div>
-            <div class="course-meta-item">18 holes from <strong>2015</strong></div>
-          </div>
+        <div class="stat">
+          <div class="k">First Held</div>
+          <div class="v">2023<small>Bellarine Peninsula</small></div>
         </div>
-        <div class="course-body">
-          <p>Designed by Peter Thomson and Ross Perrett, Black Bull opened with 9 holes in 2010 and was extended to a full 18-hole championship layout in 2015. Set on the banks of Lake Mulwala, it plays as the longest of the three courses and demands consistent iron play into large, well-bunkered greens. The slope rating of 133 tells the story.</p>
-          <p>The course's notorious <strong>Bull Ring stretch</strong> — holes 4, 5 and 6 — is where scramble rounds are won and lost. Navigate those three holes without a blow-up and your team stays in the fight. Rolling fairways, natural watercourses, and G2 Bent Grass greens make it a proper test on a Saturday.</p>
+        <div class="stat">
+          <div class="k">Starters</div>
+          <div class="v">12<small>two sides of six</small></div>
         </div>
-      </div>
-
-      <div class="course-card">
-        <div class="course-img-frame">
-          <div class="course-ph">
-            <div class="course-ph-icon">🌊</div>
-            <div class="course-ph-label">Lake Course</div>
-            <div class="course-ph-sub">Add photo → /images/lake-course.jpg</div>
-          </div>
-          <img src="./images/course-lake.jpg" alt="Lake Course, Yarrawonga Mulwala Golf Club Resort" class="course-img" onload="this.previousElementSibling.style.display='none';this.classList.add('loaded')">
+        <div class="stat">
+          <div class="k">Holes Played</div>
+          <div class="v">54<small>over three days</small></div>
         </div>
-        <div class="course-header">
-          <div class="course-day-tag">Sunday — Day 3</div>
-          <div class="course-name">Lake Course</div>
-          <div class="course-meta">
-            <div class="course-meta-item">Par <strong>72</strong></div>
-            <div class="course-meta-item">Length <strong>~5,957m</strong></div>
-            <div class="course-meta-item">Designers <strong>Thomson &amp; Wolveridge</strong></div>
-            <div class="course-meta-item">Bunkers <strong>56</strong></div>
-          </div>
+        <div class="stat">
+          <div class="k">Points on Offer</div>
+          <div class="v">24<small>across the three rounds</small></div>
         </div>
-        <div class="course-body">
-          <p>Also designed by Peter Thomson and Michael Wolveridge, the Lake Course sits alongside Lake Mulwala and plays as the most strategically demanding of the three layouts. Its 56 bunkers are placed to punish any deviation from the correct line — tee shots must be placed, not simply hit, and the approach game will separate the field.</p>
-          <p>The shorter overall length makes it the ideal Stableford closer: higher handicappers can post solid scores when the bunkers are avoided, but the sand traps are everywhere and they claim ambition regularly. Sunday rankings will be settled here.</p>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Accommodation -->
-    <img src="./images/accom-deck.png" alt="Property outdoor deck — 45 Anchorage Way 2, Yarrawonga" class="photo-banner" width="858" height="615" style="max-height:280px;object-position:center center;max-width:858px">
-    <div class="accom-card">
-      <h3>Accommodation</h3>
-      <div class="accom-address">45 Anchorage Way 2, Yarrawonga VIC 3730</div>
-      <p style="color:var(--off-white);font-size:.93rem">The weekend base camp. A group property with enough space for the full field and enough atmosphere for post-round debrief sessions to run as long as necessary.</p>
-      <div class="accom-grid">
-        <div class="accom-item">
-          <h4>Check-in</h4>
-          <p>After 2:00 PM on Friday 7 August</p>
-        </div>
-        <div class="accom-item">
-          <h4>Check-out</h4>
-          <p>Before 10:00 AM on Sunday 9 August</p>
-        </div>
-        <div class="accom-item">
-          <h4>What's Provided</h4>
-          <p>Doona covers, doonas, pillows, hand towels, bath mats, tea towels, kitchen &amp; cookware, BBQ, TV, WiFi</p>
-        </div>
-        <div class="accom-item">
-          <h4>What to Bring</h4>
-          <p>Sheets, pillowcases &amp; towels (not provided — unless you plan to air-dry, pack accordingly). Plus your own food, drinks, toiletries, and clubs.</p>
-        </div>
-        <div class="accom-item">
-          <h4>Parking</h4>
-          <p>On-site parking available for all players</p>
-        </div>
-        <div class="accom-item">
-          <h4>Note</h4>
-          <p>Ben Lepore &amp; Cayden Woods arrive Saturday morning — arrange own Friday accommodation if needed</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Weekend Ops -->
-    <div class="section-header" style="padding-top:40px">
-      <div class="section-label">Operations</div>
-      <div class="section-title">Weekend Checklist</div>
-    </div>
-
-    <div class="grid-3 mb24" style="gap:16px">
-
-      <div class="card">
-        <div style="font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px">Before You Leave Home</div>
-        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">✓</span> Golf clubs &amp; shoes</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">✓</span> Sheets, pillowcases &amp; towels (not provided)</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">✓</span> Food &amp; drinks for the house</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">✓</span> Toiletries</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">✓</span> Warm layers (Yarrawonga evenings)</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">✓</span> Cash or card for meals &amp; drinks out</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div style="font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px">On Arrival — Friday</div>
-        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">1</span> Head to <strong>45 Anchorage Way 2</strong> — on-site parking available</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">2</span> Check in opens <strong>2:00 PM</strong></li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">3</span> Tee off <strong>12:00 PM</strong> at Murray Course — be there by 11:30</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">4</span> Team dinner Friday evening — venue TBC</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">⚠</span> <span style="color:var(--grey)">B. Lepore &amp; C. Woods — arrange own Friday accommodation</span></li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div style="font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px">During the Weekend</div>
-        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">SAT</span> Black Bull 12:00 PM — Team Scramble</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">SUN</span> Lake Course 9:00 AM — Individual Stableford</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">📱</span> Enter your scores on this site — open Scorecard tab</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">🏆</span> Presentation after Sunday's round</li>
-          <li style="display:flex;gap:10px;font-size:.88rem;color:var(--off-white)"><span style="color:var(--gold)">✓</span> Checkout by <strong>10:00 AM Sunday</strong></li>
-        </ul>
-      </div>
-
-    </div>
-
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════
-     PAGE 3 — THE FIELD
-══════════════════════════════════════ -->
-<section id="page-field" class="page">
-  <div class="hero" style="padding:60px 24px 48px;background-image:linear-gradient(rgba(11,26,13,.75),rgba(11,26,13,.9)),url('./images/golf-cart.png');background-size:cover;background-position:center top">
-    <div class="hero-inner">
-      <div class="hero-pre">12 Players · 3 Days</div>
-      <h1 class="hero-title" style="font-size:clamp(3rem,8vw,6rem)">THE<br><span>FIELD</span></h1>
-    </div>
-  </div>
-  <div class="page-content">
-    <div class="section-header">
-      <div class="section-label">2026 Competitors</div>
-      <div class="section-title">Player Profiles</div>
-    </div>
-    <div class="player-grid">
-
-      <div class="player-card" data-field-pid="0">
-        <div class="player-card-header">
-          <div class="player-name">Brendan<br>Cunningham</div>
-          <div class="player-hcp">7.0</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">The bomber of the bunch. When Brendan connects, the ball travels far enough to need a customs clearance. Back for his second appearance and on a mission to erase the memories of last year's Stableford Sunday front nine — effectively 15 goals down at half time in AFL terms with his team in disarray. He's got the game and swagger for a "follow me lads" moment. The watch on Brendan: can he keep the driver under control.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="1">
-        <div class="player-card-header">
-          <div class="player-name">Gary<br>King</div>
-          <div class="player-hcp">10.0</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">The silent assassin. Gary doesn't say much, but when he does, it's usually to announce a birdie. Calm, composed, and capable of shooting numbers that turn heads — the kind of player you only notice when you realise he's already two up and about to go three clear. Here for the golf and here to win. Period. His off-course recovery involves a hired hyperbaric chamber and a travelling nutritionist, which explains why he's not staying with his team. Don't let him convince you otherwise. Won't double down for the Silly Goose Hat this year. Surely.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="2">
-        <div class="player-card-header">
-          <div class="player-name">Matthew<br>Smith</div>
-          <div class="player-hcp">15.8</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">First up start for Matthew Smith. A proud member of Melbourne Airport Golf Club — rumoured to do his best work somewhere between the terminal and the 18th green. Matt is expected to navigate the fairways with flair, composure and just enough quiet confidence to make the rest uneasy. Question is: will the influence of friends-gone-wild (Hughes et al.) affect his output, or will the long, well-manicured fairways of Yarrawonga be where he takes flight?</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="3">
-        <div class="player-card-header">
-          <div class="player-name">James<br>McIntyre</div>
-          <div class="player-hcp">17.7</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">The token lefty and master of the strategic iron off the tee. James plays the game his way — quietly, controlled, and often annoyingly effective. Uses a heart rate monitor to ensure peak performance. Still chasing his first weekend win; his 0-2 record is a constant talking point to anyone who'll listen. Expect crisp contact, controlled right-to-left fades, a strong putting game (potentially with a club that is not a putter), and a noticeable chip on his shoulder.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="4">
-        <div class="player-card-header">
-          <div class="player-name">Cayden<br>Woods</div>
-          <div class="player-hcp">24.0</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">Cayden has an unmatched ability to find good lies where none exist. If you hear the sound of a bus barrelling down the fairway, don't panic — it's just Cayden's big square-faced driver. A self-proclaimed human fairway finder who doesn't miss fairways, period. If he misses one this year, someone probably distracted him mid-backswing.</p>
-          <span class="player-tag">Sat–Sun Only</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="5">
-        <div class="player-card-header">
-          <div class="player-name">Scott<br>Rumbelow</div>
-          <div class="player-hcp">25.0</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">The workhorse of the weekend. Scott's one of the most frequent golfers in the group and improving every season — a driving force behind the Annual Golf Extravaganza. Don't be fooled by the friendly smile; beneath it lies a man who is absolutely here to win. Loves the beers and will ensure any opposition player's glass is constantly topped up. Don't mistake the laid-back exterior under that bucket hat. There's a competitor in there.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="6">
-        <div class="player-card-header">
-          <div class="player-name">Matthew<br>Freestun</div>
-          <div class="player-hcp">26.7</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">The perennial smokey. When he's on, he's on. Freestun has that rare ability to light up a course out of nowhere — his calm demeanour and light repetitive foot-tampering at address masks a dangerously competitive edge. First picked in almost any team at his handicap. When his swing clicks, fairways shrink, greens enlarge, and the field gets nervous. The temperament of a pro, the unpredictability of a weekend warrior.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="7">
-        <div class="player-card-header">
-          <div class="player-name">Nathan<br>Freestun</div>
-          <div class="player-hcp">27.0</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">The tactician and one of the main men behind the annual golf events. His golf doesn't talk — so his strategy will. He'll either be plotting pairings to give his team the best chance of a win, or fine-tuning his wedge game to thin another one straight across the green. Nathan loves the golf weekend, with skill and ambition often being misunderstood by those who haven't seen him at full tilt.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="8">
-        <div class="player-card-header">
-          <div class="player-name">Steve<br>Koenig</div>
-          <div class="player-hcp">31.0</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">The Smiling Assassin. Don't be fooled by the grin — Steve hasn't lost yet and isn't planning to start now. Universally liked, with a knack for being underestimated right up until he's shaking your hand on 18. Spectators are advised to stand to the right of the fairway — his driver has been known to explore the scenic route hard left off the tee box.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="9">
-        <div class="player-card-header">
-          <div class="player-name">Jimmy<br>Hepburn</div>
-          <div class="player-hcp">TBC</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">The great unknown. Handicap still pending, reputation for early-morning beers already confirmed. Jimmy's a crowd favourite and most people haven't even met him yet. Paired with Robert Hughes, this duo promises chaos, comedy, and possibly greatness. Early scouting reports describe him as "dangerous." Whether that applies to his golf or his nightlife remains to be seen. Either way, eyes will be on Jimmy.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="10">
-        <div class="player-card-header">
-          <div class="player-name">Robert<br>Hughes</div>
-          <div class="player-hcp">38.0</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">Equal parts golfer, entertainer, and hydration specialist — maybe a little less golfer on second thought. Unbeaten across 3 weekends for the Pub Captain's Choice Award, and this year won't be any different. Famous for his hand wedge technique. Rob plays the game with a smile and a stubby, always up for a laugh and never short of an excuse. He's here to be the group's DJ (4 songs in the playlist), make memories, and win something he didn't know he was competing for.</p>
-          <span class="player-tag">Fri–Sun</span>
-        </div>
-      </div>
-
-      <div class="player-card" data-field-pid="11">
-        <div class="player-card-header">
-          <div class="player-name">Ben<br>Lepore</div>
-          <div class="player-hcp">44.0</div>
-        </div>
-        <div class="player-card-body">
-          <p class="player-bio">A walking, talking commentary track. Few men can talk their way through a round quite like Ben. His sledging is as relentless as his enthusiasm, and while he's yet to prove golf is his main focus, he's unbeaten at talking opponents out of form (1-0 record). Known to hit his fifth off the tee and still walk away with par. Ben is golf's version of chaos — living proof that persistence and creative maths pays off — and we wouldn't have it any other way.</p>
-          <span class="player-tag">Sat–Sun Only</span>
-        </div>
-      </div>
-
+      </aside>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════
-     PAGE 4 — LIVE SCORECARD
-══════════════════════════════════════ -->
-<section id="page-scorecard" class="page">
-
-  <!-- Pinned scoreboard -->
-  <div class="scoreboard-pin">
-    <div class="scoreboard-inner">
-      <div class="team-a">
-        <div class="sb-team-name" id="sb-team-name-a">Team Beer</div>
-        <div class="sb-total" id="sb-total-a">0</div>
-        <div class="sb-day-chips" id="sb-chips-a">
-          <span class="sb-chip">D1: 0</span>
-          <span class="sb-chip">D2: 0</span>
-          <span class="sb-chip">D3: 0</span>
-        </div>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ROLL OF HONOUR
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="honour" class="alt">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>02</span>
+        <span class="num">Honours</span>
+        <span>Past Champions</span>
       </div>
-      <div class="sb-vs">VS</div>
-      <div class="team-b">
-        <div class="sb-team-name" id="sb-team-name-b">Team Golf</div>
-        <div class="sb-total" id="sb-total-b">0</div>
-        <div class="sb-day-chips" id="sb-chips-b">
-          <span class="sb-chip">D1: 0</span>
-          <span class="sb-chip">D2: 0</span>
-          <span class="sb-chip">D3: 0</span>
-        </div>
-      </div>
-    </div>
-    <div id="win-banner" style="display:none"></div>
-  </div>
-
-  <!-- Live sync bar -->
-  <div class="sync-bar">
-    <span class="sync-label"><span class="live-dot"></span>Live Scores</span>
-    <button class="refresh-btn" onclick="loadFromSupabase().then(() => refreshAllDays())">🔄 Refresh</button>
-    <span class="sync-spacer"></span>
-  </div>
-
-  <!-- Sub-tabs -->
-  <div class="sc-tabs">
-    <button class="sc-tab active" data-tab="teams">Teams</button>
-    <button class="sc-tab" data-tab="day1">Day 1</button>
-    <button class="sc-tab" data-tab="day2">Day 2</button>
-    <button class="sc-tab" data-tab="day3">Day 3</button>
-  </div>
-
-  <!-- ── TEAMS PANEL ── -->
-  <div class="page-content">
-    <div class="sc-panel active" id="sc-teams">
-      <div class="section-header" style="padding-top:28px">
-        <div class="section-label">Setup</div>
-        <div class="section-title">Team Names</div>
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-end">
-        <div style="flex:1;min-width:140px">
-          <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:6px">Team A Name</label>
-          <input id="tn-input-a" type="text" value="Team Beer" maxlength="24"
-            style="width:100%;background:var(--card-bg);border:1px solid rgba(240,180,41,.4);border-radius:var(--r);padding:10px 14px;color:var(--white);font-size:.95rem;font-family:var(--font-h)">
-        </div>
-        <div style="flex:1;min-width:140px">
-          <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:6px">Team B Name</label>
-          <input id="tn-input-b" type="text" value="Team Golf" maxlength="24"
-            style="width:100%;background:var(--card-bg);border:1px solid rgba(74,158,255,.4);border-radius:var(--r);padding:10px 14px;color:var(--white);font-size:.95rem;font-family:var(--font-h)">
-        </div>
-        <button onclick="saveTeamNames()" style="background:var(--gold);color:var(--navy);font-family:var(--font-h);font-weight:700;font-size:.78rem;letter-spacing:1.5px;text-transform:uppercase;border:none;border-radius:var(--r);padding:10px 20px;cursor:pointer;white-space:nowrap">Save Names</button>
-      </div>
-
-      <div class="section-header" style="padding-top:4px">
-        <div class="section-label">Setup</div>
-        <div class="section-title">Team Assignment</div>
-      </div>
-      <div class="info-box">Adjust team assignments as needed. Click "→ B" or "← A" to move a player.</div>
-      <div class="team-setup-grid">
-        <div class="team-col team-a-col">
-          <div class="team-col-h" id="team-col-h-a">Team Beer</div>
-          <div id="team-a-list"></div>
-        </div>
-        <div class="team-col team-b-col">
-          <div class="team-col-h" id="team-col-h-b">Team Golf</div>
-          <div id="team-b-list"></div>
-        </div>
-      </div>
-      <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid rgba(255,255,255,.2);color:var(--grey);border-radius:var(--r);cursor:pointer">Reset to Default</button>
-    </div>
-
-    <!-- ── DAY 1 PANEL ── -->
-    <div class="sc-panel" id="sc-day1">
-      <div class="section-header" style="padding-top:28px">
-        <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
-        <div class="section-title">Match Play Best Ball</div>
-      </div>
-      <div class="info-box">10 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday). Assign Friday players to matches below. For each hole, click <strong style="color:var(--team-a)">A</strong> (Team A wins hole), <strong style="color:var(--off-white)">H</strong> (Halved), or <strong style="color:var(--team-b)">B</strong> (Team B wins hole). <strong>Scoring:</strong> 1pt per hole won, 0.5pt halved, +2 bonus to match winner.</div>
-      <div id="day1-matches"></div>
-    </div>
-
-    <!-- ── DAY 2 PANEL ── -->
-    <div class="sc-panel" id="sc-day2">
-      <div class="section-header" style="padding-top:28px">
-        <div class="section-label">Saturday 8 August · Black Bull · 12:00pm</div>
-        <div class="section-title">Team Scramble</div>
-      </div>
-      <div class="info-box">Each team splits into a <strong>group of 4</strong> and a <strong>group of 2</strong>. Enter the net score vs par for each group (e.g. <strong>-2</strong> for two under par, <strong>+3</strong> for three over). Points: Par = 5pts, each stroke under = +1pt extra, each over = −1pt (min 0).</div>
-      <div class="scramble-grid">
-        <div class="scramble-team-card scramble-team-a">
-          <div class="scramble-team-title" id="scramble-title-a">Team Beer</div>
-          <div class="sig">
-            <label>Group of 4 — Net Score vs Par</label>
-            <div class="sig-row">
-              <input type="number" id="a4-score" placeholder="0" oninput="updateDay2()">
-              <div class="pts-badge" id="a4-pts">— pts</div>
-            </div>
-          </div>
-          <div class="sig">
-            <label>Group of 2 — Net Score vs Par</label>
-            <div class="sig-row">
-              <input type="number" id="a2-score" placeholder="0" oninput="updateDay2()">
-              <div class="pts-badge" id="a2-pts">— pts</div>
-            </div>
-          </div>
-          <div class="day-total-row"><span class="lbl">Team A Day 2 Total</span><span class="val" id="a-day2-total">0 pts</span></div>
-        </div>
-        <div class="scramble-team-card scramble-team-b">
-          <div class="scramble-team-title" id="scramble-title-b">Team Golf</div>
-          <div class="sig">
-            <label>Group of 4 — Net Score vs Par</label>
-            <div class="sig-row">
-              <input type="number" id="b4-score" placeholder="0" oninput="updateDay2()">
-              <div class="pts-badge" id="b4-pts">— pts</div>
-            </div>
-          </div>
-          <div class="sig">
-            <label>Group of 2 — Net Score vs Par</label>
-            <div class="sig-row">
-              <input type="number" id="b2-score" placeholder="0" oninput="updateDay2()">
-              <div class="pts-badge" id="b2-pts">— pts</div>
-            </div>
-          </div>
-          <div class="day-total-row"><span class="lbl">Team B Day 2 Total</span><span class="val" id="b-day2-total">0 pts</span></div>
-        </div>
+      <div class="title-block">
+        <h2 class="h-section">Three editions in, <em class="serif--italic">three different winners</em>.</h2>
+        <p class="standfirst">Started as an individual contest. Has been team-versus-team since 2024. Hasn't left Victoria yet.</p>
       </div>
     </div>
 
-    <!-- ── DAY 3 PANEL ── -->
-    <div class="sc-panel" id="sc-day3">
-      <div class="section-header" style="padding-top:28px">
-        <div class="section-label">Sunday 9 August · Lake Course · 9:00am</div>
-        <div class="section-title">Individual Stableford</div>
-      </div>
-      <div class="info-box">Enter each player's <strong>net Stableford score</strong>. Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=12, 2nd=10, 3rd=9, 4th=8, 5th=7, 6th=6, 7th=5, 8th=4, 9th=3, 10th=2, 11th=1, 12th=0</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
-      <div class="sf-table-wrap">
-        <table class="sf-table">
-          <thead>
-            <tr>
-              <th style="width:44px">Pos</th>
-              <th>Player</th>
-              <th>Team</th>
-              <th>HCP</th>
-              <th>Net Stableford</th>
-              <th style="text-align:right">Pts</th>
-            </tr>
-          </thead>
-          <tbody id="sf-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-  </div><!-- /page-content -->
-</section>
-
-<!-- ══════════════════════════════════════
-     JAVASCRIPT
-══════════════════════════════════════ -->
-<script>
-/* ─────────────────────────────────────
-   SUPABASE CONFIG — REPLACE WITH YOUR VALUES
-───────────────────────────────────── */
-const SUPABASE_CONFIG = {
-  apiUrl: 'https://wtyyarvyscbrrkawjcvo.supabase.co',
-  apiKey: 'sb_publishable_T1z1rYbZ7yMoDdBXZMrjKw_R3aTxsrx',
-  tournamentId: 'wonga-cup-2026',
-  sessionKey: 'wonga-cup-2026'
-};
-const LAST_SYNC_KEY = 'wongaCup2026_lastSync';
-
-let currentUsername = null;
-let isOffline = false;
-let autoPollingInterval = null;
-let lastSaveTime = 0;
-
-/* ─────────────────────────────────────
-   DATA
-───────────────────────────────────── */
-const PLAYERS = [
-  { id:0,  name:'Brendan Cunningham', short:'B. Cunningham', hcp:'7.0',  seed:1,  friday:true  },
-  { id:1,  name:'Gary King',          short:'G. King',       hcp:'10.0', seed:2,  friday:true  },
-  { id:2,  name:'Matthew Smith',      short:'M. Smith',      hcp:'15.8', seed:3,  friday:true  },
-  { id:3,  name:'James McIntyre',     short:'J. McIntyre',   hcp:'17.7', seed:4,  friday:true  },
-  { id:4,  name:'Cayden Woods',       short:'C. Woods',      hcp:'24.0', seed:5,  friday:false },
-  { id:5,  name:'Scott Rumbelow',     short:'S. Rumbelow',   hcp:'25.0', seed:6,  friday:true  },
-  { id:6,  name:'Matthew Freestun',   short:'M. Freestun',   hcp:'26.7', seed:7,  friday:true  },
-  { id:7,  name:'Nathan Freestun',    short:'N. Freestun',   hcp:'27.0', seed:8,  friday:true  },
-  { id:8,  name:'Steve Koenig',       short:'S. Koenig',     hcp:'31.0', seed:9,  friday:true  },
-  { id:9,  name:'Jimmy Hepburn',      short:'J. Hepburn',    hcp:'TBC',  seed:10, friday:true  },
-  { id:10, name:'Robert Hughes',      short:'R. Hughes',     hcp:'38.0', seed:11, friday:true  },
-  { id:11, name:'Ben Lepore',         short:'B. Lepore',     hcp:'44.0', seed:12, friday:false }
-];
-
-// Default: seeds 1,3,5,8,10,12 = A;  seeds 2,4,6,7,9,11 = B
-const DEFAULT_A = new Set([0,2,4,7,9,11]);
-const DEFAULT_B = new Set([1,3,5,6,8,10]);
-
-/* ─────────────────────────────────────
-   STATE
-───────────────────────────────────── */
-const state = {
-  teamNameA: 'Team Beer',
-  teamNameB: 'Team Golf',
-  teamA: new Set(DEFAULT_A),
-  teamB: new Set(DEFAULT_B),
-  day1: {
-    matches: [
-      { type:'singles', pA:[null],      pB:[null],      winner:null, margin:null },
-      { type:'doubles', pA:[null,null], pB:[null,null], winner:null, margin:null },
-      { type:'doubles', pA:[null,null], pB:[null,null], winner:null, margin:null }
-    ]
-  },
-  day2: { a4:null, a2:null, b4:null, b2:null },
-  day3: {}  // id -> stableford score string
-};
-
-/* ─────────────────────────────────────
-   PERSISTENCE
-───────────────────────────────────── */
-function saveState() {
-  try {
-    const s = {
-      teamNameA: state.teamNameA,
-      teamNameB: state.teamNameB,
-      teamA: [...state.teamA],
-      teamB: [...state.teamB],
-      day1:  JSON.parse(JSON.stringify(state.day1)),
-      day2:  state.day2,
-      day3:  state.day3
-    };
-    localStorage.setItem('wongaCup2026', JSON.stringify(s));
-  } catch(e) {}
-  lastSaveTime = Date.now();
-}
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem('wongaCup2026');
-    if (!raw) return;
-    const s = JSON.parse(raw);
-    if (s.teamNameA) state.teamNameA = s.teamNameA;
-    if (s.teamNameB) state.teamNameB = s.teamNameB;
-    if (s.teamA) state.teamA = new Set(s.teamA);
-    if (s.teamB) state.teamB = new Set(s.teamB);
-    if (s.day1)  state.day1  = s.day1;
-    if (s.day2)  state.day2  = s.day2;
-    if (s.day3)  state.day3  = s.day3;
-  } catch(e) {}
-}
-
-/* ─────────────────────────────────────
-   NAVIGATION
-───────────────────────────────────── */
-document.querySelectorAll('.nav-links a').forEach(a => {
-  a.addEventListener('click', e => {
-    e.preventDefault();
-    const pg = a.dataset.page;
-    document.querySelectorAll('.nav-links a').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
-    a.classList.add('active');
-    document.getElementById('page-' + pg).classList.add('active');
-    window.scrollTo(0,0);
-  });
-});
-
-document.querySelectorAll('.sc-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.sc-tab').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.sc-panel').forEach(x => x.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('sc-' + btn.dataset.tab).classList.add('active');
-  });
-});
-
-/* ─────────────────────────────────────
-   TEAM SETUP
-───────────────────────────────────── */
-function renderTeams() {
-  const aList = document.getElementById('team-a-list');
-  const bList = document.getElementById('team-b-list');
-  aList.innerHTML = '';
-  bList.innerHTML = '';
-
-  PLAYERS.forEach(p => {
-    const inA = state.teamA.has(p.id);
-    const el = document.createElement('div');
-    el.className = 'team-player-item';
-    el.innerHTML = `
+    <div class="honour-grid">
       <div>
-        <span>${p.name}</span>
-        <small style="display:block">HCP ${p.hcp}${!p.friday ? ' · Sat–Sun' : ''}</small>
+        <table class="ed-table">
+          <thead>
+            <tr><th style="width:80px">Year</th><th>Champion</th><th>Venue</th><th class="r">Margin</th></tr>
+          </thead>
+          <tbody>
+            <tr class="feat">
+              <td>2025</td>
+              <td>Team Underdogs<span class="smol">S. Rumbelow · S. Koenig · R. Hughes · N. Freestun</span></td>
+              <td>Mornington Peninsula<span class="smol">Moonah · Eagle Ridge · Devilbend</span></td>
+              <td class="r">60.5 — 38.5</td>
+            </tr>
+            <tr>
+              <td>2024</td>
+              <td>Six Foreskins<span class="smol">M. Freestun · S. Koenig · B. Lepore · C. Woods</span></td>
+              <td>Ballarat<span class="smol">Ballarat G.C. · RACV Goldfields · Buninyong</span></td>
+              <td class="r">31.5 — 21.5</td>
+            </tr>
+            <tr>
+              <td>2023</td>
+              <td>S. Koenig <em class="cap-italic muted" style="font-size:0.9em">(individual)</em><span class="smol">Inaugural — no teams contested</span></td>
+              <td>Bellarine Peninsula<span class="smol">Curlewis · Curlewis Mini · Portarlington</span></td>
+              <td class="r">+7</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Minor Awards History -->
+        <div style="margin-top:48px">
+          <h3 class="h-large" style="margin-bottom:24px">Minor Awards History</h3>
+          <table class="ed-table">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Longest Drive</th>
+                <th>Meltdown Medal</th>
+                <th>Pub Captain</th>
+                <th>Silly Goose Hat</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>2023</td><td>N. Freestun 229m</td><td class="tag">N/A</td><td>R. Hughes</td><td class="tag">Not introduced</td></tr>
+              <tr><td>2024</td><td>M. Freestun 255m</td><td>S. Rumbelow</td><td>R. Hughes</td><td class="tag">Not introduced</td></tr>
+              <tr><td>2025</td><td>G. King 272m</td><td>N. Freestun</td><td>R. Hughes</td><td>G. King</td></tr>
+              <tr><td>2026</td><td class="tag">TBD</td><td class="tag">TBD</td><td class="tag">TBD</td><td class="tag">TBD</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <button class="move-btn" onclick="movePlayer(${p.id},${inA ? 'true' : 'false'})">
-        ${inA ? '→ B' : '← A'}
-      </button>`;
-    (inA ? aList : bList).appendChild(el);
-  });
-  saveState();
-  updateScoreboard();
-  renderDay1();
-  renderDay3();
-  renderOverviewTeams();
-  renderFieldTeamBadges();
-}
+      <div>
+        <div class="honour-photo" style="background-image:url('images/teams-photo.png');background-position:center 20%"></div>
+        <div class="cap">Defending Champions · Team Underdogs, Moonah Links 2025</div>
 
-function movePlayer(id, fromA) {
-  if (fromA) { state.teamA.delete(id); state.teamB.add(id); }
-  else        { state.teamB.delete(id); state.teamA.add(id); }
-  saveState();
-  insertUpdate('team_assign', { field_key: 'A', value: JSON.stringify([...state.teamA]) });
-  insertUpdate('team_assign', { field_key: 'B', value: JSON.stringify([...state.teamB]) });
-  renderTeams();
-}
-
-function resetTeams() {
-  state.teamA = new Set(DEFAULT_A);
-  state.teamB = new Set(DEFAULT_B);
-  renderTeams();
-}
-
-function renderOverviewTeams() {
-  const el = document.getElementById('overview-teams');
-  if (!el) return;
-  const nameA = state.teamNameA || 'Team A';
-  const nameB = state.teamNameB || 'Team B';
-  const playersA = PLAYERS.filter(p => state.teamA.has(p.id));
-  const playersB = PLAYERS.filter(p => state.teamB.has(p.id));
-  const makeList = (players) => players.map(p =>
-    `<li style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)">
-      <span style="color:var(--off-white)">${p.name}</span>
-      <span style="font-size:.8rem;color:var(--grey)">HCP ${p.hcp}</span>
-    </li>`
-  ).join('');
-  el.innerHTML = `
-    <div class="section-header" style="padding-top:32px">
-      <div class="section-label">2026</div>
-      <div class="section-title">The Teams</div>
+        <!-- Records -->
+        <div style="margin-top:40px">
+          <h3 class="h-large" style="margin-bottom:16px">All-Time Records</h3>
+          <div class="records" style="grid-template-columns:1fr">
+            <div class="col">
+              <h4>Most Appearances</h4>
+              <div class="row"><div class="n">3</div><div class="who">J. McIntyre · M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · S. Koenig</div></div>
+            </div>
+            <div class="col" style="margin-top:16px">
+              <h4>Most Team Wins</h4>
+              <div class="row"><div class="n">2</div><div class="who">S. Koenig</div></div>
+              <div class="row"><div class="n">1</div><div class="who">M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · B. Lepore · C. Woods</div></div>
+              <div class="row"><div class="n muted">0</div><div class="who muted">J. McIntyre · B. Cunningham · G. King</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="grid-2" style="gap:16px;margin-bottom:32px">
-      <div class="card">
-        <div style="font-family:var(--font-h);font-size:.72rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:12px">${nameA}</div>
-        <ul style="list-style:none;padding:0;margin:0">${makeList(playersA)}</ul>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     THE FIELD
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="field">
+  <div class="shell shell--wide">
+    <div class="section-head">
+      <div class="meta">
+        <span>03</span>
+        <span class="num">Field</span>
+        <span>Twelve Starters</span>
       </div>
-      <div class="card">
-        <div style="font-family:var(--font-h);font-size:.72rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:12px">${nameB}</div>
-        <ul style="list-style:none;padding:0;margin:0">${makeList(playersB)}</ul>
+      <div class="title-block">
+        <h2 class="h-section">Twelve starters, <em class="serif--italic">drawn into two sides</em>.</h2>
+        <p class="standfirst">Ten regulars, one returning starter, one debutant. Listed in handicap order. Sides drawn Thursday night at the pub.</p>
       </div>
-    </div>`;
-}
+    </div>
 
-function renderFieldTeamBadges() {
-  PLAYERS.forEach(p => {
-    const card = document.querySelector(`[data-field-pid="${p.id}"]`);
-    if (!card) return;
-    let badge = card.querySelector('.field-team-badge');
-    if (!badge) {
-      badge = document.createElement('span');
-      const body = card.querySelector('.player-card-body');
-      if (body) body.insertBefore(badge, body.firstChild);
-    }
-    const inA = state.teamA.has(p.id);
-    const teamName = inA ? (state.teamNameA || 'Team A') : (state.teamNameB || 'Team B');
-    badge.className = `field-team-badge team-badge ${inA ? 'ta-badge' : 'tb-badge'}`;
-    badge.style.cssText = 'display:inline-block;margin-bottom:10px';
-    badge.textContent = teamName;
-  });
-}
+    <div class="field-grid">
 
-/* ─────────────────────────────────────
-   DAY 1 — MATCH PLAY
-───────────────────────────────────── */
-function fridayPlayers(team) {
-  return PLAYERS.filter(p => p.friday && (team === 'A' ? state.teamA : state.teamB).has(p.id));
-}
+      <article class="player">
+        <div class="pnum">№ 01</div>
+        <div class="meta">
+          <div class="name">Brendan Cunningham<small>Fri–Sun</small></div>
+          <div class="hcp"><b>7.0</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge">2025 starter</span></div>
+        <p class="note">The bomber of the bunch. When Brendan connects, the ball travels far enough to need a customs clearance. Back for his second appearance and on a mission to erase the memories of last year's Stableford Sunday front nine — effectively 15 goals down at half time in AFL terms with his team in disarray. He's got the game and swagger for a "follow me lads" moment. The watch on Brendan: can he keep the driver under control.</p>
+      </article>
 
-function playerOptions(team, matchIdx, slot, currentId) {
-  const pool = fridayPlayers(team);
-  const usedInOthers = new Set();
-  state.day1.matches.forEach((m, mi) => {
-    if (mi === matchIdx) return;
-    (m.pA || []).forEach(x => { if (x !== null) usedInOthers.add(x); });
-    (m.pB || []).forEach(x => { if (x !== null) usedInOthers.add(x); });
-  });
-  // Also used in same match different slots
-  const match = state.day1.matches[matchIdx];
-  const sameTeamArr = team === 'A' ? match.pA : match.pB;
-  const usedSameMatch = new Set(sameTeamArr.filter((x,i) => i !== slot && x !== null));
+      <article class="player">
+        <div class="pnum">№ 02</div>
+        <div class="meta">
+          <div class="name">Gary King<small>Fri–Sun</small></div>
+          <div class="hcp"><b>10.0</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge feat">Longest '25 · 272m</span><span class="badge">Goose '25</span></div>
+        <p class="note">The silent assassin. Gary doesn't say much, but when he does, it's usually to announce a birdie. Calm, composed, and capable of shooting numbers that turn heads — the kind of player you only notice when you realise he's already two up and about to go three clear. Here for the golf and here to win. Period. His off-course recovery involves a hired hyperbaric chamber and a travelling nutritionist, which explains why he's not staying with his team. Don't let him convince you otherwise. Won't double down for the Silly Goose Hat this year. Surely.</p>
+      </article>
 
-  let opts = `<option value="">— pick player —</option>`;
-  pool.forEach(p => {
-    const disabled = usedInOthers.has(p.id) || usedSameMatch.has(p.id) ? 'disabled' : '';
-    const sel = p.id === currentId ? 'selected' : '';
-    opts += `<option value="${p.id}" ${disabled} ${sel}>${p.short} (${p.hcp})</option>`;
-  });
-  return opts;
-}
+      <article class="player">
+        <div class="pnum">№ 03</div>
+        <div class="meta">
+          <div class="name">Matthew Smith<small>Fri–Sun</small></div>
+          <div class="hcp"><b>15.8</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge">Debutant '26</span></div>
+        <p class="note">First up start for Matthew Smith. A proud member of Melbourne Airport Golf Club — rumoured to do his best work somewhere between the terminal and the 18th green. Matt is expected to navigate the fairways with flair, composure and just enough quiet confidence to make the rest uneasy. Question is: will the influence of friends-gone-wild (Hughes et al.) affect his output, or will the long, well-manicured fairways of Yarrawonga be where he takes flight?</p>
+      </article>
 
-function renderDay1() {
-  const container = document.getElementById('day1-matches');
-  container.innerHTML = '';
-  const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Doubles (2v2)', 'Match 3 — Doubles (2v2)'];
+      <article class="player">
+        <div class="pnum">№ 04</div>
+        <div class="meta">
+          <div class="name">James McIntyre<small>Fri–Sun</small></div>
+          <div class="hcp"><b>17.7</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge">Portarlington '23</span></div>
+        <p class="note">The token lefty and master of the strategic iron off the tee. James plays the game his way — quietly, controlled, and often annoyingly effective. Uses a heart rate monitor to ensure peak performance. Still chasing his first weekend win; his 0-2 record is a constant talking point to anyone who'll listen. Expect crisp contact, controlled right-to-left fades, a strong putting game (potentially with a club that is not a putter), and a noticeable chip on his shoulder.</p>
+      </article>
 
-  state.day1.matches.forEach((match, mi) => {
-    const { pA, pB, winner, margin, type } = match;
-    const slots = type === 'singles' ? 1 : 2;
-    const ptsA = winner === 'A' ? 2 : winner === 'AS' ? 1 : 0;
-    const ptsB = winner === 'B' ? 2 : winner === 'AS' ? 1 : 0;
+      <article class="player">
+        <div class="pnum">№ 05</div>
+        <div class="meta">
+          <div class="name">Cayden Woods<small>Sat–Sun Only</small></div>
+          <div class="hcp"><b>24.0</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge gold">Champion '24</span></div>
+        <p class="note">Cayden has an unmatched ability to find good lies where none exist. If you hear the sound of a bus barrelling down the fairway, don't panic — it's just Cayden's big square-faced driver. A self-proclaimed human fairway finder who doesn't miss fairways, period. If he misses one this year, someone probably distracted him mid-backswing.</p>
+      </article>
 
-    const card = document.createElement('div');
-    card.className = 'match-card' + (winner === 'A' ? ' win-a' : winner === 'B' ? ' win-b' : winner === 'AS' ? ' win-as' : '');
+      <article class="player">
+        <div class="pnum">№ 06</div>
+        <div class="meta">
+          <div class="name">Scott Rumbelow<small>Fri–Sun</small></div>
+          <div class="hcp"><b>25.0</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge">Meltdown '24</span></div>
+        <p class="note">The workhorse of the weekend. Scott's one of the most frequent golfers in the group and improving every season — a driving force behind the Annual Golf Extravaganza. Don't be fooled by the friendly smile; beneath it lies a man who is absolutely here to win. Loves the beers and will ensure any opposition player's glass is constantly topped up. Don't mistake the laid-back exterior under that bucket hat. There's a competitor in there.</p>
+      </article>
 
-    // Header
-    const hd = document.createElement('div');
-    hd.className = 'match-header';
-    hd.innerHTML = `
-      <div class="match-title">${titles[mi]}</div>
-      <div class="match-score-display">
-        <span class="msa">${ptsA}</span>
-        <span class="mss">pts</span>
-        <span class="msb">${ptsB}</span>
-      </div>`;
-    card.appendChild(hd);
+      <article class="player">
+        <div class="pnum">№ 07</div>
+        <div class="meta">
+          <div class="name">Matthew Freestun<small>Fri–Sun</small></div>
+          <div class="hcp"><b>26.7</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge gold">Champion '24</span><span class="badge">Longest '24</span></div>
+        <p class="note">The perennial smokey. When he's on, he's on. Freestun has that rare ability to light up a course out of nowhere — his calm demeanour and light repetitive foot-tampering at address masks a dangerously competitive edge. First picked in almost any team at his handicap. When his swing clicks, fairways shrink, greens enlarge, and the field gets nervous. The temperament of a pro, the unpredictability of a weekend warrior.</p>
+      </article>
 
-    // Player assignments
-    const pr = document.createElement('div');
-    pr.className = 'match-players-row';
-    let aHtml = `<div class="player-group"><div class="pg-label pgl-a">${state.teamNameA.toUpperCase()}</div>`;
-    for (let s = 0; s < slots; s++) {
-      aHtml += `<select onchange="setMatchPlayer(${mi},'A',${s},this.value)">${playerOptions('A',mi,s,pA[s])}</select>`;
-    }
-    aHtml += `</div>`;
-    let bHtml = `<div class="player-group pb"><div class="pg-label pgl-b" style="text-align:right">${state.teamNameB.toUpperCase()}</div>`;
-    for (let s = 0; s < slots; s++) {
-      bHtml += `<select onchange="setMatchPlayer(${mi},'B',${s},this.value)">${playerOptions('B',mi,s,pB[s])}</select>`;
-    }
-    bHtml += `</div>`;
-    pr.innerHTML = aHtml + `<div class="vs-div">VS</div>` + bHtml;
-    card.appendChild(pr);
+      <article class="player">
+        <div class="pnum">№ 08</div>
+        <div class="meta">
+          <div class="name">Nathan Freestun<small>Fri–Sun</small></div>
+          <div class="hcp"><b>27.0</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge">Meltdown '25</span></div>
+        <p class="note">The tactician and one of the main men behind the annual golf events. His golf doesn't talk — so his strategy will. He'll either be plotting pairings to give his team the best chance of a win, or fine-tuning his wedge game to thin another one straight across the green. Nathan loves the golf weekend, with skill and ambition often being misunderstood by those who haven't seen him at full tilt.</p>
+      </article>
 
-    // Result entry — simple winner + margin
-    const re = document.createElement('div');
-    re.className = 'running-score-row';
-    re.style = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 22px';
-    re.innerHTML = `
-      <span style="font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey)">Result:</span>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="radio" name="m${mi}-winner" value="A" ${winner==='A'?'checked':''} onchange="setMatchResult(${mi},this.value)">
-        <span style="color:var(--team-a);font-family:var(--font-h);font-weight:600">${state.teamNameA}</span>
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="radio" name="m${mi}-winner" value="AS" ${winner==='AS'?'checked':''} onchange="setMatchResult(${mi},this.value)">
-        <span style="color:var(--grey);font-family:var(--font-h);font-weight:600">All Square</span>
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="radio" name="m${mi}-winner" value="B" ${winner==='B'?'checked':''} onchange="setMatchResult(${mi},this.value)">
-        <span style="color:var(--team-b);font-family:var(--font-h);font-weight:600">${state.teamNameB}</span>
-      </label>
-      ${winner && winner !== 'AS' ? `
-      <span style="font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-left:8px">By:</span>
-      <input type="number" min="1" max="10" value="${margin||''}" placeholder="holes up"
-        style="width:90px;padding:5px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:var(--r);color:var(--white);font-family:var(--font-b);font-size:.9rem"
-        oninput="setMatchMargin(${mi},this.value)">
-      <span style="color:var(--grey);font-size:.85rem">up</span>` : ''}
-    `;
-    card.appendChild(re);
-    container.appendChild(card);
-  });
-}
+      <article class="player">
+        <div class="pnum">№ 09</div>
+        <div class="meta">
+          <div class="name">Steve Koenig<small>Fri–Sun</small></div>
+          <div class="hcp"><b>31.0</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge gold">Champion '23 '25</span></div>
+        <p class="note">The Smiling Assassin. Don't be fooled by the grin — Steve hasn't lost yet and isn't planning to start now. Universally liked, with a knack for being underestimated right up until he's shaking your hand on 18. Spectators are advised to stand to the right of the fairway — his driver has been known to explore the scenic route hard left off the tee box.</p>
+      </article>
 
-function fmt(n) {
-  if (n === Math.floor(n)) return n.toString();
-  return n.toFixed(1);
-}
+      <article class="player">
+        <div class="pnum">№ 10</div>
+        <div class="meta">
+          <div class="name">Jimmy Hepburn<small>Fri–Sun</small></div>
+          <div class="hcp"><b>TBC</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge">Debutant '26</span></div>
+        <p class="note">The great unknown. Handicap still pending, reputation for early-morning beers already confirmed. Jimmy's a crowd favourite and most people haven't even met him yet. Paired with Robert Hughes, this duo promises chaos, comedy, and possibly greatness. Early scouting reports describe him as "dangerous." Whether that applies to his golf or his nightlife remains to be seen. Either way, eyes will be on Jimmy.</p>
+      </article>
 
-function setMatchPlayer(matchIdx, team, slot, val) {
-  const id = val === '' ? null : parseInt(val);
-  if (team === 'A') state.day1.matches[matchIdx].pA[slot] = id;
-  else              state.day1.matches[matchIdx].pB[slot] = id;
-  saveState();
-  renderDay1();
-  updateScoreboard();
-}
+      <article class="player">
+        <div class="pnum">№ 11</div>
+        <div class="meta">
+          <div class="name">Robert Hughes<small>Fri–Sun</small></div>
+          <div class="hcp"><b>38.0</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge feat">Pub Capt. ×3</span></div>
+        <p class="note">Equal parts golfer, entertainer, and hydration specialist — maybe a little less golfer on second thought. Unbeaten across 3 weekends for the Pub Captain's Choice Award, and this year won't be any different. Famous for his hand wedge technique. Rob plays the game with a smile and a stubby, always up for a laugh and never short of an excuse. He's here to be the group's DJ (4 songs in the playlist), make memories, and win something he didn't know he was competing for.</p>
+      </article>
 
-function setMatchResult(matchIdx, winner) {
-  requireUsername(() => {
-    state.day1.matches[matchIdx].winner = winner;
-    if (winner === 'AS') state.day1.matches[matchIdx].margin = null;
-    saveState();
-    insertUpdate('day1_match', { match_idx: matchIdx, value: winner });
-    renderDay1();
-    updateScoreboard();
-  });
-}
+      <article class="player">
+        <div class="pnum">№ 12</div>
+        <div class="meta">
+          <div class="name">Ben Lepore<small>Sat–Sun Only</small></div>
+          <div class="hcp"><b>44.0</b>HCP</div>
+        </div>
+        <div class="badge-row"><span class="badge gold">Champion '24</span></div>
+        <p class="note">A walking, talking commentary track. Few men can talk their way through a round quite like Ben. His sledging is as relentless as his enthusiasm, and while he's yet to prove golf is his main focus, he's unbeaten at talking opponents out of form (1-0 record). Known to hit his fifth off the tee and still walk away with par. Ben is golf's version of chaos — living proof that persistence and creative maths pays off — and we wouldn't have it any other way.</p>
+      </article>
 
-function setMatchMargin(matchIdx, val) {
-  state.day1.matches[matchIdx].margin = val === '' ? null : parseInt(val);
-  saveState();
-  insertUpdate('day1_margin', { match_idx: matchIdx, value: val === '' ? null : parseInt(val) });
-}
+    </div>
+  </div>
+</section>
 
-/* ─────────────────────────────────────
-   DAY 2 — SCRAMBLE
-───────────────────────────────────── */
-function scramblePoints(val) {
-  if (val === '' || val === null || val === undefined) return null;
-  const n = parseInt(val);
-  if (isNaN(n)) return null;
-  return Math.max(0, 5 - n);
-}
+<!-- ═══════════════════════════════════════════════════════════════════════
+     THE COURSE
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="course" class="alt">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>04</span>
+        <span class="num">Course</span>
+        <span>Three Layouts</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">Three courses, <em class="serif--italic">three very different tests.</em></h2>
+        <p class="standfirst">Hosted entirely by Yarrawonga &amp; Mulwala Golf Club Resort, on the banks of Lake Mulwala. Murray opens, Black Bull middles, the Lake closes.</p>
+      </div>
+    </div>
 
-function updateDay2() {
-  requireUsername(() => {
-    _doUpdateDay2();
-    ['a4','a2','b4','b2'].forEach(id => {
-      insertUpdate('day2_score', { field_key: id, value: state.day2[id] });
-    });
-  });
-}
-function _doUpdateDay2() {
-  const ids = ['a4','a2','b4','b2'];
-  ids.forEach(id => {
-    const inp = document.getElementById(id + '-score');
-    const pts = scramblePoints(inp.value);
-    const badge = document.getElementById(id + '-pts');
-    state.day2[id] = inp.value;
-    if (pts !== null) {
-      badge.textContent = pts + ' pts';
-      badge.classList.add('live');
-    } else {
-      badge.textContent = '— pts';
-      badge.classList.remove('live');
-    }
-  });
+    <article class="course">
+      <div class="photo" style="background-image:url('images/course-murray.webp')">
+        <div class="cap">The Murray Course · Friday Day 1</div>
+      </div>
+      <div class="copy">
+        <span class="day-tag">Day I · Friday 7 August · 12:00 PM · Match Play Best Ball</span>
+        <h3>The <em>Murray</em> Course</h3>
+        <div class="stats">
+          <div class="s"><span class="k">Par</span><span class="v">72</span></div>
+          <div class="s"><span class="k">Length</span><span class="v">~6,095m</span></div>
+          <div class="s"><span class="k">Designers</span><span class="v">Thomson &amp; Wolveridge</span></div>
+          <div class="s"><span class="k">Opened</span><span class="v">1986</span></div>
+        </div>
+        <p>The flagship layout at Yarrawonga Mulwala Golf Club Resort, designed by Peter Thomson (five-time Open champion) and Michael Wolveridge. The Murray Course opened in 1986 and winds through century-old river red gums and native bushland on the sandy flats of the Murray River — an out-and-back routing that keeps the river scenery in play throughout.</p>
+        <p>Generous fairways flatter off the tee, but the undulating greens and well-positioned water features make scoring harder than the card suggests. Ranked among Australia's Top 100 public access courses, it's a fitting stage for Day 1 match play.</p>
+        <div class="signature">
+          <div class="l">Format · Match Play Best Ball</div>
+          <div class="v">One 1v1 singles, two 2v2 doubles. 10 players (Cayden Woods &amp; Ben Lepore join Saturday). 2 points per match won, 1 each if all square.</div>
+        </div>
+      </div>
+    </article>
 
-  const aTotal = (scramblePoints(state.day2.a4)||0) + (scramblePoints(state.day2.a2)||0);
-  const bTotal = (scramblePoints(state.day2.b4)||0) + (scramblePoints(state.day2.b2)||0);
-  document.getElementById('a-day2-total').textContent = aTotal + ' pts';
-  document.getElementById('b-day2-total').textContent = bTotal + ' pts';
+    <article class="course flip">
+      <div class="photo" style="background-image:url('images/course-black-bull.jpg')">
+        <div class="cap">Black Bull · Saturday Day 2</div>
+      </div>
+      <div class="copy">
+        <span class="day-tag">Day II · Saturday 8 August · 12:00 PM · Team Scramble</span>
+        <h3>Black <em>Bull</em></h3>
+        <div class="stats">
+          <div class="s"><span class="k">Par</span><span class="v">72</span></div>
+          <div class="s"><span class="k">Length</span><span class="v">~6,256m</span></div>
+          <div class="s"><span class="k">Designers</span><span class="v">Thomson &amp; Perrett</span></div>
+          <div class="s"><span class="k">18 holes</span><span class="v">from 2015</span></div>
+        </div>
+        <p>Designed by Peter Thomson and Ross Perrett, Black Bull opened with 9 holes in 2010 and was extended to a full 18-hole championship layout in 2015. Set on the banks of Lake Mulwala, it plays as the longest of the three courses and demands consistent iron play into large, well-bunkered greens. The slope rating of 133 tells the story.</p>
+        <p>The course's notorious <strong>Bull Ring stretch</strong> — holes 4, 5 and 6 — is where scramble rounds are won and lost. Navigate those three holes without a blow-up and your team stays in the fight.</p>
+        <div class="signature">
+          <div class="l">Format · Team Scramble</div>
+          <div class="v">Each team splits into a group of 4 and a group of 2. Net score vs par earns points. Par = 5pts; each stroke under adds 1pt, each over subtracts 1pt (min 0).</div>
+        </div>
+      </div>
+    </article>
 
-  const cardA = document.querySelector('.scramble-team-a');
-  const cardB = document.querySelector('.scramble-team-b');
-  if (cardA && cardB) {
-    cardA.classList.toggle('leading', aTotal > 0 && aTotal >= bTotal);
-    cardB.classList.toggle('leading', bTotal > 0 && bTotal > aTotal);
-  }
+    <article class="course">
+      <div class="photo" style="background-image:url('images/course-lake.jpg')">
+        <div class="cap">The Lake Course · Sunday Day 3</div>
+      </div>
+      <div class="copy">
+        <span class="day-tag">Day III · Sunday 9 August · 10:00 AM · Individual Stableford</span>
+        <h3>The <em>Lake</em> Course</h3>
+        <div class="stats">
+          <div class="s"><span class="k">Par</span><span class="v">72</span></div>
+          <div class="s"><span class="k">Length</span><span class="v">~5,957m</span></div>
+          <div class="s"><span class="k">Designers</span><span class="v">Thomson &amp; Wolveridge</span></div>
+          <div class="s"><span class="k">Bunkers</span><span class="v">56</span></div>
+        </div>
+        <p>Also designed by Peter Thomson and Michael Wolveridge, the Lake Course sits alongside Lake Mulwala and plays as the most strategically demanding of the three layouts. Its 56 bunkers are placed to punish any deviation from the correct line — tee shots must be placed, not simply hit, and the approach game will separate the field.</p>
+        <p>The shorter overall length makes it the ideal Stableford closer: higher handicappers can post solid scores when the bunkers are avoided, but the sand traps are everywhere and they claim ambition regularly.</p>
+        <div class="signature">
+          <div class="l">Format · Individual Net Stableford</div>
+          <div class="v">All 12 players. Points by finishing position: 1st=12, 2nd=10, 3rd=9 … down to 12th=0. Tied players share averaged points. Each player's points go to their team total.</div>
+        </div>
+      </div>
+    </article>
 
-  saveState();
-  updateScoreboard();
-}
+  </div>
+</section>
 
-function restoreDay2() {
-  ['a4','a2','b4','b2'].forEach(id => {
-    const el = document.getElementById(id + '-score');
-    if (el && state.day2[id] !== null && state.day2[id] !== undefined) {
-      el.value = state.day2[id];
-    }
-  });
-  _doUpdateDay2();
-}
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PROGRAMME / SCHEDULE
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="programme">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>05</span>
+        <span class="num">Schedule</span>
+        <span>Three Days</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">Three days. <em class="serif--italic">Each a different game.</em></h2>
+        <p class="standfirst">Friday is match play on the Murray. Saturday is a scramble at Black Bull. Sunday is Stableford on the Lake. The Cup is presented after Sunday's round.</p>
+      </div>
+    </div>
 
-/* ─────────────────────────────────────
-   DAY 3 — STABLEFORD
-───────────────────────────────────── */
-const POS_PTS = [12,10,9,8,7,6,5,4,3,2,1,0];
+    <div class="schedule">
 
-function computeDay3() {
-  const entries = PLAYERS.map(p => ({
-    id:    p.id,
-    name:  p.name,
-    hcp:   p.hcp,
-    team:  state.teamA.has(p.id) ? 'A' : 'B',
-    score: state.day3[p.id] !== undefined && state.day3[p.id] !== '' ? parseInt(state.day3[p.id]) : null
-  }));
+      <article class="day">
+        <div class="when">
+          <div class="dy">Friday<br><em class="cap-italic">7 Aug</em></div>
+          <div class="dt">Day I · Match Play</div>
+        </div>
+        <div class="what">
+          <div class="frm">Match Play Best Ball · 10 players · Murray Course</div>
+          <h3>The first ten arrivals tee off at noon. One singles, two doubles per side.</h3>
+          <p>Two doubles, one singles — 3 matches, 6 points up for grabs. 2pts per match win, 1pt each for all square. Cayden Woods &amp; Ben Lepore join the field Saturday morning.</p>
+        </div>
+        <div class="runs">
+          <div class="item"><div class="t">12:00</div><div class="x">Tee off · Murray Course<em>Be on the practice green by 11:30</em></div></div>
+          <div class="item"><div class="t">14:00</div><div class="x">Check-in opens · 45 Anchorage Way 2<em>Keys held at reception until 7:00 PM</em></div></div>
+          <div class="item"><div class="t">Evening</div><div class="x">Team dinner · venue TBC<em>Scores settled, stories started</em></div></div>
+        </div>
+      </article>
 
-  // Sort by score desc (nulls last)
-  const sorted = [...entries].sort((a,b) => {
-    if (a.score === null && b.score === null) return 0;
-    if (a.score === null) return 1;
-    if (b.score === null) return -1;
-    return b.score - a.score;
-  });
+      <article class="day">
+        <div class="when">
+          <div class="dy">Saturday<br><em class="cap-italic">8 Aug</em></div>
+          <div class="dt">Day II · Team Scramble</div>
+        </div>
+        <div class="what">
+          <div class="frm">Team Scramble (Net vs Par) · 12 players · Black Bull</div>
+          <h3>Cayden &amp; Ben arrive Saturday morning. The full field of twelve is assembled.</h3>
+          <p>Each side splits into a four and a two. Net team score vs par earns points: par = 5pts, each stroke under adds 1pt, each over subtracts 1pt (min 0). Pub Captain nominations open this evening.</p>
+        </div>
+        <div class="runs">
+          <div class="item"><div class="t">Morning</div><div class="x">Cayden &amp; Ben arrive · full field assembled</div></div>
+          <div class="item"><div class="t">12:00</div><div class="x">Tee off · Black Bull Golf Course<em>Tee groupings posted at the pro shop</em></div></div>
+          <div class="item"><div class="t">Evening</div><div class="x">Dinner &amp; pub session · Pub Captain's Choice nominations open</div></div>
+        </div>
+      </article>
 
-  // Assign positions with tie handling
-  let i = 0;
-  while (i < sorted.length) {
-    if (sorted[i].score === null) { sorted[i].pos = null; sorted[i].pts = 0; i++; continue; }
-    let j = i;
-    while (j < sorted.length && sorted[j].score === sorted[i].score) j++;
-    let totalPts = 0;
-    for (let k = i; k < j; k++) totalPts += (POS_PTS[k] || 0);
-    const avgPts = totalPts / (j - i);
-    for (let k = i; k < j; k++) { sorted[k].pos = i + 1; sorted[k].pts = avgPts; }
-    i = j;
-  }
+      <article class="day">
+        <div class="when">
+          <div class="dy">Sunday<br><em class="cap-italic">9 Aug</em></div>
+          <div class="dt">Day III · Stableford</div>
+        </div>
+        <div class="what">
+          <div class="frm">Individual Net Stableford · 12 players · The Lake</div>
+          <h3>All 12 play their own ball. The Cup is presented after the round.</h3>
+          <p>Each player keeps their own card. Points awarded by finishing position — 1st=12 down to 12th=0. Tied players share averaged points. Each player's points go to their team total.</p>
+        </div>
+        <div class="runs">
+          <div class="item"><div class="t">10:00</div><div class="x">Tee off · Lake Course, Yarrawonga Mulwala G.C.</div></div>
+          <div class="item"><div class="t">Post-round</div><div class="x">Presentation ceremony<em>Wonga Cup awarded, individual gongs distributed, Pub Captain has his say</em></div></div>
+          <div class="item"><div class="t">10:00 AM</div><div class="x">Checkout deadline · 45 Anchorage Way 2</div></div>
+        </div>
+      </article>
 
-  return { sorted, entries };
-}
+    </div>
+  </div>
+</section>
 
-function renderDay3() {
-  const tbody = document.getElementById('sf-tbody');
-  if (!tbody) return;
-  const { sorted } = computeDay3();
-  tbody.innerHTML = '';
-  const maxPts = POS_PTS[0];
-  const topScore = sorted[0]?.score;
-  sorted.forEach(p => {
-    const row = document.createElement('tr');
-    const isTop = p.score !== null && p.score === topScore;
-    row.className = (p.team === 'A' ? 'row-a' : 'row-b') + (isTop ? ' top-scorer' : '');
-    const intensity = p.pts > 0 ? 0.05 + (p.pts / maxPts) * 0.28 : 0.03;
-    const rgb = p.team === 'A' ? '240,180,41' : '74,158,255';
-    row.style.background = `rgba(${rgb},${intensity.toFixed(3)})`;
-    const posClass = p.pos === 1 ? 'pos-1' : p.pos === 2 ? 'pos-2' : p.pos === 3 ? 'pos-3' : '';
-    const posText  = p.pos ? (p.pos === 1 ? '🥇' : p.pos === 2 ? '🥈' : p.pos === 3 ? '🥉' : p.pos) : '—';
-    const ptsText  = p.score !== null ? (p.pts % 1 === 0 ? p.pts : p.pts.toFixed(1)) : '—';
-    row.innerHTML = `
-      <td class="pos-cell ${posClass}">${posText}</td>
-      <td style="color:var(--off-white)">${p.name}</td>
-      <td><span class="${p.team === 'A' ? 'ta-badge' : 'tb-badge'} team-badge">Team ${p.team}</span></td>
-      <td class="grey" style="font-size:.84rem">${p.hcp}</td>
-      <td><input type="number" class="sf-in" placeholder="—" value="${state.day3[p.id]||''}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
-      <td class="pts-cell">${ptsText}</td>`;
-    tbody.appendChild(row);
-  });
-  updateScoreboard();
-}
+<!-- ═══════════════════════════════════════════════════════════════════════
+     HONOURS — TROPHIES ON OFFER
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="honours" class="alt">
+  <div class="shell shell--wide">
+    <div class="section-head">
+      <div class="meta">
+        <span>06</span>
+        <span class="num">Trophies</span>
+        <span>On the Line</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">One Cup. <em class="serif--italic">Six side honours.</em></h2>
+        <p class="standfirst">The Wonga Cup is contested between sides. The six minor honours are decided across individuals, hole records, and the verdict of a Pub Captain whose tenure is yet to be challenged.</p>
+      </div>
+    </div>
 
-function setStableford(pid, val) {
-  requireUsername(() => {
-    state.day3[pid] = val;
-    saveState();
-    insertUpdate('day3_stableford', { player_id: pid, value: val });
-    const { sorted } = computeDay3();
-    const player = sorted.find(p => p.id === pid);
-    if (player) {
-      const row = document.querySelector(`[data-pid="${pid}"]`)?.closest('tr');
-      if (row) {
-        const ptsCell = row.querySelector('.pts-cell');
-        if (ptsCell) ptsCell.textContent = player.pts > 0 ? (player.pts % 1 === 0 ? player.pts : player.pts.toFixed(1)) : '—';
-        const intensity = player.pts > 0 ? 0.05 + (player.pts / POS_PTS[0]) * 0.28 : 0.03;
-        const rgb = player.team === 'A' ? '240,180,41' : '74,158,255';
-        row.style.background = `rgba(${rgb},${intensity.toFixed(3)})`;
-      }
-    }
-    updateScoreboard();
-  });
-}
+    <div class="awards">
+      <div class="award">
+        <span class="l">Cup</span>
+        <span class="name">The <em>Wonga</em> Cup</span>
+        <p>Awarded to the winning side across all three days. Bragging rights until the following August.</p>
+        <span class="holder">Holders · Team Underdogs '25</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">Longest <em>Drive</em></span>
+        <p>Furthest measured drive on the nominated hole. Carts ineligible.</p>
+        <span class="holder">Holder · G. King · 272m</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">Nearest the <em>Pin</em></span>
+        <p>Closest tee shot to the flag on the nominated par 3.</p>
+        <span class="holder">Holder · vacant</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">The <em>Silly Goose</em> Hat</span>
+        <p>For the single most baffling decision made on a golf course across the weekend.</p>
+        <span class="holder">Holder · G. King</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">Worst <em>Blow-Up</em></span>
+        <p>Highest single-hole score in the tournament. A badge of honour for the genuinely cursed.</p>
+        <span class="holder">Holder · S. Rumbelow · −13</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">The <em>Meltdown</em> Medal</span>
+        <p>For the most spectacular loss of composure observed on the course.</p>
+        <span class="holder">Holder · N. Freestun</span>
+      </div>
+      <div class="award">
+        <span class="l">Minor</span>
+        <span class="name">Pub Captain's <em>Choice</em></span>
+        <p>The wildcard. Awarded by the Pub Captain on merit or entertainment, whichever applies.</p>
+        <span class="holder">Holder · R. Hughes ×3</span>
+      </div>
+    </div>
+  </div>
+</section>
 
-/* ─────────────────────────────────────
-   SCORING CALCULATIONS
-───────────────────────────────────── */
-function calcDay1() {
-  let a = 0, b = 0;
-  state.day1.matches.forEach(match => {
-    if (match.winner === 'A') a += 2;
-    else if (match.winner === 'B') b += 2;
-    else if (match.winner === 'AS') { a += 1; b += 1; }
-  });
-  return { a, b };
-}
+<!-- ═══════════════════════════════════════════════════════════════════════
+     RECORDS / HALL OF FAME
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="records" class="dense">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>07</span>
+        <span class="num">Records</span>
+        <span>All-Time</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">Three editions in. <em class="serif--italic">The book starts to write itself.</em></h2>
+      </div>
+    </div>
 
-function calcDay2() {
-  const a = (scramblePoints(state.day2.a4)||0) + (scramblePoints(state.day2.a2)||0);
-  const b = (scramblePoints(state.day2.b4)||0) + (scramblePoints(state.day2.b2)||0);
-  return { a, b };
-}
+    <div class="records">
+      <div class="col">
+        <h4>Most Appearances</h4>
+        <div class="row"><div class="n">III</div><div class="who">J. McIntyre · M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · S. Koenig</div></div>
+        <div class="row"><div class="n">II</div><div class="who">G. King · B. Cunningham</div></div>
+        <div class="row"><div class="n">I</div><div class="who">B. Lepore · C. Woods</div></div>
+      </div>
 
-function calcDay3() {
-  const { sorted } = computeDay3();
-  let a = 0, b = 0;
-  sorted.forEach(p => {
-    if (p.team === 'A') a += p.pts;
-    else                b += p.pts;
-  });
-  return { a, b };
-}
+      <div class="col">
+        <h4>Most Team Victories</h4>
+        <div class="row"><div class="n">II</div><div class="who">S. Koenig</div></div>
+        <div class="row"><div class="n">I</div><div class="who">M. Freestun · N. Freestun · R. Hughes · S. Rumbelow · B. Lepore · C. Woods</div></div>
+        <div class="row"><div class="n muted">0</div><div class="who muted">J. McIntyre · B. Cunningham · G. King</div></div>
+      </div>
 
-function isDay1Complete() {
-  return state.day1.matches.every(m => m.winner !== null);
-}
+      <div class="col">
+        <h4>Career Numbers</h4>
+        <div class="row"><div class="n">272m</div><div class="who">Longest measured drive · G. King · 2025</div></div>
+        <div class="row"><div class="n">−7</div><div class="who">Inaugural weekend medal · S. Koenig · 2023</div></div>
+        <div class="row"><div class="n">36–7</div><div class="who">Largest Stableford margin on a single round · 2025</div></div>
+        <div class="row"><div class="n">×3</div><div class="who">R. Hughes — Pub Captain's Choice, every edition</div></div>
+      </div>
+    </div>
+  </div>
+</section>
 
-function isDay2Complete() {
-  return ['a4','a2','b4','b2'].every(k => state.day2[k] !== null && state.day2[k] !== '');
-}
+<!-- ═══════════════════════════════════════════════════════════════════════
+     KIT LIST
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="kit" class="alt">
+  <div class="shell">
+    <div class="section-head">
+      <div class="meta">
+        <span>08</span>
+        <span class="num">Kit List</span>
+        <span>What to Bring</span>
+      </div>
+      <div class="title-block">
+        <h2 class="h-section">Pack like an adult. <em class="serif--italic">Play like a child.</em></h2>
+        <p class="standfirst">August in Yarrawonga: frost at sunrise, low twenties by lunch, a chance of a westerly off the lake. Pack for all three.</p>
+      </div>
+    </div>
 
-function isDay3Complete() {
-  return PLAYERS.every(p => state.day3[p.id] !== undefined && state.day3[p.id] !== '');
-}
+    <div class="kit-grid">
+      <div class="kit-col">
+        <h4>The Obvious</h4>
+        <ul class="kit-list">
+          <li><b>Clubs.</b> <span class="aside">A full set. Borrowing a wedge mid-round counts as a meltdown moment.</span></li>
+          <li><b>Balls.</b> <span class="aside">A dozen minimum. Two dozen if you play the lake holes the way you usually do.</span></li>
+          <li><b>Tees.</b> <span class="aside">Bring twice what you think you need.</span></li>
+          <li><b>Glove.</b> <span class="aside">Two, if there's any rain in the forecast.</span></li>
+          <li><b>Shoes.</b> <span class="aside">Spikeless or soft spikes. Pro shop is fussy.</span></li>
+        </ul>
+      </div>
 
-/* ─────────────────────────────────────
-   SCOREBOARD UPDATE
-───────────────────────────────────── */
-function updateScoreboard() {
-  updateTeamNames();
-  const d1 = calcDay1();
-  const d2 = calcDay2();
-  const d3 = calcDay3();
-  const totalA = d1.a + d2.a + d3.a;
-  const totalB = d1.b + d2.b + d3.b;
+      <div class="kit-col">
+        <h4>On Course</h4>
+        <ul class="kit-list">
+          <li><b>Collared shirts × 3.</b> <span class="aside">Clubhouse rules. No singlets, no exceptions.</span></li>
+          <li><b>Rain jacket.</b> <span class="aside">It's August. Don't be the bloke borrowing one.</span></li>
+          <li><b>Layers.</b> <span class="aside">A puffer or vest for the early tee.</span></li>
+          <li><b>Hat.</b> <span class="aside">Cap or bucket. The Goose Hat is issued separately.</span></li>
+          <li><b>Sunscreen.</b> <span class="aside">Yes, even in August. UV doesn't read calendars.</span></li>
+          <li><b>Towel.</b> <span class="aside">For clubs. Not for crying.</span></li>
+        </ul>
+      </div>
 
-  const sbA = document.getElementById('sb-total-a');
-  const sbB = document.getElementById('sb-total-b');
+      <div class="kit-col">
+        <h4>Accommodation</h4>
+        <ul class="kit-list">
+          <li><b>Sheets &amp; pillowcases.</b> <span class="aside">Not provided — pack accordingly or air-dry.</span></li>
+          <li><b>Towels.</b> <span class="aside">Bath towels not provided.</span></li>
+          <li><b>Food &amp; drinks.</b> <span class="aside">For the house — kitchen &amp; BBQ are available.</span></li>
+          <li><b>Toiletries.</b> <span class="aside">All the usual suspects.</span></li>
+          <li><b>Warm layers.</b> <span class="aside">Yarrawonga evenings get cold in August.</span></li>
+        </ul>
 
-  const prevA = parseFloat(sbA.textContent) || 0;
-  const prevB = parseFloat(sbB.textContent) || 0;
+        <h4 style="margin-top:32px">Wallet</h4>
+        <ul class="kit-list">
+          <li><b>$200 cash.</b> <span class="aside">$100 for skins &amp; side bets. $100 for the pub.</span></li>
+          <li><b>Card.</b> <span class="aside">Accommodation, dinners, green fees, that round you owe Hughesy.</span></li>
+          <li><b>Medicare card.</b> <span class="aside">Optimistic. Possible.</span></li>
+        </ul>
+      </div>
+    </div>
 
-  sbA.textContent = fmt(totalA);
-  sbB.textContent = fmt(totalB);
+    <!-- Logistics rail -->
+    <div class="logistics">
+      <div class="ll">
+        <span class="k">House</span>
+        <span class="v">45 Anchorage Way 2<small>Yarrawonga VIC 3730 · on-site parking</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Check-in</span>
+        <span class="v">From 2:00 PM Friday<small>B. Lepore &amp; C. Woods — arrange own Friday accommodation</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Tee Times</span>
+        <span class="v">Fri 12:00 · Sat 12:00 · Sun 10:00<small>Be on the practice green 20 mins prior</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Checkout</span>
+        <span class="v">Before 10:00 AM Sunday<small>After the presentations</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Provided</span>
+        <span class="v">Doona covers, pillows, kitchen &amp; cookware, BBQ, TV, WiFi<small>Sheets, pillowcases &amp; towels NOT provided</small></span>
+      </div>
+      <div class="ll">
+        <span class="k">Scores</span>
+        <span class="v">Track live on the scorecard<small>Enter scores as you play — syncs across devices</small></span>
+      </div>
+    </div>
 
-  if (fmt(totalA) !== fmt(prevA)) { sbA.classList.remove('pop'); void sbA.offsetWidth; sbA.classList.add('pop'); }
-  if (fmt(totalB) !== fmt(prevB)) { sbB.classList.remove('pop'); void sbB.offsetWidth; sbB.classList.add('pop'); }
+    <!-- Live scoring CTA -->
+    <a class="live-strip" href="scorecard.html">
+      <div class="l">Live Scorecard</div>
+      <div class="t">Track the Cup live from noon Friday. <em class="cap-italic">Track points, holes &amp; honours from your phone.</em></div>
+      <span class="go">Open the scorecard ↗</span>
+    </a>
+  </div>
+</section>
 
-  document.getElementById('sb-chips-a').innerHTML =
-    `<span class="sb-chip">D1: ${fmt(d1.a)}</span><span class="sb-chip">D2: ${fmt(d2.a)}</span><span class="sb-chip">D3: ${fmt(d3.a)}</span>`;
-  document.getElementById('sb-chips-b').innerHTML =
-    `<span class="sb-chip">D1: ${fmt(d1.b)}</span><span class="sb-chip">D2: ${fmt(d2.b)}</span><span class="sb-chip">D3: ${fmt(d3.b)}</span>`;
+<!-- ═══════════════════════════════════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════════════════════════════════ -->
+<footer class="foot">
+  <div class="shell">
+    <div class="row1">
+      <div class="col">
+        <h5>The Tournament</h5>
+        <ul>
+          <li><a href="#welcome">Welcome</a></li>
+          <li><a href="#honour">Honours</a></li>
+          <li><a href="#field">The Field</a></li>
+          <li><a href="#course">The Course</a></li>
+          <li><a href="#programme">Schedule</a></li>
+          <li><a href="#kit">Kit List</a></li>
+          <li><a href="scorecard.html">Live Scorecard ↗</a></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h5>Host Club</h5>
+        <ul>
+          <li>Yarrawonga &amp; Mulwala G.C.</li>
+          <li>Park &amp; Murray Streets</li>
+          <li>Mulwala NSW 2647</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h5>Accommodation</h5>
+        <ul>
+          <li>45 Anchorage Way 2</li>
+          <li>Yarrawonga VIC 3730</li>
+          <li>Check-in from 2:00 PM, Friday</li>
+          <li>Checkout before 10:00 AM, Sunday</li>
+        </ul>
+      </div>
+    </div>
+    <div class="colophon">
+      <div>The Wonga Cup · Fourth Edition · 2026</div>
+      <div>Set in Cormorant &amp; Geist</div>
+    </div>
+  </div>
+</footer>
 
-  const banner = document.getElementById('win-banner');
-  const allDone = isDay1Complete() && isDay2Complete() && isDay3Complete();
-  if (allDone) {
-    if (totalA > totalB) {
-      banner.className = 'win-banner';
-      banner.textContent = `🏆 ${state.teamNameA.toUpperCase()} WIN THE WONGA CUP — ${fmt(totalA)} to ${fmt(totalB)} 🏆`;
-      banner.style.display = '';
-    } else if (totalB > totalA) {
-      banner.className = 'win-banner';
-      banner.textContent = `🏆 ${state.teamNameB.toUpperCase()} WIN THE WONGA CUP — ${fmt(totalB)} to ${fmt(totalA)} 🏆`;
-      banner.style.display = '';
-    } else {
-      banner.className = 'sd-banner';
-      banner.textContent = `⚡ SUDDEN DEATH PUTT-OFF REQUIRED — ${fmt(totalA)} ALL ⚡`;
-      banner.style.display = '';
-    }
-  } else {
-    banner.style.display = 'none';
-  }
-  updateMiniScoreboard();
-}
+<!-- ═══════════════════════════════════════════════════════════════════════
+     THEME SWITCHER
+═══════════════════════════════════════════════════════════════════════ -->
+<div class="theme-switcher" id="theme-switcher" hidden>
+  <div class="tlabel">Coat of Paint</div>
+  <div class="row" role="radiogroup" aria-label="theme">
+    <button data-theme="green"  aria-label="green theme">Green</button>
+    <button data-theme="claret" aria-label="claret theme">Claret</button>
+    <button data-theme="navy"   aria-label="navy theme">Navy</button>
+  </div>
+  <div class="tlabel">Mode</div>
+  <div class="row" role="radiogroup" aria-label="light or dark">
+    <button data-mode="light">Light</button>
+    <button data-mode="dark">Dark</button>
+  </div>
+</div>
 
-/* ─────────────────────────────────────
-   LIVE SYNC — URL HASH ENCODING
-   State is always reflected in the URL
-   hash so copying the page URL gives a
-   snapshot anyone can load.
-───────────────────────────────────── */
-
-
-/* ─────────────────────────────────────
-   SUPABASE SYNC FUNCTIONS
-───────────────────────────────────── */
-function showSaveToast(message, type) {
-  const toast = document.getElementById('save-toast');
-  toast.textContent = message;
-  toast.className = `save-toast show ${type}`;
-  if (type !== 'saving') {
-    setTimeout(() => toast.classList.remove('show'), 2000);
-  }
-}
-
-async function insertUpdate(updateType, fields) {
-  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) return;
-  showSaveToast('Saving...', 'saving');
-  const row = {
-    tournament_id: SUPABASE_CONFIG.tournamentId,
-    update_type: updateType,
-    updated_by: currentUsername,
-    match_idx:  fields.match_idx  !== undefined ? fields.match_idx  : null,
-    player_id:  fields.player_id  !== undefined ? fields.player_id  : null,
-    field_key:  fields.field_key  !== undefined ? String(fields.field_key) : null,
-    value:      fields.value      !== null && fields.value !== undefined ? String(fields.value) : null
-  };
-  try {
-    const resp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_CONFIG.apiKey,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify(row)
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
-    isOffline = false;
-    document.getElementById('offline-banner').style.display = 'none';
-    showSaveToast('✓ Saved', 'success');
-  } catch(err) {
-    console.error('Supabase insert failed:', err.message);
-    isOffline = true;
-    document.getElementById('offline-banner').style.display = 'block';
-    showSaveToast('✗ Offline', 'error');
-  }
-}
-
-function applyUpdate(row) {
-  const v = row.value;
-  switch (row.update_type) {
-    case 'day1_match':
-      if (row.match_idx !== null && row.match_idx !== undefined) {
-        state.day1.matches[row.match_idx].winner = v;
-        if (v === 'AS') state.day1.matches[row.match_idx].margin = null;
-      }
-      break;
-    case 'day1_margin':
-      if (row.match_idx !== null && row.match_idx !== undefined) {
-        state.day1.matches[row.match_idx].margin = v === null || v === 'null' ? null : parseInt(v);
-      }
-      break;
-    case 'day2_score':
-      if (row.field_key) state.day2[row.field_key] = v === null || v === 'null' ? null : v;
-      break;
-    case 'day3_stableford':
-      if (row.player_id !== null && row.player_id !== undefined) {
-        state.day3[row.player_id] = v === null || v === 'null' ? null : v;
-      }
-      break;
-    case 'team_name':
-      if (row.field_key === 'A') state.teamNameA = v;
-      else if (row.field_key === 'B') state.teamNameB = v;
-      break;
-    case 'team_assign':
-      if (row.field_key === 'A') state.teamA = new Set(JSON.parse(v));
-      else if (row.field_key === 'B') state.teamB = new Set(JSON.parse(v));
-      break;
-  }
-}
-
-async function loadFromSupabase() {
-  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey) {
-    console.log('Supabase not configured');
-    return false;
-  }
-  const lastSync = localStorage.getItem(LAST_SYNC_KEY) || '1970-01-01T00:00:00.000Z';
-  try {
-    const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gt.${encodeURIComponent(lastSync)}&order=updated_at.asc&limit=500`;
-    const resp = await fetch(url, {
-      headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' }
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const rows = await resp.json();
-    if (rows.length > 0) {
-      rows.forEach(row => applyUpdate(row));
-      localStorage.setItem(LAST_SYNC_KEY, rows[rows.length - 1].updated_at);
-    }
-    isOffline = false;
-    document.getElementById('offline-banner').style.display = 'none';
-    return rows.length > 0;
-  } catch(err) {
-    console.error('Supabase load failed:', err.message);
-    isOffline = true;
-    document.getElementById('offline-banner').style.display = 'block';
-    return false;
-  }
-}
-
-/* ─────────────────────────────────────
-   USERNAME & LOGIN
-───────────────────────────────────── */
-var _pendingAction = null;
-
-function requireUsername(action) {
-  if (currentUsername) { if (action) action(); return; }
-  _pendingAction = action || null;
-  document.getElementById('username-modal').classList.remove('hidden');
-  document.getElementById('username-input').focus();
-}
-
-function confirmUsername() {
-  const input = document.getElementById('username-input');
-  const name = input.value.trim();
-  if (!name) {
-    input.style.borderColor = 'var(--gold)';
-    setTimeout(() => { input.style.borderColor = ''; }, 300);
-    return;
-  }
-  currentUsername = name;
-  sessionStorage.setItem('wongaCup_username', name);
-  document.getElementById('username-modal').classList.add('hidden');
-  document.getElementById('username-badge').textContent = `🎯 ${name}`;
-  document.getElementById('username-badge').style.display = 'block';
-  if (_pendingAction) { _pendingAction(); _pendingAction = null; }
-}
-
-function initUsername() {
-  const saved = sessionStorage.getItem('wongaCup_username');
-  if (saved) {
-    currentUsername = saved;
-    document.getElementById('username-badge').textContent = `🎯 ${saved}`;
-    document.getElementById('username-badge').style.display = 'block';
-  }
-  document.getElementById('username-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') confirmUsername();
-  });
-}
-
-
-/* ─────────────────────────────────────
-   MUSIC
-───────────────────────────────────── */
-function startMusic() {
-  document.getElementById('music-modal').classList.add('hidden');
-  sessionStorage.setItem('musicConsented', '1');
-  document.getElementById('bg-audio').play();
-}
-
-function dismissMusic() {
-  document.getElementById('music-modal').classList.add('hidden');
-  sessionStorage.setItem('musicConsented', 'dismissed');
-}
-
-/* ─────────────────────────────────────
-   INIT
-───────────────────────────────────── */
-if (!sessionStorage.getItem('musicConsented')) {
-  document.getElementById('music-modal').classList.remove('hidden');
-} else if (sessionStorage.getItem('musicConsented') === '1') {
-  document.getElementById('bg-audio').play();
-}
-
-initUsername();
-// Load from shared URL hash first; fall back to localStorage
-loadState();
-renderTeams();
-renderDay1();
-restoreDay2();
-renderDay3();
-updateScoreboard();
-// Load from Supabase on init if configured
-function refreshAllDays() {
-  console.log('Refreshing all day tabs...');
-  try {
-    renderDay1();
-    console.log('Day 1 rendered');
-    restoreDay2();
-    console.log('Day 2 rendered');
-    renderDay3();
-    console.log('Day 3 rendered');
-    updateScoreboard();
-    console.log('Scoreboard updated');
-    renderOverviewTeams();
-    renderFieldTeamBadges();
-  } catch(e) {
-    console.error('Error rendering days:', e);
-  }
-}
-
-if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
-  console.log('Starting Supabase polling...');
-  loadFromSupabase().then((success) => {
-    console.log('Initial load success:', success);
-    if (success) refreshAllDays();
-  }).catch(e => console.error('Initial load error:', e));
-
-  // Auto-poll every 30s for everyone (live scores for all players)
-  setInterval(() => {
-    // Skip re-render if we saved within the last 5 seconds to avoid wiping in-progress input
-    if (Date.now() - lastSaveTime < 5000) {
-      console.log('Auto-poll skipped — recent save in progress');
-      return;
-    }
-    console.log('Auto-poll triggered');
-    loadFromSupabase().then((success) => {
-      console.log('Poll load success:', success);
-      if (success) refreshAllDays();
-    }).catch(e => console.error('Poll load error:', e));
-  }, 30000);
-}
-/* ─────────────────────────────────────
-   MINI SCOREBOARD
-───────────────────────────────────── */
-function saveTeamNames() {
-  requireUsername(() => {
-    const a = document.getElementById('tn-input-a').value.trim();
-    const b = document.getElementById('tn-input-b').value.trim();
-    if (a) { state.teamNameA = a; insertUpdate('team_name', { field_key: 'A', value: a }); }
-    if (b) { state.teamNameB = b; insertUpdate('team_name', { field_key: 'B', value: b }); }
-    saveState();
-    updateTeamNames();
-    renderDay1();
-  });
-}
-
-function updateTeamNames() {
-  const a = state.teamNameA, b = state.teamNameB;
-  const ids = {
-    'sb-team-name-a': a, 'sb-team-name-b': b,
-    'team-col-h-a': a,   'team-col-h-b': b,
-    'scramble-title-a': a, 'scramble-title-b': b,
-    'mini-name-a': a,    'mini-name-b': b,
-    'tn-input-a': null,  'tn-input-b': null
-  };
-  Object.entries(ids).forEach(([id, val]) => {
-    const el = document.getElementById(id);
-    if (el && val !== null) el.textContent = val;
-  });
-  const ia = document.getElementById('tn-input-a');
-  const ib = document.getElementById('tn-input-b');
-  if (ia) ia.value = a;
-  if (ib) ib.value = b;
-}
-
-function updateMiniScoreboard() {
-  const d1 = calcDay1();
-  const d2 = calcDay2();
-  const d3 = calcDay3();
-  const totalA = d1.a + d2.a + d3.a;
-  const totalB = d1.b + d2.b + d3.b;
-  document.getElementById('mini-score-a').textContent = fmt(totalA);
-  document.getElementById('mini-score-b').textContent = fmt(totalB);
-  const days = [
-    { label: 'D1', a: d1.a, b: d1.b },
-    { label: 'D2', a: d2.a, b: d2.b },
-    { label: 'D3', a: d3.a, b: d3.b },
-  ];
-  document.getElementById('mini-sb-days').innerHTML = days.map(d => {
-    let cls = 'mini-sb-chip';
-    if (d.a > d.b) cls += ' live-a';
-    else if (d.b > d.a) cls += ' live-b';
-    return `<span class="${cls}">${d.label}: ${fmt(d.a)}–${fmt(d.b)}</span>`;
-  }).join('');
-}
-
-/* ─────────────────────────────────────
-   COUNTDOWN TIMER
-───────────────────────────────────── */
-function updateCountdown() {
-  const bar = document.getElementById('countdown-bar');
-  if (!bar) return;
-  // Tee off: Friday 7 August 2026 14:00 AEST (UTC+10) = 04:00 UTC
-  const target = new Date('2026-08-07T04:00:00Z');
-  const now = new Date();
-  const diff = target - now;
-  if (diff <= 0) {
-    bar.innerHTML = '<span class="cd-live">⛳ WE\'RE LIVE — TEE OFF!</span>';
-    return;
-  }
-  const days    = Math.floor(diff / 86400000);
-  const hours   = Math.floor((diff % 86400000) / 3600000);
-  const minutes = Math.floor((diff % 3600000) / 60000);
-  const seconds = Math.floor((diff % 60000) / 1000);
-  bar.innerHTML =
-    `<span class="cd-label">Tee Off In</span>` +
-    `<span class="cd-unit"><span class="cd-num">${String(days).padStart(2,'0')}</span><span class="cd-sub">Days</span></span>` +
-    `<span class="cd-sep">:</span>` +
-    `<span class="cd-unit"><span class="cd-num">${String(hours).padStart(2,'0')}</span><span class="cd-sub">Hrs</span></span>` +
-    `<span class="cd-sep">:</span>` +
-    `<span class="cd-unit"><span class="cd-num">${String(minutes).padStart(2,'0')}</span><span class="cd-sub">Min</span></span>` +
-    `<span class="cd-sep">:</span>` +
-    `<span class="cd-unit"><span class="cd-num">${String(seconds).padStart(2,'0')}</span><span class="cd-sub">Sec</span></span>`;
-}
-updateCountdown();
-setInterval(updateCountdown, 1000);
-</script>
-
-<!-- Countdown Bar -->
-<div class="countdown-bar" id="countdown-bar"></div>
+<script src="theme.js"></script>
 
 </body>
 </html>
