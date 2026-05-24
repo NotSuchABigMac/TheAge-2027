@@ -1560,7 +1560,7 @@ html[data-mode="dark"] .hero-photo {
 .acc { color: var(--accent); }
 .muted { color: var(--ink-mute); }
 
-/* ── music consent modal (shared) ── */
+/* ── music consent modal (shared, always dark) ── */
 .music-modal {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.85);
@@ -1570,31 +1570,32 @@ html[data-mode="dark"] .hero-photo {
 }
 .music-modal.hidden { display: none; }
 .music-modal-card {
-  background: var(--ink);
-  color: var(--canvas);
-  border: 1px solid var(--rule-strong);
+  /* hardcoded dark palette — modal is always dark regardless of page theme */
+  background: #132415;
+  color: #efe7d3;
+  border: 1px solid rgba(176,141,79,.45);
   border-radius: 4px;
   padding: 40px 36px;
-  max-width: 400px;
+  max-width: 420px;
   width: calc(100% - 48px);
   text-align: center;
-  box-shadow: 0 24px 64px rgba(0,0,0,.5);
+  box-shadow: 0 24px 64px rgba(0,0,0,.6);
 }
 .music-modal-icon { font-size: 2.5rem; margin-bottom: 14px; }
 .music-modal-title {
   font-family: var(--display);
   font-style: italic;
   font-size: 1.6rem;
-  color: var(--canvas);
+  color: #b08d4f;
   margin-bottom: 12px;
 }
-.music-modal-body { font-size: .9rem; line-height: 1.7; margin-bottom: 28px; color: var(--canvas); opacity: .85; }
-.music-modal-body strong { color: var(--canvas); opacity: 1; font-weight: 600; }
+.music-modal-body { font-size: .9rem; line-height: 1.7; margin-bottom: 28px; color: #efe7d3; }
+.music-modal-body strong { color: #b08d4f; font-weight: 600; }
 .music-yes {
   display: block; width: 100%;
   padding: 14px 20px;
   font-family: var(--mono); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase;
-  background: var(--canvas); color: var(--ink);
+  background: #b08d4f; color: #0b1a0d;
   border: none; border-radius: 2px;
   cursor: pointer;
   transition: opacity .2s;
@@ -1603,7 +1604,7 @@ html[data-mode="dark"] .hero-photo {
 .music-yes:hover { opacity: .85; }
 .music-no {
   background: none; border: none;
-  color: var(--canvas); opacity: .4;
+  color: #efe7d3; opacity: .4;
   font-family: var(--mono); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase;
   cursor: pointer;
   transition: opacity .2s;
