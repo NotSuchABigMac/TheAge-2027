@@ -11,16 +11,23 @@
 <link rel="stylesheet" href="scorecard.css">
 <style>
 :root {
+  /* scoring area — always dark regardless of theme */
   --navy:#0b1a0d; --navy-light:#162e18; --navy-mid:#1c3a20;
-  --gold:#f0b429; --gold-dark:#c8941e; --gold-light:#ffd166;
-  --white:#fff; --off-white:#f0f5ee;
-  --fairway:#2d6a4f; --fairway-dark:#1a4731;
-  --grey:#8a9e8c; --light-grey:#d4e0d6;
   --card-bg:#132415;
-  --team-a:#f0b429; --team-b:#6ab8f7;
-  --font-d:'Bebas Neue',sans-serif;
-  --font-h:'Oswald',sans-serif;
-  --font-b:'Inter',sans-serif;
+  /* warm cream text to match design system canvas */
+  --white:#efe7d3; --off-white:#e6dcc4;
+  --fairway:#2d6a4f; --fairway-dark:#1a4731;
+  --grey:#8a9b8d; --light-grey:#d4e0d6;
+  /* accents follow design system theme token */
+  --gold:var(--accent-2, #b08d4f);
+  --gold-dark:var(--accent, #876531);
+  --gold-light:#c9a96a;
+  /* team A tracks the theme accent; team B stays blue */
+  --team-a:var(--accent-2, #b08d4f); --team-b:#6ab8f7;
+  /* typography from design system */
+  --font-d:var(--display,'Cormorant Garamond',Georgia,serif);
+  --font-h:var(--mono,'Geist Mono',monospace);
+  --font-b:var(--body,'Geist',sans-serif);
   --tr:all .22s ease; --r:8px; --rl:16px;
 }
 
@@ -239,12 +246,12 @@ body{padding-bottom:52px}
 /* Scorecard page body override */
 #page-scorecard { background: var(--navy); color: var(--white); min-height: 100vh; }
 #page-scorecard .page-content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
-#page-scorecard .section-header { padding: 48px 0 24px; border-bottom: 1px solid rgba(240,180,41,.2); margin-bottom: 32px; }
+#page-scorecard .section-header { padding: 48px 0 24px; border-bottom: 1px solid color-mix(in srgb, var(--gold) 22%, transparent); margin-bottom: 32px; }
 #page-scorecard .section-label { font-family: var(--font-h); font-size: .72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
 #page-scorecard .section-title { font-family: var(--font-d); font-size: clamp(2.4rem,5vw,3.8rem); line-height: 1; letter-spacing: 1px; }
 </style>
 </head>
-<body style="background:#0b1a0d;color:#fff;font-family:'Inter',sans-serif">
+<body>
 
 <!-- Music Warning Modal -->
 <div id="music-modal" class="music-modal hidden">
