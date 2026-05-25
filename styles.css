@@ -81,6 +81,7 @@ html {
   color: var(--ink);
   scroll-behavior: smooth;
 }
+html.hero-page { background: var(--ink); }
 body {
   font-family: var(--body);
   font-size: 16px;
