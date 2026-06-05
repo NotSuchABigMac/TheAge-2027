@@ -465,7 +465,7 @@ body{padding-bottom:52px}
         <div class="section-label">Sunday 9 August · Lake Course · 10:00am</div>
         <div class="section-title">Individual Stableford</div>
       </div>
-      <div class="info-box">Enter each player's <strong>net Stableford score</strong>. Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=12, 2nd=10, 3rd=9, 4th=8, 5th=7, 6th=6, 7th=5, 8th=4, 9th=3, 10th=2, 11th=1, 12th=0</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
+      <div class="info-box">Enter each player's <strong>net Stableford score</strong>. Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=12, 3rd=11, 4th=10, 5th=9, 6th=8, 7th=7, 8th=6, 9th=5, 10th=4, 11th=3, 12th=2, 13th=1, 14th=0</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
       <div class="sf-table-wrap">
         <table class="sf-table">
           <thead>
@@ -539,7 +539,9 @@ const PLAYERS = [
   { id:8,  name:'Steve Koenig',       short:'S. Koenig',     hcp:'31.0', seed:9,  friday:true  },
   { id:9,  name:'Jimmy Hepburn',      short:'J. Hepburn',    hcp:'TBC',  seed:10, friday:true  },
   { id:10, name:'Robert Hughes',      short:'R. Hughes',     hcp:'38.0', seed:11, friday:true  },
-  { id:11, name:'Ben Lepore',         short:'B. Lepore',     hcp:'44.0', seed:12, friday:false }
+  { id:11, name:'Ben Lepore',         short:'B. Lepore',     hcp:'44.0', seed:12, friday:false },
+  { id:12, name:'TBC',               short:'TBC',           hcp:'TBC',  seed:13, friday:true  },
+  { id:13, name:'TBC',               short:'TBC',           hcp:'TBC',  seed:14, friday:true  }
 ];
 
 // TEST TEAMS — replace with real draft outcome before go-live
@@ -901,7 +903,7 @@ function restoreDay2() {
 /* ─────────────────────────────────────
    DAY 3 — STABLEFORD
 ───────────────────────────────────── */
-const POS_PTS = [12,10,9,8,7,6,5,4,3,2,1,0];
+const POS_PTS = [14,12,11,10,9,8,7,6,5,4,3,2,1,0];
 
 function computeDay3() {
   const entries = PLAYERS.map(p => ({
