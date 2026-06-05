@@ -388,7 +388,7 @@ body{padding-bottom:52px}
         <div class="section-label">Setup</div>
         <div class="section-title">Team Assignment</div>
       </div>
-      <div class="info-box">Adjust team assignments as needed. Click "→ B" or "← A" to move a player.</div>
+      <div class="info-box">Enter the Captain's Draft result here — assign each player to their team using the arrows below. Teams are unknown until the morning of Day 1.</div>
       <div class="team-setup-grid">
         <div class="team-col team-a-col">
           <div class="team-col-h" id="team-col-h-a">Team Beer</div>
@@ -399,7 +399,7 @@ body{padding-bottom:52px}
           <div id="team-b-list"></div>
         </div>
       </div>
-      <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:var(--r);cursor:pointer">Reset to Default</button>
+      <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:var(--r);cursor:pointer">Clear Teams</button>
     </div>
 
     <!-- ── DAY 1 PANEL ── -->
@@ -543,8 +543,9 @@ const PLAYERS = [
 ];
 
 // TEST TEAMS — replace with real draft outcome before go-live
-const DEFAULT_A = new Set([0, 2, 4, 6, 8, 10, 12]); // even-indexed IDs → Team A
-const DEFAULT_B = new Set([1, 3, 5, 7, 9, 11, 13]); // odd-indexed IDs → Team B
+// Teams determined by Captain's Draft on Friday morning — no defaults
+const DEFAULT_A = new Set();
+const DEFAULT_B = new Set();
 
 /* ─────────────────────────────────────
    STATE
