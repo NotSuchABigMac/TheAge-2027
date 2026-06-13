@@ -97,6 +97,17 @@ select{background:var(--canvas);border:1px solid var(--rule-strong);border-radiu
 select:focus{outline:none;border-color:var(--gold)}
 select option{background:var(--canvas)}
 
+/* ── FRONT 9 / BACK 9 RESULT TOGGLES ── */
+.nine-results{padding:14px 22px;display:flex;flex-direction:column;gap:12px}
+.nine-block{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.nine-label{font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--ink-mute);min-width:64px}
+.nine-toggle{flex:1}
+.nine-toggle button.is-active-a{background:var(--team-a);color:#fff}
+.nine-toggle button.is-active-a .rt-pts{color:rgba(255,255,255,.75)}
+.nine-toggle button.is-active-b{background:var(--team-b);color:#fff}
+.nine-toggle button.is-active-b .rt-pts{color:rgba(255,255,255,.75)}
+@media(max-width:600px){.nine-block{flex-direction:column;align-items:stretch;gap:6px}.nine-label{min-width:0}}
+
 /* ── HOLE GRID ── */
 .hole-grid-wrap{padding:18px 22px 22px;overflow-x:auto}
 .hole-grid{display:grid;grid-template-columns:repeat(18,1fr);gap:3px;min-width:580px}
@@ -408,7 +419,7 @@ body{padding-bottom:52px}
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
         <div class="section-title">Match Play Best Ball</div>
       </div>
-      <div class="info-box">10 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday). Assign Friday players to matches below. For each hole, click <strong style="color:var(--team-a)">A</strong> (Team A wins hole), <strong style="color:var(--ink)">H</strong> (Halved), or <strong style="color:var(--team-b)">B</strong> (Team B wins hole). <strong>Scoring:</strong> 1pt per hole won, 0.5pt halved, +2 bonus to match winner.</div>
+      <div class="info-box">10 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday). Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 6pts up for grabs across the day.</div>
       <div id="day1-matches"></div>
     </div>
 
@@ -558,9 +569,9 @@ const state = {
   teamB: new Set(DEFAULT_B),
   day1: {
     matches: [
-      { type:'singles', pA:[null],      pB:[null],      winner:null, margin:null },
-      { type:'doubles', pA:[null,null], pB:[null,null], winner:null, margin:null },
-      { type:'doubles', pA:[null,null], pB:[null,null], winner:null, margin:null }
+      { type:'singles', pA:[null],      pB:[null],      front9:null, back9:null },
+      { type:'doubles', pA:[null,null], pB:[null,null], front9:null, back9:null },
+      { type:'doubles', pA:[null,null], pB:[null,null], front9:null, back9:null }
     ]
   },
   day2: { a4:null, a2:null, b4:null, b2:null },
@@ -742,13 +753,17 @@ function renderDay1() {
   const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Doubles (2v2)', 'Match 3 — Doubles (2v2)'];
 
   state.day1.matches.forEach((match, mi) => {
-    const { pA, pB, winner, margin, type } = match;
+    const { pA, pB, front9, back9, type } = match;
     const slots = type === 'singles' ? 1 : 2;
-    const ptsA = winner === 'A' ? 2 : winner === 'AS' ? 1 : 0;
-    const ptsB = winner === 'B' ? 2 : winner === 'AS' ? 1 : 0;
+    const pts = matchPoints(match);
+    const decided = front9 !== null && back9 !== null;
+    let resultClass = '';
+    if (decided) {
+      resultClass = pts.a > pts.b ? ' win-a' : pts.b > pts.a ? ' win-b' : ' win-as';
+    }
 
     const card = document.createElement('div');
-    card.className = 'match-card' + (winner === 'A' ? ' win-a' : winner === 'B' ? ' win-b' : winner === 'AS' ? ' win-as' : '');
+    card.className = 'match-card' + resultClass;
 
     // Header
     const hd = document.createElement('div');
@@ -756,9 +771,9 @@ function renderDay1() {
     hd.innerHTML = `
       <div class="match-title">${titles[mi]}</div>
       <div class="match-score-display">
-        <span class="msa">${ptsA}</span>
+        <span class="msa">${fmt(pts.a)}</span>
         <span class="mss">pts</span>
-        <span class="msb">${ptsB}</span>
+        <span class="msb">${fmt(pts.b)}</span>
       </div>`;
     card.appendChild(hd);
 
@@ -778,31 +793,27 @@ function renderDay1() {
     pr.innerHTML = aHtml + `<div class="vs-div">VS</div>` + bHtml;
     card.appendChild(pr);
 
-    // Result entry — simple winner + margin
+    // Result entry — front 9 / back 9, each worth 1pt (0.5 each if tied)
     const re = document.createElement('div');
-    re.className = 'running-score-row';
-    re.style = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 22px';
-    re.innerHTML = `
-      <span style="font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--ink-mute)">Result:</span>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="radio" name="m${mi}-winner" value="A" ${winner==='A'?'checked':''} onchange="setMatchResult(${mi},this.value)">
-        <span style="color:var(--team-a);font-family:var(--font-h);font-weight:600">${state.teamNameA}</span>
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="radio" name="m${mi}-winner" value="AS" ${winner==='AS'?'checked':''} onchange="setMatchResult(${mi},this.value)">
-        <span style="color:var(--ink-mute);font-family:var(--font-h);font-weight:600">All Square</span>
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="radio" name="m${mi}-winner" value="B" ${winner==='B'?'checked':''} onchange="setMatchResult(${mi},this.value)">
-        <span style="color:var(--team-b);font-family:var(--font-h);font-weight:600">${state.teamNameB}</span>
-      </label>
-      ${winner && winner !== 'AS' ? `
-      <span style="font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--ink-mute);margin-left:8px">By:</span>
-      <input type="number" min="1" max="10" value="${margin||''}" placeholder="holes up"
-        style="width:90px;padding:5px 8px;background:var(--canvas-2);border:1px solid var(--rule-strong);border-radius:var(--r);color:var(--ink);font-family:var(--font-b);font-size:.9rem"
-        oninput="setMatchMargin(${mi},this.value)">
-      <span style="color:var(--ink-mute);font-size:.85rem">up</span>` : ''}
-    `;
+    re.className = 'nine-results';
+    re.innerHTML = ['front9','back9'].map((half, hi) => {
+      const val = match[half];
+      return `
+      <div class="nine-block">
+        <div class="nine-label">${hi === 0 ? 'Front 9' : 'Back 9'}</div>
+        <div class="match-toggle nine-toggle">
+          <button class="${val==='A'?'is-active is-active-a':''}" onclick="setNineResult(${mi},'${half}','A')">
+            <span class="rt-lab">${state.teamNameA}</span><span class="rt-pts">1pt</span>
+          </button>
+          <button class="${val==='T'?'is-active':''}" onclick="setNineResult(${mi},'${half}','T')">
+            <span class="rt-lab">Tie</span><span class="rt-pts">0.5 each</span>
+          </button>
+          <button class="${val==='B'?'is-active is-active-b':''}" onclick="setNineResult(${mi},'${half}','B')">
+            <span class="rt-lab">${state.teamNameB}</span><span class="rt-pts">1pt</span>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
     card.appendChild(re);
     container.appendChild(card);
   });
@@ -822,21 +833,15 @@ function setMatchPlayer(matchIdx, team, slot, val) {
   updateScoreboard();
 }
 
-function setMatchResult(matchIdx, winner) {
+function setNineResult(matchIdx, half, result) {
   requireUsername(() => {
-    state.day1.matches[matchIdx].winner = winner;
-    if (winner === 'AS') state.day1.matches[matchIdx].margin = null;
+    const match = state.day1.matches[matchIdx];
+    match[half] = match[half] === result ? null : result;
     saveState();
-    insertUpdate('day1_match', { match_idx: matchIdx, value: winner });
+    insertUpdate('day1_match', { match_idx: matchIdx, field_key: half, value: match[half] });
     renderDay1();
     updateScoreboard();
   });
-}
-
-function setMatchMargin(matchIdx, val) {
-  state.day1.matches[matchIdx].margin = val === '' ? null : parseInt(val);
-  saveState();
-  insertUpdate('day1_margin', { match_idx: matchIdx, value: val === '' ? null : parseInt(val) });
 }
 
 /* ─────────────────────────────────────
@@ -990,12 +995,25 @@ function setStableford(pid, val) {
 /* ─────────────────────────────────────
    SCORING CALCULATIONS
 ───────────────────────────────────── */
+function ninePoints(result) {
+  if (result === 'A') return { a: 1, b: 0 };
+  if (result === 'B') return { a: 0, b: 1 };
+  if (result === 'T') return { a: 0.5, b: 0.5 };
+  return { a: 0, b: 0 };
+}
+
+function matchPoints(match) {
+  const f = ninePoints(match.front9);
+  const k = ninePoints(match.back9);
+  return { a: f.a + k.a, b: f.b + k.b };
+}
+
 function calcDay1() {
   let a = 0, b = 0;
   state.day1.matches.forEach(match => {
-    if (match.winner === 'A') a += 2;
-    else if (match.winner === 'B') b += 2;
-    else if (match.winner === 'AS') { a += 1; b += 1; }
+    const pts = matchPoints(match);
+    a += pts.a;
+    b += pts.b;
   });
   return { a, b };
 }
@@ -1017,7 +1035,7 @@ function calcDay3() {
 }
 
 function isDay1Complete() {
-  return state.day1.matches.every(m => m.winner !== null);
+  return state.day1.matches.every(m => m.front9 !== null && m.back9 !== null);
 }
 
 function isDay2Complete() {
@@ -1136,14 +1154,8 @@ function applyUpdate(row) {
   const v = row.value;
   switch (row.update_type) {
     case 'day1_match':
-      if (row.match_idx !== null && row.match_idx !== undefined) {
-        state.day1.matches[row.match_idx].winner = v;
-        if (v === 'AS') state.day1.matches[row.match_idx].margin = null;
-      }
-      break;
-    case 'day1_margin':
-      if (row.match_idx !== null && row.match_idx !== undefined) {
-        state.day1.matches[row.match_idx].margin = v === null || v === 'null' ? null : parseInt(v);
+      if (row.match_idx !== null && row.match_idx !== undefined && row.field_key) {
+        state.day1.matches[row.match_idx][row.field_key] = (v === null || v === 'null') ? null : v;
       }
       break;
     case 'day2_score':
