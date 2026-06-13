@@ -417,9 +417,9 @@ body{padding-bottom:52px}
     <div class="sc-panel" id="sc-day1">
       <div class="section-header" style="padding-top:28px">
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
-        <div class="section-title">Match Play Best Ball</div>
+        <div class="section-title">Singles Match Play</div>
       </div>
-      <div class="info-box">10 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday). Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 6pts up for grabs across the day.</div>
+      <div class="info-box">10 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 5 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 10pts up for grabs across the day.</div>
       <div id="day1-matches"></div>
     </div>
 
@@ -569,9 +569,11 @@ const state = {
   teamB: new Set(DEFAULT_B),
   day1: {
     matches: [
-      { type:'singles', pA:[null],      pB:[null],      front9:null, back9:null },
-      { type:'doubles', pA:[null,null], pB:[null,null], front9:null, back9:null },
-      { type:'doubles', pA:[null,null], pB:[null,null], front9:null, back9:null }
+      { type:'singles', pA:[null], pB:[null], front9:null, back9:null },
+      { type:'singles', pA:[null], pB:[null], front9:null, back9:null },
+      { type:'singles', pA:[null], pB:[null], front9:null, back9:null },
+      { type:'singles', pA:[null], pB:[null], front9:null, back9:null },
+      { type:'singles', pA:[null], pB:[null], front9:null, back9:null }
     ]
   },
   day2: { a4:null, a2:null, b4:null, b2:null },
@@ -750,7 +752,7 @@ function playerOptions(team, matchIdx, slot, currentId) {
 function renderDay1() {
   const container = document.getElementById('day1-matches');
   container.innerHTML = '';
-  const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Doubles (2v2)', 'Match 3 — Doubles (2v2)'];
+  const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Singles (1v1)', 'Match 3 — Singles (1v1)', 'Match 4 — Singles (1v1)', 'Match 5 — Singles (1v1)'];
 
   state.day1.matches.forEach((match, mi) => {
     const { pA, pB, front9, back9, type } = match;
