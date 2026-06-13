@@ -545,9 +545,8 @@ const PLAYERS = [
 ];
 
 // TEST TEAMS — replace with real draft outcome before go-live
-// Teams determined by Captain's Draft on Friday morning — no defaults
-const DEFAULT_A = new Set();
-const DEFAULT_B = new Set();
+const DEFAULT_A = new Set([0, 2, 4, 6, 8, 10, 12]); // even-indexed IDs → Team A
+const DEFAULT_B = new Set([1, 3, 5, 7, 9, 11, 13]); // odd-indexed IDs → Team B
 
 /* ─────────────────────────────────────
    STATE
