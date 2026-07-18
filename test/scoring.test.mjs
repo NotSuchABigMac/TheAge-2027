@@ -10,7 +10,7 @@ const {
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
-  applyPlayerTeamMove, processUpdateRows
+  applyPlayerTeamMove, reconcileMatchesAfterTeamMove, processUpdateRows
 } = require('../scoring.js');
 
 /* ── HTML Escaping (issue #58 — stored XSS via team names) ── */
@@ -228,6 +228,52 @@ test('applyPlayerTeamMove: two concurrent moves of DIFFERENT players compose ins
   ({ teamA, teamB } = applyPlayerTeamMove(teamA, teamB, 1, 'A')); // device 2: move player 1 -> A
   assert.deepEqual([...teamA].sort(), [0, 1, 2]);
   assert.deepEqual([...teamB].sort(), [3, 4, 5]);
+});
+
+/* ── Match/team reconciliation (issue #65 — moving a player after they're
+   slotted into a Day 1 match left a stale reference that silently blanked
+   the dropdown yet kept counting the result, and wiped it on "fix") ── */
+
+test('reconcileMatchesAfterTeamMove clears a match slot left pointing at a player who moved to the OTHER team', () => {
+  const matches = [
+    { type: 'singles', pA: [7], pB: [1], front9: 'A', back9: 'A' },
+    { type: 'singles', pA: [null], pB: [null], front9: null, back9: null }
+  ];
+  const result = reconcileMatchesAfterTeamMove(matches, 7, 'B');
+  assert.deepEqual(result.matches[0].pA, [null]);
+  assert.equal(result.matches[0].front9, null);
+  assert.equal(result.matches[0].back9, null);
+  assert.deepEqual(result.matches[1], matches[1], 'untouched match must be unaffected');
+});
+
+test('reconcileMatchesAfterTeamMove clears the pB slot when the player moved to Team A', () => {
+  const matches = [{ type: 'singles', pA: [3], pB: [9], front9: null, back9: null }];
+  const result = reconcileMatchesAfterTeamMove(matches, 9, 'A');
+  assert.deepEqual(result.matches[0].pB, [null]);
+  assert.deepEqual(result.matches[0].pA, [3], 'the other slot is untouched');
+});
+
+test('reconcileMatchesAfterTeamMove reports every field it cleared, for syncing to other devices', () => {
+  const matches = [{ type: 'singles', pA: [7], pB: [1], front9: 'A', back9: 'T' }];
+  const result = reconcileMatchesAfterTeamMove(matches, 7, 'B');
+  assert.deepEqual(result.changes, [
+    { matchIdx: 0, field: 'pA', value: null },
+    { matchIdx: 0, field: 'front9', value: null },
+    { matchIdx: 0, field: 'back9', value: null }
+  ]);
+});
+
+test('reconcileMatchesAfterTeamMove is a no-op when the player never appears on the stale side', () => {
+  const matches = [{ type: 'singles', pA: [7], pB: [1], front9: 'A', back9: 'A' }];
+  const result = reconcileMatchesAfterTeamMove(matches, 42, 'B');
+  assert.deepEqual(result.matches, matches);
+  assert.deepEqual(result.changes, []);
+});
+
+test('reconcileMatchesAfterTeamMove does not mutate the input matches array', () => {
+  const matches = [{ type: 'singles', pA: [7], pB: [1], front9: 'A', back9: 'A' }];
+  reconcileMatchesAfterTeamMove(matches, 7, 'B');
+  assert.deepEqual(matches[0].pA, [7], 'original match object must be untouched');
 });
 
 /* ── Live sync row processing (issue #63 — one bad row wedged all future polls) ── */

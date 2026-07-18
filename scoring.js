@@ -179,6 +179,32 @@
     return { teamA: nextA, teamB: nextB };
   }
 
+  // A player moving teams can leave a Day 1 singles match holding a stale
+  // reference to them in the slot for their OLD team (issue #65) -- the
+  // dropdown for that slot then has no matching <option> and silently
+  // renders blank, while the underlying match/result data (and the points
+  // it contributes to the scoreboard) is untouched. Worse, "fixing" the
+  // apparently-empty slot by re-picking the real current player wipes the
+  // match's already-recorded result. This clears any slot left pointing at
+  // `playerId` on the team they just LEFT, and any result recorded against
+  // it, so the UI and the data can never disagree about who's assigned.
+  // Returns fresh match objects (no mutation) plus the list of concrete
+  // field changes made, so the caller can both re-render and sync the
+  // clearing to other devices.
+  function reconcileMatchesAfterTeamMove(matches, playerId, newTeam) {
+    const staleField = newTeam === 'B' ? 'pA' : newTeam === 'A' ? 'pB' : null;
+    const changes = [];
+    if (!staleField) return { matches, changes };
+    const nextMatches = matches.map((m, matchIdx) => {
+      if (m[staleField][0] !== playerId) return m;
+      changes.push({ matchIdx, field: staleField, value: null });
+      if (m.front9 !== null) changes.push({ matchIdx, field: 'front9', value: null });
+      if (m.back9 !== null) changes.push({ matchIdx, field: 'back9', value: null });
+      return { ...m, [staleField]: [null], front9: null, back9: null };
+    });
+    return { matches: nextMatches, changes };
+  }
+
   // Applies a batch of already-fetched sync rows via `applyFn`, one at a
   // time, skipping (and reporting) any row that throws instead of letting
   // one bad row abort the whole batch. Always returns the last row's
@@ -205,6 +231,6 @@
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     POS_PTS, computeStableford, sumStablefordPoints,
     resolveOverallWinner,
-    applyPlayerTeamMove, processUpdateRows
+    applyPlayerTeamMove, reconcileMatchesAfterTeamMove, processUpdateRows
   };
 });
