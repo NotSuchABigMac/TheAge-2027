@@ -646,11 +646,13 @@ const state = {
 
 // Pure scoring math lives in scoring.js (shared with the Node test suite)
 const {
+  escapeHtml,
   matchPoints, sumMatchPoints,
   ntpTeamPoints,
-  parseScoreToPar, calcDay2: calcDay2Points,
+  parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
-  resolveOverallWinner
+  resolveOverallWinner,
+  applyPlayerTeamMove, processUpdateRows
 } = WongaScoring;
 
 function teamOf(playerId) {
@@ -775,18 +777,29 @@ function renderTeams() {
 }
 
 function movePlayer(id, fromA) {
-  if (fromA) { state.teamA.delete(id); state.teamB.add(id); }
-  else        { state.teamB.delete(id); state.teamA.add(id); }
-  saveState();
-  insertUpdate('team_assign', { field_key: 'A', value: JSON.stringify([...state.teamA]) });
-  insertUpdate('team_assign', { field_key: 'B', value: JSON.stringify([...state.teamB]) });
-  renderTeams();
+  requireUsername(() => {
+    const moved = applyPlayerTeamMove(state.teamA, state.teamB, id, fromA ? 'B' : 'A');
+    state.teamA = moved.teamA;
+    state.teamB = moved.teamB;
+    saveState();
+    // Sync as a single-player delta, not a whole-roster snapshot — two
+    // people moving different players around at the same time (e.g. during
+    // the captain's draft) would otherwise race and the second write would
+    // silently wipe out the first player's move.
+    insertUpdate('player_team', { player_id: id, value: fromA ? 'B' : 'A' });
+    renderTeams();
+  });
 }
 
 function resetTeams() {
-  state.teamA = new Set(DEFAULT_A);
-  state.teamB = new Set(DEFAULT_B);
-  renderTeams();
+  requireUsername(() => {
+    state.teamA = new Set(DEFAULT_A);
+    state.teamB = new Set(DEFAULT_B);
+    saveState();
+    insertUpdate('team_assign', { field_key: 'A', value: JSON.stringify([...state.teamA]) });
+    insertUpdate('team_assign', { field_key: 'B', value: JSON.stringify([...state.teamB]) });
+    renderTeams();
+  });
 }
 
 function renderOverviewTeams() {
@@ -899,12 +912,12 @@ function renderDay1() {
     // Player assignments
     const pr = document.createElement('div');
     pr.className = 'match-players-row';
-    let aHtml = `<div class="player-group"><div class="pg-label pgl-a">${state.teamNameA.toUpperCase()}</div>`;
+    let aHtml = `<div class="player-group"><div class="pg-label pgl-a">${escapeHtml(state.teamNameA.toUpperCase())}</div>`;
     for (let s = 0; s < slots; s++) {
       aHtml += `<select onchange="setMatchPlayer(${mi},'A',${s},this.value)">${playerOptions('A',mi,s,pA[s])}</select>`;
     }
     aHtml += `</div>`;
-    let bHtml = `<div class="player-group pb"><div class="pg-label pgl-b" style="text-align:right">${state.teamNameB.toUpperCase()}</div>`;
+    let bHtml = `<div class="player-group pb"><div class="pg-label pgl-b" style="text-align:right">${escapeHtml(state.teamNameB.toUpperCase())}</div>`;
     for (let s = 0; s < slots; s++) {
       bHtml += `<select onchange="setMatchPlayer(${mi},'B',${s},this.value)">${playerOptions('B',mi,s,pB[s])}</select>`;
     }
@@ -928,13 +941,13 @@ function renderDay1() {
           <div class="nine-label">${hi === 0 ? 'Front 9' : 'Back 9'}</div>
           <div class="match-toggle nine-toggle">
             <button class="${val==='A'?'is-active is-active-a':''}" onclick="setNineResult(${mi},'${half}','A')">
-              <span class="rt-lab">${state.teamNameA}</span><span class="rt-pts">1pt</span>
+              <span class="rt-lab">${escapeHtml(state.teamNameA)}</span><span class="rt-pts">1pt</span>
             </button>
             <button class="${val==='T'?'is-active':''}" onclick="setNineResult(${mi},'${half}','T')">
               <span class="rt-lab">Tie</span><span class="rt-pts">0.5 each</span>
             </button>
             <button class="${val==='B'?'is-active is-active-b':''}" onclick="setNineResult(${mi},'${half}','B')">
-              <span class="rt-lab">${state.teamNameB}</span><span class="rt-pts">1pt</span>
+              <span class="rt-lab">${escapeHtml(state.teamNameB)}</span><span class="rt-pts">1pt</span>
             </button>
           </div>
         </div>`;
@@ -992,7 +1005,7 @@ function ntpPlayerOptions(pool, currentId) {
   pool.forEach(p => {
     const sel = p.id === currentId ? 'selected' : '';
     const teamLabel = teamOf(p.id) === 'A' ? state.teamNameA : state.teamNameB;
-    opts += `<option value="${p.id}" ${sel}>${p.short} (${teamLabel})</option>`;
+    opts += `<option value="${p.id}" ${sel}>${escapeHtml(p.short)} (${escapeHtml(teamLabel)})</option>`;
   });
   return opts;
 }
@@ -1049,14 +1062,6 @@ function setDay3Ntp(hole, val) {
 /* ─────────────────────────────────────
    DAY 2 — SCRAMBLE
 ───────────────────────────────────── */
-const DAY2_SCORE_MIN = -20, DAY2_SCORE_MAX = 20;
-
-function clampDay2Score(val) {
-  const n = parseScoreToPar(val);
-  if (n === null) return '';
-  return String(Math.max(DAY2_SCORE_MIN, Math.min(DAY2_SCORE_MAX, n)));
-}
-
 function updateDay2() {
   requireUsername(() => {
     _doUpdateDay2();
@@ -1069,9 +1074,13 @@ function _doUpdateDay2() {
   ['a4','a3','b4','b3'].forEach(id => {
     const inp = document.getElementById(id + '-score');
     if (!inp) return;
-    const clamped = clampDay2Score(inp.value);
-    inp.value = clamped;
-    state.day2[id] = clamped;
+    // day2InputState() (scoring.js) decides whether the box's raw text is
+    // still mid-typing (e.g. a lone "-") -- in which case it's left alone
+    // instead of being clobbered -- or a complete number that may need
+    // pulling back into the +/-20 range.
+    const r = day2InputState(inp.value);
+    if (r.correction !== null) inp.value = r.correction;
+    if (r.changed) state.day2[id] = r.stored;
   });
 
   const result = calcDay2Points(state.day2);
@@ -1394,8 +1403,17 @@ function applyUpdate(row) {
       else if (row.field_key === 'B') state.teamNameB = v;
       break;
     case 'team_assign':
+      // Whole-roster snapshot — only emitted by resetTeams() now. Kept here
+      // so older rows already in the table still apply correctly.
       if (row.field_key === 'A') state.teamA = new Set(JSON.parse(v));
       else if (row.field_key === 'B') state.teamB = new Set(JSON.parse(v));
+      break;
+    case 'player_team':
+      if (row.player_id !== null && row.player_id !== undefined && (v === 'A' || v === 'B')) {
+        const moved = applyPlayerTeamMove(state.teamA, state.teamB, row.player_id, v);
+        state.teamA = moved.teamA;
+        state.teamB = moved.teamB;
+      }
       break;
   }
 }
@@ -1414,8 +1432,16 @@ async function loadFromSupabase() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const rows = await resp.json();
     if (rows.length > 0) {
-      rows.forEach(row => applyUpdate(row));
-      localStorage.setItem(LAST_SYNC_KEY, rows[rows.length - 1].updated_at);
+      // processUpdateRows() (scoring.js) applies each row individually so
+      // one malformed row (bad JSON in a team_assign value, an
+      // unrecognized shape, etc.) can't stop the rest of the batch from
+      // applying. It always reports the last row's timestamp so the sync
+      // cursor advances regardless -- otherwise a bad row gets re-fetched
+      // and re-fails on every poll forever, wedging every client's live
+      // sync until someone manually finds and deletes it from the table.
+      const result = processUpdateRows(rows, applyUpdate);
+      result.failed.forEach(f => console.error('Skipping malformed update row:', f.row, f.error));
+      localStorage.setItem(LAST_SYNC_KEY, result.lastUpdatedAt);
     }
     isOffline = false;
     document.getElementById('offline-banner').style.display = 'none';
