@@ -121,6 +121,18 @@ select option{background:var(--canvas)}
 .running-score-row{display:flex;justify-content:space-between;align-items:center;padding:0 22px 14px;font-family:var(--font-h);font-size:.78rem;font-weight:600;letter-spacing:1px;flex-wrap:wrap;gap:8px}
 .rs-label{color:var(--ink-mute);text-transform:uppercase}
 
+/* ── NEAREST THE PIN ── */
+.ntp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+@media(max-width:600px){.ntp-grid{grid-template-columns:1fr}}
+.ntp-status{margin-top:14px;background:color-mix(in srgb,var(--gold) 8%,transparent);border:1px solid color-mix(in srgb,var(--gold) 20%,transparent);border-radius:var(--r);padding:11px 15px;font-family:var(--font-h);font-size:.78rem;font-weight:600;letter-spacing:1px;text-align:center;color:var(--ink)}
+
+/* ── SUDDEN-DEATH TIEBREAK ── */
+.tiebreak-row{display:flex;gap:12px;justify-content:center;padding:10px 24px;flex-wrap:wrap}
+.tiebreak-btn{padding:9px 20px;font-family:var(--font-h);font-size:.78rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border-radius:var(--r);border:1px solid var(--rule-strong);background:rgba(255,255,255,.06);color:var(--white);cursor:pointer;transition:var(--tr)}
+.tiebreak-btn:hover{background:rgba(255,255,255,.14)}
+.tiebreak-btn.is-active-a{background:var(--team-a);border-color:var(--team-a);color:#fff}
+.tiebreak-btn.is-active-b{background:var(--team-b);border-color:var(--team-b);color:#fff}
+
 /* ── DAY 2 ── */
 .scramble-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 @media(max-width:700px){.scramble-grid{grid-template-columns:1fr}}
@@ -357,6 +369,11 @@ body{padding-bottom:52px}
       </div>
     </div>
     <div id="win-banner" style="display:none"></div>
+    <div id="tiebreak-control" class="tiebreak-row" style="display:none">
+      <span style="font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;color:var(--white);align-self:center">Sudden-Death Putt-Off Winner:</span>
+      <button class="tiebreak-btn" id="tiebreak-btn-a" onclick="setTiebreak('A')">Team A</button>
+      <button class="tiebreak-btn" id="tiebreak-btn-b" onclick="setTiebreak('B')">Team B</button>
+    </div>
   </div>
 
   <!-- Live sync bar -->
@@ -419,8 +436,22 @@ body{padding-bottom:52px}
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
         <div class="section-title">Singles Match Play</div>
       </div>
-      <div class="info-box">10 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 5 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 10pts up for grabs across the day.</div>
+      <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
       <div id="day1-matches"></div>
+      <div class="section-header" style="padding-top:8px">
+        <div class="section-label">Bonus</div>
+        <div class="section-title" style="font-size:1.3rem">Nearest the Pin</div>
+      </div>
+      <div class="ntp-grid">
+        <div class="sig">
+          <label>Hole 8 — 1pt</label>
+          <select id="ntp-day1-h8" onchange="setDay1Ntp('h8', this.value)"></select>
+        </div>
+        <div class="sig">
+          <label>Hole 17 — 1pt</label>
+          <select id="ntp-day1-h17" onchange="setDay1Ntp('h17', this.value)"></select>
+        </div>
+      </div>
     </div>
 
     <!-- ── DAY 2 PANEL ── -->
@@ -429,22 +460,22 @@ body{padding-bottom:52px}
         <div class="section-label">Saturday 8 August · Black Bull · 12:00pm</div>
         <div class="section-title">Team Scramble</div>
       </div>
-      <div class="info-box">Each team splits into a <strong>group of 4</strong> and a <strong>group of 2</strong>. Enter the net score vs par for each group (e.g. <strong>-2</strong> for two under par, <strong>+3</strong> for three over). Points: Par = 5pts, each stroke under = +1pt extra, each over = −1pt (min 0).</div>
+      <div class="info-box">Each team splits into a <strong>group of 4</strong> and a <strong>group of 3</strong>. Enter each group's net score <strong>to par</strong> (e.g. <strong>-15</strong> for 15 under). <strong>Scoring:</strong> in each grouping (4v4 and 3v3) the team with the better score wins points equal to the stroke differential — e.g. -15 beats -12 for 3pts. Whichever team's <strong>combined</strong> 4+3 score is better also takes a flat <strong>5pt bonus</strong>.</div>
       <div class="scramble-grid">
         <div class="scramble-team-card scramble-team-a">
           <div class="scramble-team-title" id="scramble-title-a">Team Beer</div>
           <div class="sig">
-            <label>Group of 4 — Net Score vs Par</label>
+            <label>Group of 4 — Net Score to Par</label>
             <div class="sig-row">
-              <input type="number" id="a4-score" placeholder="0" oninput="updateDay2()">
+              <input type="number" id="a4-score" min="-20" max="20" placeholder="0" oninput="updateDay2()">
               <div class="pts-badge" id="a4-pts">— pts</div>
             </div>
           </div>
           <div class="sig">
-            <label>Group of 2 — Net Score vs Par</label>
+            <label>Group of 3 — Net Score to Par</label>
             <div class="sig-row">
-              <input type="number" id="a2-score" placeholder="0" oninput="updateDay2()">
-              <div class="pts-badge" id="a2-pts">— pts</div>
+              <input type="number" id="a3-score" min="-20" max="20" placeholder="0" oninput="updateDay2()">
+              <div class="pts-badge" id="a3-pts">— pts</div>
             </div>
           </div>
           <div class="day-total-row"><span class="lbl">Team A Day 2 Total</span><span class="val" id="a-day2-total">0 pts</span></div>
@@ -452,20 +483,35 @@ body{padding-bottom:52px}
         <div class="scramble-team-card scramble-team-b">
           <div class="scramble-team-title" id="scramble-title-b">Team Golf</div>
           <div class="sig">
-            <label>Group of 4 — Net Score vs Par</label>
+            <label>Group of 4 — Net Score to Par</label>
             <div class="sig-row">
-              <input type="number" id="b4-score" placeholder="0" oninput="updateDay2()">
+              <input type="number" id="b4-score" min="-20" max="20" placeholder="0" oninput="updateDay2()">
               <div class="pts-badge" id="b4-pts">— pts</div>
             </div>
           </div>
           <div class="sig">
-            <label>Group of 2 — Net Score vs Par</label>
+            <label>Group of 3 — Net Score to Par</label>
             <div class="sig-row">
-              <input type="number" id="b2-score" placeholder="0" oninput="updateDay2()">
-              <div class="pts-badge" id="b2-pts">— pts</div>
+              <input type="number" id="b3-score" min="-20" max="20" placeholder="0" oninput="updateDay2()">
+              <div class="pts-badge" id="b3-pts">— pts</div>
             </div>
           </div>
           <div class="day-total-row"><span class="lbl">Team B Day 2 Total</span><span class="val" id="b-day2-total">0 pts</span></div>
+        </div>
+      </div>
+      <div class="ntp-status" id="day2-bonus-status">Bonus 5pts — awarded once all four scores are in</div>
+      <div class="section-header" style="padding-top:20px">
+        <div class="section-label">Bonus</div>
+        <div class="section-title" style="font-size:1.3rem">Nearest the Pin</div>
+      </div>
+      <div class="ntp-grid">
+        <div class="sig">
+          <label>Hole 4 — 1pt</label>
+          <select id="ntp-day2-h4" onchange="setDay2Ntp('h4', this.value)"></select>
+        </div>
+        <div class="sig">
+          <label>Hole 16 — 1pt</label>
+          <select id="ntp-day2-h16" onchange="setDay2Ntp('h16', this.value)"></select>
         </div>
       </div>
     </div>
@@ -476,7 +522,7 @@ body{padding-bottom:52px}
         <div class="section-label">Sunday 9 August · Lake Course · 10:00am</div>
         <div class="section-title">Individual Stableford</div>
       </div>
-      <div class="info-box">Enter each player's <strong>net Stableford score</strong>. Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=12, 3rd=11, 4th=10, 5th=9, 6th=8, 7th=7, 8th=6, 9th=5, 10th=4, 11th=3, 12th=2, 13th=1, 14th=0</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
+      <div class="info-box">Enter each player's <strong>net Stableford score</strong> (via The Grint). Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
       <div class="sf-table-wrap">
         <table class="sf-table">
           <thead>
@@ -491,6 +537,20 @@ body{padding-bottom:52px}
           </thead>
           <tbody id="sf-tbody"></tbody>
         </table>
+      </div>
+      <div class="section-header" style="padding-top:20px">
+        <div class="section-label">Bonus</div>
+        <div class="section-title" style="font-size:1.3rem">Nearest the Pin</div>
+      </div>
+      <div class="ntp-grid">
+        <div class="sig">
+          <label>Hole 7 — 1pt</label>
+          <select id="ntp-day3-h7" onchange="setDay3Ntp('h7', this.value)"></select>
+        </div>
+        <div class="sig">
+          <label>Hole 14 — 1pt</label>
+          <select id="ntp-day3-h14" onchange="setDay3Ntp('h14', this.value)"></select>
+        </div>
       </div>
     </div>
 
@@ -518,6 +578,7 @@ body{padding-bottom:52px}
 </div>
 
 <script src="theme.js"></script>
+<script src="scoring.js"></script>
 <script>
 /* ─────────────────────────────────────
    SUPABASE CONFIG — REPLACE WITH YOUR VALUES
@@ -573,12 +634,35 @@ const state = {
       { type:'singles', pA:[null], pB:[null], front9:null, back9:null },
       { type:'singles', pA:[null], pB:[null], front9:null, back9:null },
       { type:'singles', pA:[null], pB:[null], front9:null, back9:null },
+      { type:'singles', pA:[null], pB:[null], front9:null, back9:null },
       { type:'singles', pA:[null], pB:[null], front9:null, back9:null }
-    ]
+    ],
+    ntp: { h8:null, h17:null } // player id nearest the pin, or null
   },
-  day2: { a4:null, a2:null, b4:null, b2:null },
-  day3: {}  // id -> stableford score string
+  day2: { a4:null, a3:null, b4:null, b3:null, ntp: { h4:null, h16:null } },
+  day3: { scores:{}, ntp: { h7:null, h14:null } }, // scores: id -> stableford score string
+  tiebreak: null // null | 'A' | 'B' — sudden-death putt-off winner
 };
+
+// Pure scoring math lives in scoring.js (shared with the Node test suite)
+const {
+  matchPoints, sumMatchPoints,
+  ntpTeamPoints,
+  parseScoreToPar, calcDay2: calcDay2Points,
+  POS_PTS, computeStableford, sumStablefordPoints,
+  resolveOverallWinner
+} = WongaScoring;
+
+function teamOf(playerId) {
+  if (playerId === null || playerId === undefined) return null;
+  if (state.teamA.has(playerId)) return 'A';
+  if (state.teamB.has(playerId)) return 'B';
+  return null;
+}
+
+function ntpPointsFor(ntpState, holeKeys) {
+  return ntpTeamPoints(holeKeys.map(k => teamOf(ntpState[k])));
+}
 
 /* ─────────────────────────────────────
    PERSISTENCE
@@ -592,11 +676,30 @@ function saveState() {
       teamB: [...state.teamB],
       day1:  JSON.parse(JSON.stringify(state.day1)),
       day2:  state.day2,
-      day3:  state.day3
+      day3:  state.day3,
+      tiebreak: state.tiebreak
     };
     localStorage.setItem('wongaCup2026', JSON.stringify(s));
   } catch(e) {}
   lastSaveTime = Date.now();
+}
+
+// Fills in fields that may be missing from an older-shaped saved/synced
+// payload (e.g. from pre-format-overhaul testing) so a stale localStorage
+// blob or Supabase row can't crash the page.
+function normalizeState() {
+  while (state.day1.matches.length < 6) {
+    state.day1.matches.push({ type:'singles', pA:[null], pB:[null], front9:null, back9:null });
+  }
+  if (!state.day1.ntp) state.day1.ntp = { h8:null, h17:null };
+  if (!state.day2.ntp) state.day2.ntp = { h4:null, h16:null };
+  if (state.day2.a2 !== undefined) { if (state.day2.a3 === undefined) state.day2.a3 = state.day2.a2; delete state.day2.a2; }
+  if (state.day2.b2 !== undefined) { if (state.day2.b3 === undefined) state.day2.b3 = state.day2.b2; delete state.day2.b2; }
+  if (!state.day3.scores) {
+    const old = state.day3;
+    state.day3 = { scores: old.scores || old || {}, ntp: old.ntp || { h7:null, h14:null } };
+  }
+  if (!state.day3.ntp) state.day3.ntp = { h7:null, h14:null };
 }
 
 function loadState() {
@@ -611,7 +714,9 @@ function loadState() {
     if (s.day1)  state.day1  = s.day1;
     if (s.day2)  state.day2  = s.day2;
     if (s.day3)  state.day3  = s.day3;
+    if (s.tiebreak !== undefined) state.tiebreak = s.tiebreak;
   } catch(e) {}
+  normalizeState();
 }
 
 /* ─────────────────────────────────────
@@ -752,7 +857,7 @@ function playerOptions(team, matchIdx, slot, currentId) {
 function renderDay1() {
   const container = document.getElementById('day1-matches');
   container.innerHTML = '';
-  const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Singles (1v1)', 'Match 3 — Singles (1v1)', 'Match 4 — Singles (1v1)', 'Match 5 — Singles (1v1)'];
+  const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Singles (1v1)', 'Match 3 — Singles (1v1)', 'Match 4 — Singles (1v1)', 'Match 5 — Singles (1v1)', 'Match 6 — Singles (1v1)'];
 
   state.day1.matches.forEach((match, mi) => {
     const { pA, pB, front9, back9, type } = match;
@@ -796,29 +901,38 @@ function renderDay1() {
     card.appendChild(pr);
 
     // Result entry — front 9 / back 9, each worth 1pt (0.5 each if tied)
+    // Locked until both players are assigned, so a result can't be recorded
+    // against an empty match.
+    const playersAssigned = pA[0] !== null && pB[0] !== null;
     const re = document.createElement('div');
     re.className = 'nine-results';
-    re.innerHTML = ['front9','back9'].map((half, hi) => {
-      const val = match[half];
-      return `
-      <div class="nine-block">
-        <div class="nine-label">${hi === 0 ? 'Front 9' : 'Back 9'}</div>
-        <div class="match-toggle nine-toggle">
-          <button class="${val==='A'?'is-active is-active-a':''}" onclick="setNineResult(${mi},'${half}','A')">
-            <span class="rt-lab">${state.teamNameA}</span><span class="rt-pts">1pt</span>
-          </button>
-          <button class="${val==='T'?'is-active':''}" onclick="setNineResult(${mi},'${half}','T')">
-            <span class="rt-lab">Tie</span><span class="rt-pts">0.5 each</span>
-          </button>
-          <button class="${val==='B'?'is-active is-active-b':''}" onclick="setNineResult(${mi},'${half}','B')">
-            <span class="rt-lab">${state.teamNameB}</span><span class="rt-pts">1pt</span>
-          </button>
-        </div>
-      </div>`;
-    }).join('');
+    if (!playersAssigned) {
+      re.innerHTML = `<div class="grey" style="font-size:.82rem;padding:2px 0">Assign both players above to enter a result.</div>`;
+    } else {
+      re.innerHTML = ['front9','back9'].map((half, hi) => {
+        const val = match[half];
+        return `
+        <div class="nine-block">
+          <div class="nine-label">${hi === 0 ? 'Front 9' : 'Back 9'}</div>
+          <div class="match-toggle nine-toggle">
+            <button class="${val==='A'?'is-active is-active-a':''}" onclick="setNineResult(${mi},'${half}','A')">
+              <span class="rt-lab">${state.teamNameA}</span><span class="rt-pts">1pt</span>
+            </button>
+            <button class="${val==='T'?'is-active':''}" onclick="setNineResult(${mi},'${half}','T')">
+              <span class="rt-lab">Tie</span><span class="rt-pts">0.5 each</span>
+            </button>
+            <button class="${val==='B'?'is-active is-active-b':''}" onclick="setNineResult(${mi},'${half}','B')">
+              <span class="rt-lab">${state.teamNameB}</span><span class="rt-pts">1pt</span>
+            </button>
+          </div>
+        </div>`;
+      }).join('');
+    }
     card.appendChild(re);
     container.appendChild(card);
   });
+
+  renderDay1Ntp();
 }
 
 function fmt(n) {
@@ -827,10 +941,22 @@ function fmt(n) {
 }
 
 function setMatchPlayer(matchIdx, team, slot, val) {
-  const id = val === '' ? null : parseInt(val);
-  if (team === 'A') state.day1.matches[matchIdx].pA[slot] = id;
-  else              state.day1.matches[matchIdx].pB[slot] = id;
+  const id = val === '' ? null : parseInt(val, 10);
+  const match = state.day1.matches[matchIdx];
+  if (team === 'A') match.pA[slot] = id;
+  else              match.pB[slot] = id;
+  // Reassigning a player invalidates any result already recorded for this
+  // match — otherwise a stale front9/back9 result could end up attributed
+  // to whoever gets slotted in next.
+  const hadResult = match.front9 !== null || match.back9 !== null;
+  match.front9 = null;
+  match.back9 = null;
   saveState();
+  insertUpdate('day1_match', { match_idx: matchIdx, field_key: team === 'A' ? 'pA' : 'pB', value: id });
+  if (hadResult) {
+    insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'front9', value: null });
+    insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'back9', value: null });
+  }
   renderDay1();
   updateScoreboard();
 }
@@ -847,49 +973,121 @@ function setNineResult(matchIdx, half, result) {
 }
 
 /* ─────────────────────────────────────
+   NEAREST THE PIN (shared UI helper)
+───────────────────────────────────── */
+function ntpPlayerOptions(pool, currentId) {
+  let opts = `<option value="">— none yet —</option>`;
+  pool.forEach(p => {
+    const sel = p.id === currentId ? 'selected' : '';
+    const teamLabel = teamOf(p.id) === 'A' ? state.teamNameA : state.teamNameB;
+    opts += `<option value="${p.id}" ${sel}>${p.short} (${teamLabel})</option>`;
+  });
+  return opts;
+}
+
+function renderDay1Ntp() {
+  const pool = [...fridayPlayers('A'), ...fridayPlayers('B')];
+  ['h8','h17'].forEach(h => {
+    const el = document.getElementById('ntp-day1-' + h);
+    if (el) el.innerHTML = ntpPlayerOptions(pool, state.day1.ntp[h]);
+  });
+}
+function setDay1Ntp(hole, val) {
+  requireUsername(() => {
+    const id = val === '' ? null : parseInt(val, 10);
+    state.day1.ntp[hole] = id;
+    saveState();
+    insertUpdate('day1_ntp', { field_key: hole, value: id });
+    updateScoreboard();
+  });
+}
+
+function renderDay2Ntp() {
+  ['h4','h16'].forEach(h => {
+    const el = document.getElementById('ntp-day2-' + h);
+    if (el) el.innerHTML = ntpPlayerOptions(PLAYERS, state.day2.ntp[h]);
+  });
+}
+function setDay2Ntp(hole, val) {
+  requireUsername(() => {
+    const id = val === '' ? null : parseInt(val, 10);
+    state.day2.ntp[hole] = id;
+    saveState();
+    insertUpdate('day2_ntp', { field_key: hole, value: id });
+    updateScoreboard();
+  });
+}
+
+function renderDay3Ntp() {
+  ['h7','h14'].forEach(h => {
+    const el = document.getElementById('ntp-day3-' + h);
+    if (el) el.innerHTML = ntpPlayerOptions(PLAYERS, state.day3.ntp[h]);
+  });
+}
+function setDay3Ntp(hole, val) {
+  requireUsername(() => {
+    const id = val === '' ? null : parseInt(val, 10);
+    state.day3.ntp[hole] = id;
+    saveState();
+    insertUpdate('day3_ntp', { field_key: hole, value: id });
+    updateScoreboard();
+  });
+}
+
+/* ─────────────────────────────────────
    DAY 2 — SCRAMBLE
 ───────────────────────────────────── */
-function scramblePoints(val) {
-  if (val === '' || val === null || val === undefined) return null;
-  const n = parseInt(val);
-  if (isNaN(n)) return null;
-  return Math.max(0, 5 - n);
+const DAY2_SCORE_MIN = -20, DAY2_SCORE_MAX = 20;
+
+function clampDay2Score(val) {
+  const n = parseScoreToPar(val);
+  if (n === null) return '';
+  return String(Math.max(DAY2_SCORE_MIN, Math.min(DAY2_SCORE_MAX, n)));
 }
 
 function updateDay2() {
   requireUsername(() => {
     _doUpdateDay2();
-    ['a4','a2','b4','b2'].forEach(id => {
+    ['a4','a3','b4','b3'].forEach(id => {
       insertUpdate('day2_score', { field_key: id, value: state.day2[id] });
     });
   });
 }
 function _doUpdateDay2() {
-  const ids = ['a4','a2','b4','b2'];
-  ids.forEach(id => {
+  ['a4','a3','b4','b3'].forEach(id => {
     const inp = document.getElementById(id + '-score');
-    const pts = scramblePoints(inp.value);
-    const badge = document.getElementById(id + '-pts');
-    state.day2[id] = inp.value;
-    if (pts !== null) {
-      badge.textContent = pts + ' pts';
-      badge.classList.add('live');
-    } else {
-      badge.textContent = '— pts';
-      badge.classList.remove('live');
-    }
+    if (!inp) return;
+    const clamped = clampDay2Score(inp.value);
+    inp.value = clamped;
+    state.day2[id] = clamped;
   });
 
-  const aTotal = (scramblePoints(state.day2.a4)||0) + (scramblePoints(state.day2.a2)||0);
-  const bTotal = (scramblePoints(state.day2.b4)||0) + (scramblePoints(state.day2.b2)||0);
-  document.getElementById('a-day2-total').textContent = aTotal + ' pts';
-  document.getElementById('b-day2-total').textContent = bTotal + ' pts';
+  const result = calcDay2Points(state.day2);
+  const setBadge = (id, pts) => {
+    const el = document.getElementById(id + '-pts');
+    if (!el) return;
+    if (pts > 0) { el.textContent = '+' + fmt(pts) + ' pts'; el.classList.add('live'); }
+    else { el.textContent = '— pts'; el.classList.remove('live'); }
+  };
+  setBadge('a4', result.four.a); setBadge('b4', result.four.b);
+  setBadge('a3', result.three.a); setBadge('b3', result.three.b);
+
+  document.getElementById('a-day2-total').textContent = fmt(result.a) + ' pts';
+  document.getElementById('b-day2-total').textContent = fmt(result.b) + ' pts';
+
+  const bonusEl = document.getElementById('day2-bonus-status');
+  if (bonusEl) {
+    if (!result.complete) bonusEl.textContent = 'Bonus 5pts — awarded once all four scores are in';
+    else if (result.bonus.a > 0) bonusEl.textContent = `Bonus 5pts → ${state.teamNameA} (better combined score)`;
+    else if (result.bonus.b > 0) bonusEl.textContent = `Bonus 5pts → ${state.teamNameB} (better combined score)`;
+    else bonusEl.textContent = 'Bonus 5pts — combined scores tied, not awarded';
+  }
 
   const cardA = document.querySelector('.scramble-team-a');
   const cardB = document.querySelector('.scramble-team-b');
   if (cardA && cardB) {
-    cardA.classList.toggle('leading', aTotal > 0 && aTotal >= bTotal);
-    cardB.classList.toggle('leading', bTotal > 0 && bTotal > aTotal);
+    cardA.classList.toggle('leading', result.a > 0 && result.a >= result.b);
+    cardB.classList.toggle('leading', result.b > 0 && result.b > result.a);
   }
 
   saveState();
@@ -897,50 +1095,30 @@ function _doUpdateDay2() {
 }
 
 function restoreDay2() {
-  ['a4','a2','b4','b2'].forEach(id => {
+  ['a4','a3','b4','b3'].forEach(id => {
     const el = document.getElementById(id + '-score');
     if (el && state.day2[id] !== null && state.day2[id] !== undefined) {
       el.value = state.day2[id];
     }
   });
+  renderDay2Ntp();
   _doUpdateDay2();
 }
 
 /* ─────────────────────────────────────
    DAY 3 — STABLEFORD
 ───────────────────────────────────── */
-const POS_PTS = [14,12,11,10,9,8,7,6,5,4,3,2,1,0];
+const DAY3_SCORE_MIN = 0, DAY3_SCORE_MAX = 60;
 
 function computeDay3() {
   const entries = PLAYERS.map(p => ({
     id:    p.id,
     name:  p.name,
     hcp:   p.hcp,
-    team:  state.teamA.has(p.id) ? 'A' : 'B',
-    score: state.day3[p.id] !== undefined && state.day3[p.id] !== '' ? parseInt(state.day3[p.id]) : null
+    team:  teamOf(p.id),
+    score: state.day3.scores[p.id] !== undefined && state.day3.scores[p.id] !== '' ? parseInt(state.day3.scores[p.id], 10) : null
   }));
-
-  // Sort by score desc (nulls last)
-  const sorted = [...entries].sort((a,b) => {
-    if (a.score === null && b.score === null) return 0;
-    if (a.score === null) return 1;
-    if (b.score === null) return -1;
-    return b.score - a.score;
-  });
-
-  // Assign positions with tie handling
-  let i = 0;
-  while (i < sorted.length) {
-    if (sorted[i].score === null) { sorted[i].pos = null; sorted[i].pts = 0; i++; continue; }
-    let j = i;
-    while (j < sorted.length && sorted[j].score === sorted[i].score) j++;
-    let totalPts = 0;
-    for (let k = i; k < j; k++) totalPts += (POS_PTS[k] || 0);
-    const avgPts = totalPts / (j - i);
-    for (let k = i; k < j; k++) { sorted[k].pos = i + 1; sorted[k].pts = avgPts; }
-    i = j;
-  }
-
+  const sorted = computeStableford(entries);
   return { sorted, entries };
 }
 
@@ -966,23 +1144,31 @@ function renderDay3() {
       <td style="color:var(--ink)">${p.name}</td>
       <td><span class="${p.team === 'A' ? 'ta-badge' : 'tb-badge'} team-badge">Team ${p.team}</span></td>
       <td class="grey" style="font-size:.84rem">${p.hcp}</td>
-      <td><input type="number" class="sf-in" placeholder="—" value="${state.day3[p.id]||''}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
+      <td><input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${state.day3.scores[p.id]||''}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
       <td class="pts-cell">${ptsText}</td>`;
     tbody.appendChild(row);
   });
+  renderDay3Ntp();
   updateScoreboard();
 }
 
 function setStableford(pid, val) {
   requireUsername(() => {
-    state.day3[pid] = val;
+    let stored = val;
+    if (val !== '') {
+      const n = parseInt(val, 10);
+      stored = isNaN(n) ? '' : String(Math.max(DAY3_SCORE_MIN, Math.min(DAY3_SCORE_MAX, n)));
+    }
+    state.day3.scores[pid] = stored;
     saveState();
-    insertUpdate('day3_stableford', { player_id: pid, value: val });
+    insertUpdate('day3_stableford', { player_id: pid, value: stored });
     const { sorted } = computeDay3();
     const player = sorted.find(p => p.id === pid);
     if (player) {
       const row = document.querySelector(`[data-pid="${pid}"]`)?.closest('tr');
       if (row) {
+        const input = row.querySelector('.sf-in');
+        if (input && input.value !== stored) input.value = stored;
         const ptsCell = row.querySelector('.pts-cell');
         if (ptsCell) ptsCell.textContent = player.pts > 0 ? (player.pts % 1 === 0 ? player.pts : player.pts.toFixed(1)) : '—';
         const intensity = player.pts > 0 ? 0.05 + (player.pts / POS_PTS[0]) * 0.28 : 0.03;
@@ -996,44 +1182,26 @@ function setStableford(pid, val) {
 
 /* ─────────────────────────────────────
    SCORING CALCULATIONS
+   (point math itself lives in scoring.js;
+   these wrappers fold in team/NTP context)
 ───────────────────────────────────── */
-function ninePoints(result) {
-  if (result === 'A') return { a: 1, b: 0 };
-  if (result === 'B') return { a: 0, b: 1 };
-  if (result === 'T') return { a: 0.5, b: 0.5 };
-  return { a: 0, b: 0 };
-}
-
-function matchPoints(match) {
-  const f = ninePoints(match.front9);
-  const k = ninePoints(match.back9);
-  return { a: f.a + k.a, b: f.b + k.b };
-}
-
 function calcDay1() {
-  let a = 0, b = 0;
-  state.day1.matches.forEach(match => {
-    const pts = matchPoints(match);
-    a += pts.a;
-    b += pts.b;
-  });
-  return { a, b };
+  const base = sumMatchPoints(state.day1.matches);
+  const ntp = ntpPointsFor(state.day1.ntp, ['h8','h17']);
+  return { a: base.a + ntp.a, b: base.b + ntp.b, base, ntp };
 }
 
 function calcDay2() {
-  const a = (scramblePoints(state.day2.a4)||0) + (scramblePoints(state.day2.a2)||0);
-  const b = (scramblePoints(state.day2.b4)||0) + (scramblePoints(state.day2.b2)||0);
-  return { a, b };
+  const scramble = calcDay2Points(state.day2);
+  const ntp = ntpPointsFor(state.day2.ntp, ['h4','h16']);
+  return { a: scramble.a + ntp.a, b: scramble.b + ntp.b, scramble, ntp };
 }
 
 function calcDay3() {
   const { sorted } = computeDay3();
-  let a = 0, b = 0;
-  sorted.forEach(p => {
-    if (p.team === 'A') a += p.pts;
-    else                b += p.pts;
-  });
-  return { a, b };
+  const base = sumStablefordPoints(sorted);
+  const ntp = ntpPointsFor(state.day3.ntp, ['h7','h14']);
+  return { a: base.a + ntp.a, b: base.b + ntp.b, base, ntp };
 }
 
 function isDay1Complete() {
@@ -1041,16 +1209,25 @@ function isDay1Complete() {
 }
 
 function isDay2Complete() {
-  return ['a4','a2','b4','b2'].every(k => state.day2[k] !== null && state.day2[k] !== '');
+  return ['a4','a3','b4','b3'].every(k => state.day2[k] !== null && state.day2[k] !== undefined && state.day2[k] !== '');
 }
 
 function isDay3Complete() {
-  return PLAYERS.every(p => state.day3[p.id] !== undefined && state.day3[p.id] !== '');
+  return PLAYERS.every(p => state.day3.scores[p.id] !== undefined && state.day3.scores[p.id] !== '');
 }
 
 /* ─────────────────────────────────────
    SCOREBOARD UPDATE
 ───────────────────────────────────── */
+function setTiebreak(team) {
+  requireUsername(() => {
+    state.tiebreak = state.tiebreak === team ? null : team;
+    saveState();
+    insertUpdate('tiebreak', { value: state.tiebreak });
+    updateScoreboard();
+  });
+}
+
 function updateScoreboard() {
   updateTeamNames();
   const d1 = calcDay1();
@@ -1077,23 +1254,34 @@ function updateScoreboard() {
     `<span class="sb-chip">D1: ${fmt(d1.b)}</span><span class="sb-chip">D2: ${fmt(d2.b)}</span><span class="sb-chip">D3: ${fmt(d3.b)}</span>`;
 
   const banner = document.getElementById('win-banner');
+  const tiebreakControl = document.getElementById('tiebreak-control');
   const allDone = isDay1Complete() && isDay2Complete() && isDay3Complete();
+
   if (allDone) {
-    if (totalA > totalB) {
-      banner.className = 'win-banner';
-      banner.textContent = `🏆 ${state.teamNameA.toUpperCase()} WIN THE WONGA CUP — ${fmt(totalA)} to ${fmt(totalB)} 🏆`;
-      banner.style.display = '';
-    } else if (totalB > totalA) {
-      banner.className = 'win-banner';
-      banner.textContent = `🏆 ${state.teamNameB.toUpperCase()} WIN THE WONGA CUP — ${fmt(totalB)} to ${fmt(totalA)} 🏆`;
-      banner.style.display = '';
-    } else {
+    const result = resolveOverallWinner(totalA, totalB, state.tiebreak);
+    if (result.mode === 'tied-pending-tiebreak') {
       banner.className = 'sd-banner';
       banner.textContent = `⚡ SUDDEN DEATH PUTT-OFF REQUIRED — ${fmt(totalA)} ALL ⚡`;
       banner.style.display = '';
+      if (tiebreakControl) {
+        tiebreakControl.style.display = '';
+        const btnA = document.getElementById('tiebreak-btn-a');
+        const btnB = document.getElementById('tiebreak-btn-b');
+        if (btnA) { btnA.textContent = state.teamNameA; btnA.classList.toggle('is-active-a', state.tiebreak === 'A'); }
+        if (btnB) { btnB.textContent = state.teamNameB; btnB.classList.toggle('is-active-b', state.tiebreak === 'B'); }
+      }
+    } else {
+      const winnerName = (result.winner === 'A' ? state.teamNameA : state.teamNameB).toUpperCase();
+      banner.className = 'win-banner';
+      banner.textContent = result.mode === 'tiebreak'
+        ? `🏆 ${winnerName} WIN THE WONGA CUP ON THE SUDDEN-DEATH PUTT-OFF — ${fmt(totalA)} ALL 🏆`
+        : `🏆 ${winnerName} WIN THE WONGA CUP — ${fmt(Math.max(totalA,totalB))} to ${fmt(Math.min(totalA,totalB))} 🏆`;
+      banner.style.display = '';
+      if (tiebreakControl) tiebreakControl.style.display = 'none';
     }
   } else {
     banner.style.display = 'none';
+    if (tiebreakControl) tiebreakControl.style.display = 'none';
   }
   updateMiniScoreboard();
 }
@@ -1152,21 +1340,42 @@ async function insertUpdate(updateType, fields) {
   }
 }
 
+function parseIntOrNull(v) {
+  return (v === null || v === undefined || v === 'null' || v === '') ? null : parseInt(v, 10);
+}
+
 function applyUpdate(row) {
   const v = row.value;
   switch (row.update_type) {
-    case 'day1_match':
-      if (row.match_idx !== null && row.match_idx !== undefined && row.field_key) {
-        state.day1.matches[row.match_idx][row.field_key] = (v === null || v === 'null') ? null : v;
+    case 'day1_match': {
+      const match = state.day1.matches[row.match_idx];
+      if (!match || !row.field_key) break;
+      if (row.field_key === 'pA' || row.field_key === 'pB') {
+        (row.field_key === 'pA' ? match.pA : match.pB)[0] = parseIntOrNull(v);
+      } else {
+        match[row.field_key] = (v === null || v === 'null') ? null : v;
       }
+      break;
+    }
+    case 'day1_ntp':
+      if (row.field_key) state.day1.ntp[row.field_key] = parseIntOrNull(v);
       break;
     case 'day2_score':
       if (row.field_key) state.day2[row.field_key] = v === null || v === 'null' ? null : v;
       break;
+    case 'day2_ntp':
+      if (row.field_key) state.day2.ntp[row.field_key] = parseIntOrNull(v);
+      break;
     case 'day3_stableford':
       if (row.player_id !== null && row.player_id !== undefined) {
-        state.day3[row.player_id] = v === null || v === 'null' ? null : v;
+        state.day3.scores[row.player_id] = v === null || v === 'null' ? null : v;
       }
+      break;
+    case 'day3_ntp':
+      if (row.field_key) state.day3.ntp[row.field_key] = parseIntOrNull(v);
+      break;
+    case 'tiebreak':
+      state.tiebreak = (v === null || v === 'null') ? null : v;
       break;
     case 'team_name':
       if (row.field_key === 'A') state.teamNameA = v;

@@ -12,14 +12,27 @@ Multiple devices overwrite each other's changes (last-write-wins at record level
 |--------|------|-------------|
 | id | uuid (PK) | Auto-generated |
 | tournament_id | text | e.g. `wonga-cup-2026` |
-| update_type | text | `day1_hole`, `day2_score`, `day3_stableford` |
+| update_type | text | see below |
 | match_idx | int | Day 1 only — which match (0-5) |
-| hole_num | int | Day 1 only — which hole (0-17) |
-| player_id | int | Day 3 only — player ID |
-| field_key | text | Day 2 only — e.g. `a4`, `b2` |
-| value | text | The score/result value |
+| player_id | int | Day 3 stableford only — player ID |
+| field_key | text | meaning depends on `update_type`, see below |
+| value | text | The score/result/player-id value |
 | updated_by | text | Username of who entered it |
 | updated_at | timestamptz | When it was entered |
+
+`update_type` values actually used by the app, and what `field_key`/`value` mean for each:
+
+| update_type | field_key | value |
+|---|---|---|
+| `day1_match` | `pA` / `pB` (player assigned to the match) or `front9` / `back9` (result) | player id, or `'A'`\|`'T'`\|`'B'` |
+| `day1_ntp` | `h8` / `h17` | nearest-the-pin winner's player id |
+| `day2_score` | `a4` / `a3` / `b4` / `b3` (4-man / 3-man group net score to par) | integer score to par |
+| `day2_ntp` | `h4` / `h16` | nearest-the-pin winner's player id |
+| `day3_stableford` | — (uses `player_id`) | net stableford score |
+| `day3_ntp` | `h7` / `h14` | nearest-the-pin winner's player id |
+| `tiebreak` | — | `'A'` or `'B'` (sudden-death putt-off winner) |
+| `team_name` | `A` / `B` | team display name |
+| `team_assign` | `A` / `B` | JSON array of player ids on that team |
 
 ### How It Works
 - **Save:** Insert one row per change (no PATCH/GET logic needed)
