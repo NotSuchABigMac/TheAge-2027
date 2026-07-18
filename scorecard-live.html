@@ -652,7 +652,7 @@ const {
   parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
-  applyPlayerTeamMove, reconcileMatchesAfterTeamMove, processUpdateRows
+  applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows
 } = WongaScoring;
 
 function teamOf(playerId) {
@@ -749,6 +749,17 @@ document.querySelectorAll('.sc-tab').forEach(btn => {
    TEAM SETUP
 ───────────────────────────────────── */
 function renderTeams() {
+  // Self-heal: a player should never structurally belong to both teams —
+  // the only way that can happen is stale data (issue #71). If it has,
+  // resolve it locally right now (so this render is correct) and, if we're
+  // signed in, sync the correction out so every other device heals too.
+  const deduped = dedupeTeams(state.teamA, state.teamB);
+  state.teamA = deduped.teamA;
+  state.teamB = deduped.teamB;
+  if (deduped.dupes.length > 0 && currentUsername) {
+    deduped.dupes.forEach(id => insertUpdate('player_team', { player_id: id, value: 'A' }));
+  }
+
   const aList = document.getElementById('team-a-list');
   const bList = document.getElementById('team-b-list');
   aList.innerHTML = '';
@@ -781,14 +792,18 @@ function renderTeams() {
 function renderTeamBalanceWarning() {
   const warnEl = document.getElementById('team-balance-warning');
   if (!warnEl) return;
-  const fridayA = fridayPlayers('A').length;
-  const fridayB = fridayPlayers('B').length;
-  if (fridayA === fridayB) {
+  const fA = fridayPlayers('A');
+  const fB = fridayPlayers('B');
+  if (fA.length === fB.length) {
     warnEl.style.display = 'none';
     return;
   }
+  // Names are listed (not just counts) so a mismatch is self-diagnosable
+  // straight from a phone screen, without needing browser devtools.
+  const listA = fA.map(p => escapeHtml(p.short)).join(', ') || '—';
+  const listB = fB.map(p => escapeHtml(p.short)).join(', ') || '—';
   warnEl.style.display = '';
-  warnEl.innerHTML = `<strong>⚠ Uneven Friday split:</strong> ${escapeHtml(state.teamNameA)} has ${fridayA} Friday player${fridayA === 1 ? '' : 's'}, ${escapeHtml(state.teamNameB)} has ${fridayB}. Day 1 needs 6-a-side across the singles matches.`;
+  warnEl.innerHTML = `<strong>⚠ Uneven Friday split:</strong> ${escapeHtml(state.teamNameA)} has ${fA.length} Friday player${fA.length === 1 ? '' : 's'} (${listA}); ${escapeHtml(state.teamNameB)} has ${fB.length} (${listB}). Day 1 needs 6-a-side across the singles matches.`;
 }
 
 function movePlayer(id, fromA) {
@@ -831,11 +846,24 @@ function reconcileDay1AfterTeamMove(id, newTeam, emitSync = true) {
 
 function resetTeams() {
   requireUsername(() => {
-    state.teamA = new Set(DEFAULT_A);
-    state.teamB = new Set(DEFAULT_B);
+    // Emit one player_team delta per player who's actually changing side,
+    // through the exact same path as a manual movePlayer click (including
+    // Day 1 reconciliation) — rather than two whole-roster snapshot writes.
+    // A snapshot write landing out of order after a later delta move can
+    // silently corrupt team membership (issue #71); per-player deltas can't,
+    // since applyPlayerTeamMove always removes from both sets before adding
+    // to one.
+    PLAYERS.forEach(p => {
+      const newTeam = DEFAULT_A.has(p.id) ? 'A' : 'B';
+      const currentTeam = state.teamA.has(p.id) ? 'A' : 'B';
+      if (currentTeam === newTeam) return;
+      const moved = applyPlayerTeamMove(state.teamA, state.teamB, p.id, newTeam);
+      state.teamA = moved.teamA;
+      state.teamB = moved.teamB;
+      reconcileDay1AfterTeamMove(p.id, newTeam);
+      insertUpdate('player_team', { player_id: p.id, value: newTeam });
+    });
     saveState();
-    insertUpdate('team_assign', { field_key: 'A', value: JSON.stringify([...state.teamA]) });
-    insertUpdate('team_assign', { field_key: 'B', value: JSON.stringify([...state.teamB]) });
     renderTeams();
   });
 }
