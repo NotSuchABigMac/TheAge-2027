@@ -688,6 +688,18 @@ function saveState() {
 // payload (e.g. from pre-format-overhaul testing) so a stale localStorage
 // blob or Supabase row can't crash the page.
 function normalizeState() {
+  // Coerce every existing match into the current singles shape — a match
+  // saved during the short-lived doubles-era format (type:'doubles',
+  // 2-slot pA/pB) can otherwise survive indefinitely in a browser's cached
+  // state, since this used to only pad new matches onto the end rather
+  // than fixing up what was already there.
+  state.day1.matches = state.day1.matches.map(m => ({
+    type: 'singles',
+    pA: [ (m.pA && m.pA[0] !== undefined) ? m.pA[0] : null ],
+    pB: [ (m.pB && m.pB[0] !== undefined) ? m.pB[0] : null ],
+    front9: m.front9 ?? null,
+    back9: m.back9 ?? null
+  }));
   while (state.day1.matches.length < 6) {
     state.day1.matches.push({ type:'singles', pA:[null], pB:[null], front9:null, back9:null });
   }
