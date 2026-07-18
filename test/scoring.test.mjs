@@ -4,12 +4,31 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const {
+  escapeHtml,
   ninePoints, matchPoints, sumMatchPoints,
   ntpTeamPoints,
-  parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2,
+  parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
-  resolveOverallWinner
+  resolveOverallWinner,
+  applyPlayerTeamMove, processUpdateRows
 } = require('../scoring.js');
+
+/* ── HTML Escaping (issue #58 — stored XSS via team names) ── */
+
+test('escapeHtml neutralizes all five HTML-significant characters', () => {
+  assert.equal(escapeHtml('&<>"\''), '&amp;&lt;&gt;&quot;&#39;');
+});
+
+test('escapeHtml defuses the classic <img onerror> XSS payload', () => {
+  const payload = '<img src=x onerror=alert(1)>';
+  const escaped = escapeHtml(payload);
+  assert.ok(!escaped.includes('<img'), 'no raw tag should survive escaping');
+  assert.equal(escaped, '&lt;img src=x onerror=alert(1)&gt;');
+});
+
+test('escapeHtml leaves ordinary team names untouched', () => {
+  assert.equal(escapeHtml('Team Beer'), 'Team Beer');
+});
 
 /* ── Day 1 — Match Play ── */
 
@@ -89,6 +108,32 @@ test('calcDay2: no bonus awarded while any of the four scores is still missing',
   assert.equal(result.complete, false);
 });
 
+/* ── Day 2 score input (issue #59 — leading "-" was stripped while typing) ── */
+
+test('day2InputState: a lone "-" is left alone, not clobbered, while the user is still typing', () => {
+  const r = day2InputState('-');
+  assert.equal(r.changed, false, 'the in-progress state itself must not be stored yet');
+  assert.equal(r.correction, null, 'the box must not be rewritten mid-keystroke');
+});
+
+test('day2InputState: a complete negative number is accepted as-is', () => {
+  assert.deepEqual(day2InputState('-15'), { changed: true, stored: '-15', correction: null });
+  assert.deepEqual(day2InputState('-5'), { changed: true, stored: '-5', correction: null });
+});
+
+test('day2InputState: clearing the box stores null without touching the input', () => {
+  assert.deepEqual(day2InputState(''), { changed: true, stored: null, correction: null });
+});
+
+test('day2InputState: out-of-range numbers are clamped and the box corrected', () => {
+  assert.deepEqual(day2InputState('45'), { changed: true, stored: '20', correction: '20' });
+  assert.deepEqual(day2InputState('-45'), { changed: true, stored: '-20', correction: '-20' });
+});
+
+test('day2InputState: non-numeric garbage is left alone rather than wiped', () => {
+  assert.deepEqual(day2InputState('abc'), { changed: false, stored: null, correction: null });
+});
+
 /* ── Day 3 — Individual Stableford ── */
 
 test('POS_PTS runs 1st=14pts down to 14th=1pt (no skipped values, no 0 for last place)', () => {
@@ -153,4 +198,84 @@ test('resolveOverallWinner falls to the sudden-death result on a tie', () => {
   assert.deepEqual(resolveOverallWinner(20, 20, null), { winner: null, mode: 'tied-pending-tiebreak' });
   assert.deepEqual(resolveOverallWinner(20, 20, 'A'), { winner: 'A', mode: 'tiebreak' });
   assert.deepEqual(resolveOverallWinner(20, 20, 'B'), { winner: 'B', mode: 'tiebreak' });
+});
+
+/* ── Team assignment sync (issue #62 — whole-array sync lost concurrent moves) ── */
+
+test('applyPlayerTeamMove moves only the named player, leaving everyone else put', () => {
+  const teamA = new Set([0, 2, 4]);
+  const teamB = new Set([1, 3, 5]);
+  const result = applyPlayerTeamMove(teamA, teamB, 4, 'B');
+  assert.deepEqual([...result.teamA].sort(), [0, 2]);
+  assert.deepEqual([...result.teamB].sort(), [1, 3, 4, 5]);
+});
+
+test('applyPlayerTeamMove does not mutate the sets it was given', () => {
+  const teamA = new Set([0, 2, 4]);
+  const teamB = new Set([1, 3, 5]);
+  applyPlayerTeamMove(teamA, teamB, 4, 'B');
+  assert.deepEqual([...teamA].sort(), [0, 2, 4], 'original teamA must be untouched');
+  assert.deepEqual([...teamB].sort(), [1, 3, 5], 'original teamB must be untouched');
+});
+
+test('applyPlayerTeamMove: two concurrent moves of DIFFERENT players compose instead of one clobbering the other', () => {
+  // This is exactly the scenario that used to lose data (#62) when team
+  // assignment synced as a whole-roster snapshot: two devices each moving
+  // a different player, applied in sequence as their sync rows arrive.
+  let teamA = new Set([0, 2, 4]);
+  let teamB = new Set([1, 3, 5]);
+  ({ teamA, teamB } = applyPlayerTeamMove(teamA, teamB, 4, 'B')); // device 1: move player 4 -> B
+  ({ teamA, teamB } = applyPlayerTeamMove(teamA, teamB, 1, 'A')); // device 2: move player 1 -> A
+  assert.deepEqual([...teamA].sort(), [0, 1, 2]);
+  assert.deepEqual([...teamB].sort(), [3, 4, 5]);
+});
+
+/* ── Live sync row processing (issue #63 — one bad row wedged all future polls) ── */
+
+test('processUpdateRows applies every row when none of them fail', () => {
+  const applied = [];
+  const rows = [
+    { id: 1, updated_at: '2026-01-01T00:00:00Z' },
+    { id: 2, updated_at: '2026-01-01T00:00:01Z' }
+  ];
+  const result = processUpdateRows(rows, row => applied.push(row.id));
+  assert.deepEqual(applied, [1, 2]);
+  assert.equal(result.applied, 2);
+  assert.deepEqual(result.failed, []);
+  assert.equal(result.lastUpdatedAt, '2026-01-01T00:00:01Z');
+});
+
+test('processUpdateRows skips a row that throws but still applies the rest of the batch', () => {
+  const applied = [];
+  const rows = [
+    { id: 1, updated_at: '2026-01-01T00:00:00Z' },
+    { id: 2, updated_at: '2026-01-01T00:00:01Z', broken: true }, // e.g. bad JSON in a team_assign value
+    { id: 3, updated_at: '2026-01-01T00:00:02Z' }
+  ];
+  const result = processUpdateRows(rows, row => {
+    if (row.broken) throw new Error('malformed row');
+    applied.push(row.id);
+  });
+  assert.deepEqual(applied, [1, 3], 'the row after the broken one must still be applied');
+  assert.equal(result.applied, 2);
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.failed[0].row.id, 2);
+});
+
+test('processUpdateRows always reports the last row\'s timestamp, even when that row (or an earlier one) failed', () => {
+  // This is the crux of the fix: the sync cursor must advance past a bad
+  // row, or every future poll re-fetches and re-fails on the exact same
+  // row forever, permanently wedging live sync for every client.
+  const rows = [
+    { id: 1, updated_at: '2026-01-01T00:00:00Z', broken: true },
+    { id: 2, updated_at: '2026-01-01T00:00:01Z' }
+  ];
+  const result = processUpdateRows(rows, row => { if (row.broken) throw new Error('bad row'); });
+  assert.equal(result.lastUpdatedAt, '2026-01-01T00:00:01Z');
+});
+
+test('processUpdateRows on an empty batch reports no timestamp', () => {
+  const result = processUpdateRows([], () => {});
+  assert.equal(result.lastUpdatedAt, null);
+  assert.equal(result.applied, 0);
 });

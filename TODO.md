@@ -32,7 +32,8 @@ Multiple devices overwrite each other's changes (last-write-wins at record level
 | `day3_ntp` | `h7` / `h14` | nearest-the-pin winner's player id |
 | `tiebreak` | — | `'A'` or `'B'` (sudden-death putt-off winner) |
 | `team_name` | `A` / `B` | team display name |
-| `team_assign` | `A` / `B` | JSON array of player ids on that team |
+| `team_assign` | `A` / `B` | JSON array of player ids on that team — only emitted by the "Clear Teams" reset now; individual moves use `player_team` below so two concurrent moves of different players don't clobber each other |
+| `player_team` | — (uses `player_id`) | `'A'` or `'B'` — the team that player was just moved to |
 
 ### How It Works
 - **Save:** Insert one row per change (no PATCH/GET logic needed)

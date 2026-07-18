@@ -646,11 +646,13 @@ const state = {
 
 // Pure scoring math lives in scoring.js (shared with the Node test suite)
 const {
+  escapeHtml,
   matchPoints, sumMatchPoints,
   ntpTeamPoints,
-  parseScoreToPar, calcDay2: calcDay2Points,
+  parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
-  resolveOverallWinner
+  resolveOverallWinner,
+  applyPlayerTeamMove, processUpdateRows
 } = WongaScoring;
 
 function teamOf(playerId) {
@@ -776,8 +778,9 @@ function renderTeams() {
 
 function movePlayer(id, fromA) {
   requireUsername(() => {
-    if (fromA) { state.teamA.delete(id); state.teamB.add(id); }
-    else        { state.teamB.delete(id); state.teamA.add(id); }
+    const moved = applyPlayerTeamMove(state.teamA, state.teamB, id, fromA ? 'B' : 'A');
+    state.teamA = moved.teamA;
+    state.teamB = moved.teamB;
     saveState();
     // Sync as a single-player delta, not a whole-roster snapshot — two
     // people moving different players around at the same time (e.g. during
@@ -962,13 +965,6 @@ function fmt(n) {
   return n.toFixed(1);
 }
 
-// Team names (and anything else that reaches innerHTML) are user-entered
-// text synced from a publicly-writable Supabase table, not trusted markup.
-const HTML_ESCAPES = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
-}
-
 function setMatchPlayer(matchIdx, team, slot, val) {
   const id = val === '' ? null : parseInt(val, 10);
   const match = state.day1.matches[matchIdx];
@@ -1066,12 +1062,6 @@ function setDay3Ntp(hole, val) {
 /* ─────────────────────────────────────
    DAY 2 — SCRAMBLE
 ───────────────────────────────────── */
-const DAY2_SCORE_MIN = -20, DAY2_SCORE_MAX = 20;
-
-function clampDay2Score(n) {
-  return Math.max(DAY2_SCORE_MIN, Math.min(DAY2_SCORE_MAX, n));
-}
-
 function updateDay2() {
   requireUsername(() => {
     _doUpdateDay2();
@@ -1084,16 +1074,13 @@ function _doUpdateDay2() {
   ['a4','a3','b4','b3'].forEach(id => {
     const inp = document.getElementById(id + '-score');
     if (!inp) return;
-    const raw = inp.value;
-    if (raw === '') { state.day2[id] = null; return; }
-    const n = parseScoreToPar(raw);
-    // A lone "-" (or other in-progress partial entry) parses to null —
-    // leave the box alone rather than wiping what was just typed, so a
-    // negative score can actually be typed character by character.
-    if (n === null) return;
-    const clamped = clampDay2Score(n);
-    if (clamped !== n) inp.value = String(clamped);
-    state.day2[id] = String(clamped);
+    // day2InputState() (scoring.js) decides whether the box's raw text is
+    // still mid-typing (e.g. a lone "-") -- in which case it's left alone
+    // instead of being clobbered -- or a complete number that may need
+    // pulling back into the +/-20 range.
+    const r = day2InputState(inp.value);
+    if (r.correction !== null) inp.value = r.correction;
+    if (r.changed) state.day2[id] = r.stored;
   });
 
   const result = calcDay2Points(state.day2);
@@ -1423,10 +1410,9 @@ function applyUpdate(row) {
       break;
     case 'player_team':
       if (row.player_id !== null && row.player_id !== undefined && (v === 'A' || v === 'B')) {
-        const pid = row.player_id;
-        state.teamA.delete(pid);
-        state.teamB.delete(pid);
-        (v === 'A' ? state.teamA : state.teamB).add(pid);
+        const moved = applyPlayerTeamMove(state.teamA, state.teamB, row.player_id, v);
+        state.teamA = moved.teamA;
+        state.teamB = moved.teamB;
       }
       break;
   }
@@ -1446,17 +1432,16 @@ async function loadFromSupabase() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const rows = await resp.json();
     if (rows.length > 0) {
-      // A single malformed row (bad JSON in a team_assign value, an
-      // unrecognized shape, etc.) must not stop the rest of the batch from
-      // applying, and must not stop the sync cursor from advancing — the
-      // same row would otherwise be re-fetched and re-fail on every poll
-      // forever, wedging every client's live sync until someone manually
-      // finds and deletes it from the table.
-      rows.forEach(row => {
-        try { applyUpdate(row); }
-        catch (e) { console.error('Skipping malformed update row:', row, e); }
-      });
-      localStorage.setItem(LAST_SYNC_KEY, rows[rows.length - 1].updated_at);
+      // processUpdateRows() (scoring.js) applies each row individually so
+      // one malformed row (bad JSON in a team_assign value, an
+      // unrecognized shape, etc.) can't stop the rest of the batch from
+      // applying. It always reports the last row's timestamp so the sync
+      // cursor advances regardless -- otherwise a bad row gets re-fetched
+      // and re-fails on every poll forever, wedging every client's live
+      // sync until someone manually finds and deletes it from the table.
+      const result = processUpdateRows(rows, applyUpdate);
+      result.failed.forEach(f => console.error('Skipping malformed update row:', f.row, f.error));
+      localStorage.setItem(LAST_SYNC_KEY, result.lastUpdatedAt);
     }
     isOffline = false;
     document.getElementById('offline-banner').style.display = 'none';

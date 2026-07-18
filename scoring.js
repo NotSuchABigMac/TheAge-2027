@@ -13,6 +13,15 @@
   }
 })(typeof window !== 'undefined' ? window : globalThis, function () {
 
+  /* ── HTML ESCAPING ──
+     Anything that reaches innerHTML (team names, in particular) is
+     user-entered text synced from a publicly-writable table, not trusted
+     markup, and must be escaped before interpolation (issue #58). */
+  const HTML_ESCAPES = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
+  }
+
   /* ── DAY 1 — MATCH PLAY ── */
   function ninePoints(result) {
     if (result === 'A') return { a: 1, b: 0 };
@@ -92,6 +101,24 @@
     };
   }
 
+  const DAY2_SCORE_MIN = -20, DAY2_SCORE_MAX = 20;
+
+  // Decides what a Day 2 score box's `oninput` handler should do with the
+  // raw text currently in the field. `changed: false` means the raw text
+  // isn't (yet) a complete number -- e.g. a lone "-" while typing a
+  // negative score -- and the caller must leave the box alone rather than
+  // rewrite it, otherwise a leading "-" gets stripped before a second
+  // digit can be typed (issue #59). `correction` is only non-null when the
+  // parsed number was actually out of the +/-20 range and the displayed
+  // value needs to be pulled back in bounds.
+  function day2InputState(raw) {
+    if (raw === '') return { changed: true, stored: null, correction: null };
+    const n = parseScoreToPar(raw);
+    if (n === null) return { changed: false, stored: null, correction: null };
+    const clamped = Math.max(DAY2_SCORE_MIN, Math.min(DAY2_SCORE_MAX, n));
+    return { changed: true, stored: String(clamped), correction: clamped !== n ? String(clamped) : null };
+  }
+
   /* ── DAY 3 — INDIVIDUAL STABLEFORD ──
      1st = 14pts down to 14th = 1pt. Tied players share the averaged
      points across their tied position range. */
@@ -135,11 +162,49 @@
     return { winner: null, mode: 'tied-pending-tiebreak' };
   }
 
+  /* ── TEAM ASSIGNMENT SYNC ── */
+
+  // Moves one player between team sets, returning fresh Sets rather than
+  // mutating the inputs. Used both for a local team-assignment click and
+  // for replaying a synced `player_team` update row. Because it's a
+  // single-player delta rather than a whole-roster snapshot, two different
+  // players' concurrent moves compose instead of the second one silently
+  // clobbering the first (issue #62).
+  function applyPlayerTeamMove(teamA, teamB, playerId, team) {
+    const nextA = new Set(teamA);
+    const nextB = new Set(teamB);
+    nextA.delete(playerId);
+    nextB.delete(playerId);
+    (team === 'A' ? nextA : nextB).add(playerId);
+    return { teamA: nextA, teamB: nextB };
+  }
+
+  // Applies a batch of already-fetched sync rows via `applyFn`, one at a
+  // time, skipping (and reporting) any row that throws instead of letting
+  // one bad row abort the whole batch. Always returns the last row's
+  // timestamp so the caller can advance its sync cursor even when some
+  // rows failed to apply -- a single malformed row must never wedge every
+  // future poll (issue #63).
+  function processUpdateRows(rows, applyFn) {
+    let applied = 0;
+    const failed = [];
+    rows.forEach(row => {
+      try { applyFn(row); applied++; }
+      catch (error) { failed.push({ row, error }); }
+    });
+    return {
+      applied, failed,
+      lastUpdatedAt: rows.length > 0 ? rows[rows.length - 1].updated_at : null
+    };
+  }
+
   return {
+    escapeHtml,
     ninePoints, matchPoints, sumMatchPoints,
     ntpTeamPoints,
-    parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2,
+    parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     POS_PTS, computeStableford, sumStablefordPoints,
-    resolveOverallWinner
+    resolveOverallWinner,
+    applyPlayerTeamMove, processUpdateRows
   };
 });
