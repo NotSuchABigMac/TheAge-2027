@@ -10,7 +10,7 @@ const {
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
-  applyPlayerTeamMove, reconcileMatchesAfterTeamMove, processUpdateRows
+  applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows
 } = require('../scoring.js');
 
 /* ── HTML Escaping (issue #58 — stored XSS via team names) ── */
@@ -228,6 +228,43 @@ test('applyPlayerTeamMove: two concurrent moves of DIFFERENT players compose ins
   ({ teamA, teamB } = applyPlayerTeamMove(teamA, teamB, 1, 'A')); // device 2: move player 1 -> A
   assert.deepEqual([...teamA].sort(), [0, 1, 2]);
   assert.deepEqual([...teamB].sort(), [3, 4, 5]);
+});
+
+/* ── Team dedupe (issue #71 — a stale whole-roster snapshot landing out of
+   order after a delta move could leave a player in both teams at once) ── */
+
+test('dedupeTeams is a no-op when no player appears in both sets', () => {
+  const teamA = new Set([0, 2, 4]);
+  const teamB = new Set([1, 3, 5]);
+  const result = dedupeTeams(teamA, teamB);
+  assert.deepEqual([...result.teamA].sort(), [0, 2, 4]);
+  assert.deepEqual([...result.teamB].sort(), [1, 3, 5]);
+  assert.deepEqual(result.dupes, []);
+});
+
+test('dedupeTeams keeps a duplicated player in Team A and drops them from Team B', () => {
+  const teamA = new Set([0, 1, 4]);
+  const teamB = new Set([1, 3, 5]); // player 1 stuck in both
+  const result = dedupeTeams(teamA, teamB);
+  assert.deepEqual([...result.teamA].sort(), [0, 1, 4]);
+  assert.deepEqual([...result.teamB].sort(), [3, 5]);
+  assert.deepEqual(result.dupes, [1]);
+});
+
+test('dedupeTeams resolves multiple duplicates at once', () => {
+  const teamA = new Set([0, 1, 2]);
+  const teamB = new Set([1, 2, 3]);
+  const result = dedupeTeams(teamA, teamB);
+  assert.deepEqual([...result.teamB].sort(), [3]);
+  assert.deepEqual(result.dupes.sort(), [1, 2]);
+});
+
+test('dedupeTeams does not mutate the input sets', () => {
+  const teamA = new Set([0, 1]);
+  const teamB = new Set([1, 2]);
+  dedupeTeams(teamA, teamB);
+  assert.deepEqual([...teamA].sort(), [0, 1]);
+  assert.deepEqual([...teamB].sort(), [1, 2]);
 });
 
 /* ── Match/team reconciliation (issue #65 — moving a player after they're

@@ -179,6 +179,23 @@
     return { teamA: nextA, teamB: nextB };
   }
 
+  // Structurally, a player should never belong to both teams at once --
+  // applyPlayerTeamMove always removes from both sets before adding to one,
+  // so a delta-only history can never produce this. The only way it can
+  // happen is stale data: a whole-roster snapshot write landing out of
+  // order after a delta move that already moved the same player elsewhere
+  // (issue #71 -- resetTeams() used to sync this way). Detects and repairs
+  // it: any id present in both sets is kept in Team A and dropped from
+  // Team B. Returns fresh Sets (no mutation) plus the ids that had to be
+  // resolved, so the caller can re-render correctly and sync the fix out.
+  function dedupeTeams(teamA, teamB) {
+    const dupes = [...teamA].filter(id => teamB.has(id));
+    if (dupes.length === 0) return { teamA, teamB, dupes };
+    const nextB = new Set(teamB);
+    dupes.forEach(id => nextB.delete(id));
+    return { teamA, teamB: nextB, dupes };
+  }
+
   // A player moving teams can leave a Day 1 singles match holding a stale
   // reference to them in the slot for their OLD team (issue #65) -- the
   // dropdown for that slot then has no matching <option> and silently
@@ -231,6 +248,6 @@
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     POS_PTS, computeStableford, sumStablefordPoints,
     resolveOverallWinner,
-    applyPlayerTeamMove, reconcileMatchesAfterTeamMove, processUpdateRows
+    applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows
   };
 });
