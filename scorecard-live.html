@@ -108,19 +108,6 @@ select option{background:var(--canvas)}
 .nine-toggle button.is-active-b .rt-pts{color:rgba(255,255,255,.75)}
 @media(max-width:600px){.nine-block{flex-direction:column;align-items:stretch;gap:6px}.nine-label{min-width:0}}
 
-/* ── HOLE GRID ── */
-.hole-grid-wrap{padding:18px 22px 22px;overflow-x:auto}
-.hole-grid{display:grid;grid-template-columns:repeat(18,1fr);gap:3px;min-width:580px}
-.hole-cell{display:flex;flex-direction:column;align-items:center;gap:3px}
-.hole-num{font-family:var(--font-h);font-size:.58rem;font-weight:600;color:var(--ink-mute)}
-.hole-btn{width:28px;height:20px;font-family:var(--font-h);font-size:.62rem;font-weight:700;border:1px solid var(--rule-strong);border-radius:3px;cursor:pointer;background:var(--canvas-2);color:var(--ink-mute);transition:var(--tr)}
-.hole-btn:hover{opacity:.8}
-.hole-btn.ha{background:var(--team-a);color:#fff;border-color:var(--team-a)}
-.hole-btn.hh{background:var(--rule-strong);color:var(--ink);border-color:var(--rule-strong)}
-.hole-btn.hb{background:var(--team-b);color:#fff;border-color:var(--team-b)}
-.running-score-row{display:flex;justify-content:space-between;align-items:center;padding:0 22px 14px;font-family:var(--font-h);font-size:.78rem;font-weight:600;letter-spacing:1px;flex-wrap:wrap;gap:8px}
-.rs-label{color:var(--ink-mute);text-transform:uppercase}
-
 /* ── NEAREST THE PIN ── */
 .ntp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
 @media(max-width:600px){.ntp-grid{grid-template-columns:1fr}}
@@ -229,6 +216,13 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .username-badge{position:fixed;top:64px;right:24px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.3);padding:6px 14px;border-radius:100px;z-index:100}
 .offline-banner{position:fixed;top:108px;right:24px;background:rgba(200,0,0,.9);color:#efe7d3;padding:8px 16px;border-radius:var(--r);font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;z-index:999;animation:slideIn .3s ease}
 @keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
+/* On narrow screens these fixed badges land on top of the masthead title —
+   drop them into the normal document flow instead so they push content
+   down rather than covering it (issue #67). */
+@media(max-width:600px){
+  .username-badge,.offline-banner{position:static;display:block;width:calc(100% - 32px);margin:8px 16px;text-align:center;box-sizing:border-box}
+  .offline-banner{animation:none}
+}
 
 /* ── MINI SCOREBOARD ── */
 .mini-sb{background:rgba(11,26,13,.97);border-bottom:1px solid rgba(240,180,41,.2);padding:7px 24px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
@@ -299,9 +293,6 @@ body{padding-bottom:52px}
   </div>
 </div>
 
-<!-- Username Badge & Offline Alert -->
-<div id="username-badge" class="username-badge" style="display:none"></div>
-<div id="offline-banner" class="offline-banner" style="display:none">⚠ Offline — Using Local Storage</div>
 <div id="save-toast" class="save-toast"></div>
 
 <!-- ══════════════════════════════════════
@@ -325,6 +316,14 @@ body{padding-bottom:52px}
     <div class="sc-page-sub">Yarrawonga &amp; Mulwala G.C. · 7–9 August</div>
   </div>
 </div>
+
+<!-- Username Badge & Offline Alert — placed after the masthead's fixed
+     header AND the editorial header (which already carries top padding to
+     clear the fixed masthead), so that on mobile — where these render in
+     normal document flow instead of position:fixed — they land below the
+     page title instead of on top of it. -->
+<div id="username-badge" class="username-badge" style="display:none"></div>
+<div id="offline-banner" class="offline-banner" style="display:none">⚠ Offline — Using Local Storage</div>
 
 <!-- Mini Scoreboard -->
 <div class="mini-sb" id="mini-sb">
@@ -417,6 +416,7 @@ body{padding-bottom:52px}
         <div class="section-title">Team Assignment</div>
       </div>
       <div class="info-box">Enter the Captain's Draft result here — assign each player to their team using the arrows below. Teams are unknown until the morning of Day 1.</div>
+      <div id="team-balance-warning" class="info-box" style="display:none;border-color:rgba(220,0,0,.4);background:rgba(220,0,0,.08)"></div>
       <div class="team-setup-grid">
         <div class="team-col team-a-col">
           <div class="team-col-h" id="team-col-h-a">Team Beer</div>
@@ -652,7 +652,7 @@ const {
   parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
-  applyPlayerTeamMove, processUpdateRows
+  applyPlayerTeamMove, reconcileMatchesAfterTeamMove, processUpdateRows
 } = WongaScoring;
 
 function teamOf(playerId) {
@@ -768,27 +768,65 @@ function renderTeams() {
       </button>`;
     (inA ? aList : bList).appendChild(el);
   });
+  renderTeamBalanceWarning();
   saveState();
   updateScoreboard();
   renderDay1();
   renderDay3();
-  renderOverviewTeams();
-  renderFieldTeamBadges();
+}
+
+// Warns (doesn't block — real-world drafts sometimes have to work around
+// this) when the two teams don't have equal Friday-eligible headcounts,
+// since Day 1 needs a clean 6v6 split across 6 singles matches (issue #68).
+function renderTeamBalanceWarning() {
+  const warnEl = document.getElementById('team-balance-warning');
+  if (!warnEl) return;
+  const fridayA = fridayPlayers('A').length;
+  const fridayB = fridayPlayers('B').length;
+  if (fridayA === fridayB) {
+    warnEl.style.display = 'none';
+    return;
+  }
+  warnEl.style.display = '';
+  warnEl.innerHTML = `<strong>⚠ Uneven Friday split:</strong> ${escapeHtml(state.teamNameA)} has ${fridayA} Friday player${fridayA === 1 ? '' : 's'}, ${escapeHtml(state.teamNameB)} has ${fridayB}. Day 1 needs 6-a-side across the singles matches.`;
 }
 
 function movePlayer(id, fromA) {
   requireUsername(() => {
-    const moved = applyPlayerTeamMove(state.teamA, state.teamB, id, fromA ? 'B' : 'A');
+    const newTeam = fromA ? 'B' : 'A';
+    const moved = applyPlayerTeamMove(state.teamA, state.teamB, id, newTeam);
     state.teamA = moved.teamA;
     state.teamB = moved.teamB;
+    // If this player was already slotted into a Day 1 match on the team
+    // they just left, that slot (and any result recorded against it) is now
+    // stale — clear it rather than let the dropdown silently go blank while
+    // the scoreboard keeps counting a result for a player who has moved
+    // (issue #65).
+    reconcileDay1AfterTeamMove(id, newTeam);
     saveState();
     // Sync as a single-player delta, not a whole-roster snapshot — two
     // people moving different players around at the same time (e.g. during
     // the captain's draft) would otherwise race and the second write would
     // silently wipe out the first player's move.
-    insertUpdate('player_team', { player_id: id, value: fromA ? 'B' : 'A' });
+    insertUpdate('player_team', { player_id: id, value: newTeam });
     renderTeams();
   });
+}
+
+// Shared by both a local move (movePlayer) and a synced player_team row
+// (applyUpdate) so every device reconciles the same way. `emitSync` is only
+// true for the device that initiated the move — it's the one responsible
+// for telling other devices about any match slots it had to clear.
+function reconcileDay1AfterTeamMove(id, newTeam, emitSync = true) {
+  const recon = reconcileMatchesAfterTeamMove(state.day1.matches, id, newTeam);
+  if (recon.changes.length === 0) return;
+  state.day1.matches = recon.matches;
+  if (emitSync) {
+    const player = PLAYERS.find(p => p.id === id);
+    const clearedMatches = [...new Set(recon.changes.map(c => c.matchIdx))].map(i => i + 1).join(', ');
+    alert(`${player ? player.name : 'That player'} was already slotted into Day 1 Match ${clearedMatches} — the assignment and any recorded result there has been cleared since they're now on the other team.`);
+    recon.changes.forEach(c => insertUpdate('day1_match', { match_idx: c.matchIdx, field_key: c.field, value: c.value }));
+  }
 }
 
 function resetTeams() {
@@ -799,54 +837,6 @@ function resetTeams() {
     insertUpdate('team_assign', { field_key: 'A', value: JSON.stringify([...state.teamA]) });
     insertUpdate('team_assign', { field_key: 'B', value: JSON.stringify([...state.teamB]) });
     renderTeams();
-  });
-}
-
-function renderOverviewTeams() {
-  const el = document.getElementById('overview-teams');
-  if (!el) return;
-  const nameA = state.teamNameA || 'Team A';
-  const nameB = state.teamNameB || 'Team B';
-  const playersA = PLAYERS.filter(p => state.teamA.has(p.id));
-  const playersB = PLAYERS.filter(p => state.teamB.has(p.id));
-  const makeList = (players) => players.map(p =>
-    `<li style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)">
-      <span style="color:var(--ink)">${p.name}</span>
-      <span style="font-size:.8rem;color:var(--ink-mute)">HCP ${p.hcp}</span>
-    </li>`
-  ).join('');
-  el.innerHTML = `
-    <div class="section-header" style="padding-top:32px">
-      <div class="section-label">2026</div>
-      <div class="section-title">The Teams</div>
-    </div>
-    <div class="grid-2" style="gap:16px;margin-bottom:32px">
-      <div class="card">
-        <div style="font-family:var(--font-h);font-size:.72rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:12px">${nameA}</div>
-        <ul style="list-style:none;padding:0;margin:0">${makeList(playersA)}</ul>
-      </div>
-      <div class="card">
-        <div style="font-family:var(--font-h);font-size:.72rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:12px">${nameB}</div>
-        <ul style="list-style:none;padding:0;margin:0">${makeList(playersB)}</ul>
-      </div>
-    </div>`;
-}
-
-function renderFieldTeamBadges() {
-  PLAYERS.forEach(p => {
-    const card = document.querySelector(`[data-field-pid="${p.id}"]`);
-    if (!card) return;
-    let badge = card.querySelector('.field-team-badge');
-    if (!badge) {
-      badge = document.createElement('span');
-      const body = card.querySelector('.player-card-body');
-      if (body) body.insertBefore(badge, body.firstChild);
-    }
-    const inA = state.teamA.has(p.id);
-    const teamName = inA ? (state.teamNameA || 'Team A') : (state.teamNameB || 'Team B');
-    badge.className = `field-team-badge team-badge ${inA ? 'ta-badge' : 'tb-badge'}`;
-    badge.style.cssText = 'display:inline-block;margin-bottom:10px';
-    badge.textContent = teamName;
   });
 }
 
@@ -1327,9 +1317,27 @@ function showSaveToast(message, type) {
   }
 }
 
-async function insertUpdate(updateType, fields) {
-  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) return;
-  showSaveToast('Saving...', 'saving');
+// Writes that failed to reach Supabase (issue #66) — e.g. a score entered
+// on patchy course wifi. Retried on the next successful poll/refresh rather
+// than being silently lost from that device forever. Retries are sent
+// oldest-first and one at a time, so among themselves they keep the order
+// they were made in (though a write made *after* a still-pending one, and
+// which already succeeded, can end up with an earlier server timestamp
+// than the retried one — an acceptable tradeoff for a 3-day scorecard, not
+// a distributed database).
+let pendingWrites = [];
+
+// Single source of truth for whether the offline banner should be showing:
+// true connectivity loss (isOffline) OR any write still waiting to be
+// retried. Clearing the banner used to only depend on the last GET having
+// succeeded, which told the user "you're back online" even when an earlier
+// score entry had never actually made it to the shared table.
+function updateOfflineIndicator() {
+  const show = isOffline || pendingWrites.length > 0;
+  document.getElementById('offline-banner').style.display = show ? 'block' : 'none';
+}
+
+async function sendUpdateRow(updateType, fields) {
   const row = {
     tournament_id: SUPABASE_CONFIG.tournamentId,
     update_type: updateType,
@@ -1350,15 +1358,34 @@ async function insertUpdate(updateType, fields) {
       body: JSON.stringify(row)
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
-    isOffline = false;
-    document.getElementById('offline-banner').style.display = 'none';
-    showSaveToast('✓ Saved', 'success');
+    return true;
   } catch(err) {
     console.error('Supabase insert failed:', err.message);
-    isOffline = true;
-    document.getElementById('offline-banner').style.display = 'block';
-    showSaveToast('✗ Offline', 'error');
+    return false;
   }
+}
+
+async function insertUpdate(updateType, fields) {
+  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) return;
+  showSaveToast('Saving...', 'saving');
+  const ok = await sendUpdateRow(updateType, fields);
+  isOffline = !ok;
+  if (!ok) pendingWrites.push({ updateType, fields });
+  updateOfflineIndicator();
+  showSaveToast(ok ? '✓ Saved' : '✗ Offline', ok ? 'success' : 'error');
+}
+
+// Called after every successful poll — resends anything that failed
+// earlier. Writes that fail again just stay in the queue for next time.
+async function flushPendingWrites() {
+  if (pendingWrites.length === 0) return;
+  const stillPending = [];
+  for (const w of pendingWrites) {
+    const ok = await sendUpdateRow(w.updateType, w.fields);
+    if (!ok) stillPending.push(w);
+  }
+  pendingWrites = stillPending;
+  updateOfflineIndicator();
 }
 
 function parseIntOrNull(v) {
@@ -1413,6 +1440,11 @@ function applyUpdate(row) {
         const moved = applyPlayerTeamMove(state.teamA, state.teamB, row.player_id, v);
         state.teamA = moved.teamA;
         state.teamB = moved.teamB;
+        // Defensive backstop only — the initiating device is responsible
+        // for syncing its own day1_match clearing rows (see movePlayer).
+        // This just keeps a device self-consistent even if those rows
+        // haven't arrived yet or were dropped.
+        reconcileDay1AfterTeamMove(row.player_id, v, false);
       }
       break;
   }
@@ -1444,12 +1476,13 @@ async function loadFromSupabase() {
       localStorage.setItem(LAST_SYNC_KEY, result.lastUpdatedAt);
     }
     isOffline = false;
-    document.getElementById('offline-banner').style.display = 'none';
+    await flushPendingWrites();
+    updateOfflineIndicator();
     return rows.length > 0;
   } catch(err) {
     console.error('Supabase load failed:', err.message);
     isOffline = true;
-    document.getElementById('offline-banner').style.display = 'block';
+    updateOfflineIndicator();
     return false;
   }
 }
@@ -1530,6 +1563,8 @@ updateScoreboard();
 function refreshAllDays() {
   console.log('Refreshing all day tabs...');
   try {
+    renderTeams();
+    console.log('Teams rendered');
     renderDay1();
     console.log('Day 1 rendered');
     restoreDay2();
@@ -1538,8 +1573,6 @@ function refreshAllDays() {
     console.log('Day 3 rendered');
     updateScoreboard();
     console.log('Scoreboard updated');
-    renderOverviewTeams();
-    renderFieldTeamBadges();
   } catch(e) {
     console.error('Error rendering days:', e);
   }
