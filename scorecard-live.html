@@ -238,7 +238,7 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .mini-sb-chip.live-b{background:rgba(74,158,255,.15);color:var(--team-b)}
 
 /* ── COUNTDOWN BAR ── */
-.countdown-bar{position:fixed;bottom:0;left:0;right:0;z-index:990;background:rgba(11,26,13,.97);border-top:2px solid var(--gold);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:6px}
+.countdown-bar{position:fixed;bottom:0;left:0;right:0;z-index:990;background:rgba(11,26,13,1);border-top:2px solid var(--gold);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:6px}
 .cd-label{font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-right:4px}
 .cd-unit{display:flex;flex-direction:column;align-items:center;min-width:38px}
 .cd-num{font-family:var(--font-d);font-size:1.4rem;color:var(--gold);line-height:1}
@@ -1685,6 +1685,7 @@ function updateMiniScoreboard() {
 /* ─────────────────────────────────────
    COUNTDOWN TIMER
 ───────────────────────────────────── */
+let countdownInterval = null;
 function updateCountdown() {
   const bar = document.getElementById('countdown-bar');
   if (!bar) return;
@@ -1693,7 +1694,14 @@ function updateCountdown() {
   const now = new Date();
   const diff = target - now;
   if (diff <= 0) {
-    bar.innerHTML = '<span class="cd-live">⛳ WE\'RE LIVE — TEE OFF!</span>';
+    // A "time until tee-off" bar has nothing left to say once the event is
+    // live -- and leaving it permanently fixed over the bottom of the
+    // screen for all 3 days of live scoring only risks it overlapping
+    // in-page content (e.g. the Day 2 bonus explanation) with no upside.
+    // Remove it outright and reclaim the space reserved for it.
+    bar.style.display = 'none';
+    document.body.style.paddingBottom = '0';
+    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
     return;
   }
   const days    = Math.floor(diff / 86400000);
@@ -1711,7 +1719,13 @@ function updateCountdown() {
     `<span class="cd-unit"><span class="cd-num">${String(seconds).padStart(2,'0')}</span><span class="cd-sub">Sec</span></span>`;
 }
 updateCountdown();
-setInterval(updateCountdown, 1000);
+// Don't bother starting the tick at all if tee-off has already passed by
+// the time the page loads (e.g. loading the page mid-tournament) --
+// updateCountdown() has already hidden the bar and there's nothing left
+// for the interval to do.
+if (document.getElementById('countdown-bar').style.display !== 'none') {
+  countdownInterval = setInterval(updateCountdown, 1000);
+}
 
 // Masthead scroll behaviour (mirrors index.html)
 (function () {
