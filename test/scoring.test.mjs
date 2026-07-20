@@ -10,7 +10,8 @@ const {
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
-  applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows
+  applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
+  parseIntOrNull, applyUpdateToState
 } = require('../scoring.js');
 
 /* ── HTML Escaping (issue #58 — stored XSS via team names) ── */
@@ -371,4 +372,155 @@ test('processUpdateRows on an empty batch reports no timestamp', () => {
   const result = processUpdateRows([], () => {});
   assert.equal(result.lastUpdatedAt, null);
   assert.equal(result.applied, 0);
+});
+
+/* ── parseIntOrNull ── */
+
+test('parseIntOrNull treats null, undefined, the string "null", and empty string as null', () => {
+  assert.equal(parseIntOrNull(null), null);
+  assert.equal(parseIntOrNull(undefined), null);
+  assert.equal(parseIntOrNull('null'), null);
+  assert.equal(parseIntOrNull(''), null);
+});
+
+test('parseIntOrNull parses a numeric string', () => {
+  assert.equal(parseIntOrNull('7'), 7);
+  assert.equal(parseIntOrNull('0'), 0);
+});
+
+/* ── applyUpdateToState — replaying a synced tournament_updates row onto
+   local state, one update_type at a time. Mirrors what scorecard-live.html's
+   applyUpdate() used to do inline (issues #58, #60-#63, #65, #66, #71 all
+   involve this code path). ── */
+
+function makeState() {
+  return {
+    teamNameA: 'Team Beer',
+    teamNameB: 'Team Golf',
+    teamA: new Set([0, 2, 4]),
+    teamB: new Set([1, 3, 5]),
+    day1: {
+      matches: [
+        { type: 'singles', pA: [null], pB: [null], front9: null, back9: null },
+        { type: 'singles', pA: [null], pB: [null], front9: null, back9: null }
+      ],
+      ntp: { h8: null, h17: null }
+    },
+    day2: { a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null } },
+    day3: { scores: {}, ntp: { h7: null, h14: null } },
+    tiebreak: null
+  };
+}
+
+test('applyUpdateToState: day1_match assigns a player into the pA/pB slot', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA', value: '3' });
+  assert.equal(state.day1.matches[0].pA[0], 3);
+});
+
+test('applyUpdateToState: day1_match records and clears a front9/back9 result', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'front9', value: 'A' });
+  assert.equal(state.day1.matches[1].front9, 'A');
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'front9', value: 'null' });
+  assert.equal(state.day1.matches[1].front9, null);
+});
+
+test('applyUpdateToState: day1_match on an out-of-range match_idx is a no-op, not a throw', () => {
+  const state = makeState();
+  assert.doesNotThrow(() => {
+    applyUpdateToState(state, { update_type: 'day1_match', match_idx: 99, field_key: 'front9', value: 'A' });
+  });
+});
+
+test('applyUpdateToState: day1_ntp sets the nearest-the-pin winner for a hole', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_ntp', field_key: 'h8', value: '5' });
+  assert.equal(state.day1.ntp.h8, 5);
+});
+
+test('applyUpdateToState: day2_score sets and clears a group score to par', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_score', field_key: 'a4', value: '-3' });
+  assert.equal(state.day2.a4, '-3');
+  applyUpdateToState(state, { update_type: 'day2_score', field_key: 'a4', value: 'null' });
+  assert.equal(state.day2.a4, null);
+});
+
+test('applyUpdateToState: day2_ntp sets the nearest-the-pin winner for a hole', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_ntp', field_key: 'h4', value: '9' });
+  assert.equal(state.day2.ntp.h4, 9);
+});
+
+test('applyUpdateToState: day3_stableford sets and clears a player\'s net score', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day3_stableford', player_id: 6, value: '38' });
+  assert.equal(state.day3.scores[6], '38');
+  applyUpdateToState(state, { update_type: 'day3_stableford', player_id: 6, value: 'null' });
+  assert.equal(state.day3.scores[6], null);
+});
+
+test('applyUpdateToState: day3_stableford with no player_id is a no-op', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day3_stableford', value: '38' });
+  assert.deepEqual(state.day3.scores, {});
+});
+
+test('applyUpdateToState: day3_ntp sets the nearest-the-pin winner for a hole', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day3_ntp', field_key: 'h7', value: '2' });
+  assert.equal(state.day3.ntp.h7, 2);
+});
+
+test('applyUpdateToState: tiebreak sets and clears the sudden-death winner', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'tiebreak', value: 'B' });
+  assert.equal(state.tiebreak, 'B');
+  applyUpdateToState(state, { update_type: 'tiebreak', value: 'null' });
+  assert.equal(state.tiebreak, null);
+});
+
+test('applyUpdateToState: team_name renames the given side only', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'team_name', field_key: 'A', value: 'The Mulligans' });
+  assert.equal(state.teamNameA, 'The Mulligans');
+  assert.equal(state.teamNameB, 'Team Golf');
+});
+
+test('applyUpdateToState: team_assign replaces a whole team roster from a JSON snapshot', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'team_assign', field_key: 'B', value: JSON.stringify([1, 3, 5, 7]) });
+  assert.deepEqual([...state.teamB].sort(), [1, 3, 5, 7]);
+});
+
+test('applyUpdateToState: player_team moves a player between team sets', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'B' });
+  assert.equal(state.teamA.has(2), false);
+  assert.equal(state.teamB.has(2), true);
+});
+
+test('applyUpdateToState: player_team also clears a Day 1 match slot left pointing at the player\'s old team (issue #65)', () => {
+  const state = makeState();
+  state.day1.matches[0].pA = [2];
+  state.day1.matches[0].front9 = 'A';
+  applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'B' });
+  assert.equal(state.day1.matches[0].pA[0], null);
+  assert.equal(state.day1.matches[0].front9, null);
+  assert.equal(state.teamB.has(2), true);
+});
+
+test('applyUpdateToState: player_team with an invalid value is a no-op', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'C' });
+  assert.equal(state.teamA.has(2), true);
+  assert.equal(state.teamB.has(2), false);
+});
+
+test('applyUpdateToState: an unrecognized update_type is a no-op, not a throw', () => {
+  const state = makeState();
+  assert.doesNotThrow(() => {
+    applyUpdateToState(state, { update_type: 'something_new', value: 'x' });
+  });
 });

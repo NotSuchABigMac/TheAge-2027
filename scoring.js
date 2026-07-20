@@ -247,6 +247,77 @@
     };
   }
 
+  function parseIntOrNull(v) {
+    return (v === null || v === undefined || v === 'null' || v === '') ? null : parseInt(v, 10);
+  }
+
+  // Interprets one synced `tournament_updates` row and mutates `state`
+  // in place accordingly -- the single place every device (regardless of
+  // whether it initiated the change) ends up applying a given field
+  // change, so it's the code path responsible for most of this app's
+  // historical sync bugs (issues #58, #60-#63, #65, #66, #71). Takes
+  // `state` as a parameter (rather than closing over a global) so it's
+  // unit-testable the same way as the rest of this file.
+  function applyUpdateToState(state, row) {
+    const v = row.value;
+    switch (row.update_type) {
+      case 'day1_match': {
+        const match = state.day1.matches[row.match_idx];
+        if (!match || !row.field_key) break;
+        if (row.field_key === 'pA' || row.field_key === 'pB') {
+          (row.field_key === 'pA' ? match.pA : match.pB)[0] = parseIntOrNull(v);
+        } else {
+          match[row.field_key] = (v === null || v === 'null') ? null : v;
+        }
+        break;
+      }
+      case 'day1_ntp':
+        if (row.field_key) state.day1.ntp[row.field_key] = parseIntOrNull(v);
+        break;
+      case 'day2_score':
+        if (row.field_key) state.day2[row.field_key] = v === null || v === 'null' ? null : v;
+        break;
+      case 'day2_ntp':
+        if (row.field_key) state.day2.ntp[row.field_key] = parseIntOrNull(v);
+        break;
+      case 'day3_stableford':
+        if (row.player_id !== null && row.player_id !== undefined) {
+          state.day3.scores[row.player_id] = v === null || v === 'null' ? null : v;
+        }
+        break;
+      case 'day3_ntp':
+        if (row.field_key) state.day3.ntp[row.field_key] = parseIntOrNull(v);
+        break;
+      case 'tiebreak':
+        state.tiebreak = (v === null || v === 'null') ? null : v;
+        break;
+      case 'team_name':
+        if (row.field_key === 'A') state.teamNameA = v;
+        else if (row.field_key === 'B') state.teamNameB = v;
+        break;
+      case 'team_assign':
+        // Whole-roster snapshot -- only emitted by resetTeams() now. Kept
+        // here so older rows already in the table still apply correctly.
+        if (row.field_key === 'A') state.teamA = new Set(JSON.parse(v));
+        else if (row.field_key === 'B') state.teamB = new Set(JSON.parse(v));
+        break;
+      case 'player_team':
+        if (row.player_id !== null && row.player_id !== undefined && (v === 'A' || v === 'B')) {
+          const moved = applyPlayerTeamMove(state.teamA, state.teamB, row.player_id, v);
+          state.teamA = moved.teamA;
+          state.teamB = moved.teamB;
+          // Defensive backstop only -- the initiating device is responsible
+          // for syncing its own day1_match clearing rows (see movePlayer).
+          // This just keeps a device self-consistent even if those rows
+          // haven't arrived yet or were dropped. Unlike the initiating
+          // device's own call, this never alerts or emits further sync rows.
+          const recon = reconcileMatchesAfterTeamMove(state.day1.matches, row.player_id, v);
+          if (recon.changes.length > 0) state.day1.matches = recon.matches;
+        }
+        break;
+    }
+  }
+
   return {
     escapeHtml,
     ninePoints, matchPoints, sumMatchPoints,
@@ -254,6 +325,7 @@
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     POS_PTS, computeStableford, sumStablefordPoints,
     resolveOverallWinner,
-    applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows
+    applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
+    parseIntOrNull, applyUpdateToState
   };
 });
