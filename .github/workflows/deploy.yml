@@ -26,6 +26,15 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Cache-bust local CSS/JS references
+        # HTML files reference local styles.css/scorecard.css/theme.js/
+        # scoring.js with a "?v=__CACHEBUST__" placeholder (see each
+        # <link>/<script> tag). Swap it for this commit's SHA on every
+        # deploy so a browser/phone that cached an older version of one of
+        # those files is forced to fetch the current one instead of running
+        # stale JS against fresh HTML (or vice versa).
+        run: sed -i "s/__CACHEBUST__/${GITHUB_SHA::8}/g" *.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
