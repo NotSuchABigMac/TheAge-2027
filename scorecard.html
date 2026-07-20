@@ -339,16 +339,16 @@ function dismissMusic() {
 const hamburger = document.getElementById('hamburger');
 const mobileMenu = document.getElementById('mobile-menu');
 function closeMenu() {
-  mobileMenu.classList.remove('open');
+  mobileMenu.classList.remove('is-open');
   mobileMenu.setAttribute('aria-hidden', 'true');
   hamburger.setAttribute('aria-expanded', 'false');
-  hamburger.classList.remove('open');
+  hamburger.classList.remove('is-open');
 }
 hamburger.addEventListener('click', function () {
-  const open = mobileMenu.classList.toggle('open');
+  const open = mobileMenu.classList.toggle('is-open');
   mobileMenu.setAttribute('aria-hidden', String(!open));
   hamburger.setAttribute('aria-expanded', String(open));
-  hamburger.classList.toggle('open', open);
+  hamburger.classList.toggle('is-open', open);
 });
 </script>
 
