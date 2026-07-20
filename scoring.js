@@ -148,9 +148,15 @@
     return sorted;
   }
 
+  // A player not yet assigned to a team (team is null/undefined — hasn't
+  // been through the Captain's Draft yet) must not have their points
+  // silently credited to either side.
   function sumStablefordPoints(sortedEntries) {
     let a = 0, b = 0;
-    sortedEntries.forEach(p => { if (p.team === 'A') a += p.pts; else b += p.pts; });
+    sortedEntries.forEach(p => {
+      if (p.team === 'A') a += p.pts;
+      else if (p.team === 'B') b += p.pts;
+    });
     return { a, b };
   }
 

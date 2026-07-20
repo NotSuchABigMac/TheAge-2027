@@ -187,6 +187,16 @@ test('sumStablefordPoints totals points by team', () => {
   assert.deepEqual(sumStablefordPoints(sorted), { a: 14 + 12, b: 13 });
 });
 
+test('sumStablefordPoints does not credit either team for a player not yet assigned to one', () => {
+  const sorted = computeStableford([
+    { id: 1, score: 40, team: 'A' },
+    { id: 2, score: 39, team: null }, // hasn't been through the Captain's Draft yet
+    { id: 3, score: 38, team: 'B' }
+  ]);
+  // 1st=14pts (team A), 2nd=13pts (unassigned — must be dropped, not given to B), 3rd=12pts (team B)
+  assert.deepEqual(sumStablefordPoints(sorted), { a: 14, b: 12 });
+});
+
 /* ── Tiebreak ── */
 
 test('resolveOverallWinner declares the higher total the winner', () => {
