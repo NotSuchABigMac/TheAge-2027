@@ -65,6 +65,7 @@
 .team-col{background:var(--canvas);border:2px solid;border-radius:var(--rl);padding:20px}
 .team-a-col{border-color:rgba(240,180,41,.5)}
 .team-b-col{border-color:rgba(74,158,255,.5)}
+.team-unassigned-col{border-color:rgba(148,148,148,.5)}
 .team-col-h{font-family:var(--font-d);font-size:1.7rem;margin-bottom:14px}
 .team-a-col .team-col-h{color:var(--team-a)}
 .team-b-col .team-col-h{color:var(--team-b)}
@@ -158,12 +159,14 @@ input[type=number]:focus{outline:none;border-color:var(--gold)}
 .pts-cell{font-family:var(--font-d);font-size:1.45rem;text-align:right}
 .row-a .pts-cell{color:var(--team-a)}
 .row-b .pts-cell{color:var(--team-b)}
+.row-unassigned .pts-cell{color:var(--ink-mute)}
 .row-a.top-scorer{background:color-mix(in srgb,var(--team-a) 7%,transparent);border-left:3px solid var(--team-a)}
 .row-b.top-scorer{background:color-mix(in srgb,var(--team-b) 7%,transparent);border-left:3px solid var(--team-b)}
 input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .team-badge{font-family:var(--font-h);font-size:.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:2px 9px;border-radius:100px}
 .ta-badge{background:color-mix(in srgb,var(--team-a) 15%,transparent);color:var(--team-a);border:1px solid color-mix(in srgb,var(--team-a) 40%,transparent)}
 .tb-badge{background:color-mix(in srgb,var(--team-b) 15%,transparent);color:var(--team-b);border:1px solid color-mix(in srgb,var(--team-b) 40%,transparent)}
+.unassigned-badge{background:rgba(148,148,148,.15);color:var(--ink-mute);border:1px solid rgba(148,148,148,.4)}
 
 /* ── UTILS ── */
 .gold{color:var(--gold)}
@@ -417,6 +420,13 @@ body{padding-bottom:52px}
       </div>
       <div class="info-box">Enter the Captain's Draft result here — assign each player to their team using the arrows below. Teams are unknown until the morning of Day 1.</div>
       <div id="team-balance-warning" class="info-box" style="display:none;border-color:rgba(220,0,0,.4);background:rgba(220,0,0,.08)"></div>
+      <div id="team-unassigned-box" style="display:none">
+        <div class="section-header" style="padding-top:4px">
+          <div class="section-label">Needs Assignment</div>
+          <div class="section-title" style="font-size:1.3rem">Not Yet On A Team</div>
+        </div>
+        <div id="team-unassigned-list" class="team-col team-unassigned-col" style="margin-bottom:24px"></div>
+      </div>
       <div class="team-setup-grid">
         <div class="team-col team-a-col">
           <div class="team-col-h" id="team-col-h-a">Team Beer</div>
@@ -666,6 +676,21 @@ function ntpPointsFor(ntpState, holeKeys) {
   return ntpTeamPoints(holeKeys.map(k => teamOf(ntpState[k])));
 }
 
+// Shared rendering helpers for anywhere a player's team drives styling —
+// a player not yet on either team (pre-draft) must render as clearly
+// "Unassigned", never silently fall back to looking like Team B.
+function teamRowClass(team) {
+  return team === 'A' ? 'row-a' : team === 'B' ? 'row-b' : 'row-unassigned';
+}
+function teamRgb(team) {
+  return team === 'A' ? '240,180,41' : team === 'B' ? '74,158,255' : '148,148,148';
+}
+function teamBadgeHtml(team) {
+  if (team === 'A') return `<span class="ta-badge team-badge">Team A</span>`;
+  if (team === 'B') return `<span class="tb-badge team-badge">Team B</span>`;
+  return `<span class="unassigned-badge team-badge">Unassigned</span>`;
+}
+
 /* ─────────────────────────────────────
    PERSISTENCE
 ───────────────────────────────────── */
@@ -762,23 +787,39 @@ function renderTeams() {
 
   const aList = document.getElementById('team-a-list');
   const bList = document.getElementById('team-b-list');
+  const uList = document.getElementById('team-unassigned-list');
+  const uBox  = document.getElementById('team-unassigned-box');
   aList.innerHTML = '';
   bList.innerHTML = '';
+  if (uList) uList.innerHTML = '';
 
+  let unassignedCount = 0;
   PLAYERS.forEach(p => {
-    const inA = state.teamA.has(p.id);
+    const t = teamOf(p.id);
     const el = document.createElement('div');
     el.className = 'team-player-item';
-    el.innerHTML = `
-      <div>
-        <span>${p.name}</span>
-        <small style="display:block">HCP ${p.hcp}${!p.friday ? ' · Sat–Sun' : ''}</small>
-      </div>
-      <button class="move-btn" onclick="movePlayer(${p.id},${inA ? 'true' : 'false'})">
-        ${inA ? '→ B' : '← A'}
-      </button>`;
-    (inA ? aList : bList).appendChild(el);
+    const hcpLine = `<small style="display:block">HCP ${p.hcp}${!p.friday ? ' · Sat–Sun' : ''}</small>`;
+    if (t === 'A') {
+      el.innerHTML = `<div><span>${p.name}</span>${hcpLine}</div>
+        <button class="move-btn" onclick="movePlayer(${p.id},true)">→ B</button>`;
+      aList.appendChild(el);
+    } else if (t === 'B') {
+      el.innerHTML = `<div><span>${p.name}</span>${hcpLine}</div>
+        <button class="move-btn" onclick="movePlayer(${p.id},false)">← A</button>`;
+      bList.appendChild(el);
+    } else {
+      // Hasn't been through the Captain's Draft yet — must be surfaced as
+      // needing assignment, never silently lumped into Team B's list.
+      unassignedCount++;
+      el.innerHTML = `<div><span>${p.name}</span>${hcpLine}</div>
+        <div style="display:flex;gap:6px">
+          <button class="move-btn" onclick="assignPlayerToTeam(${p.id},'A')">→ A</button>
+          <button class="move-btn" onclick="assignPlayerToTeam(${p.id},'B')">→ B</button>
+        </div>`;
+      if (uList) uList.appendChild(el); else aList.appendChild(el);
+    }
   });
+  if (uBox) uBox.style.display = unassignedCount > 0 ? '' : 'none';
   renderTeamBalanceWarning();
   saveState();
   updateScoreboard();
@@ -806,26 +847,34 @@ function renderTeamBalanceWarning() {
   warnEl.innerHTML = `<strong>⚠ Uneven Friday split:</strong> ${escapeHtml(state.teamNameA)} has ${fA.length} Friday player${fA.length === 1 ? '' : 's'} (${listA}); ${escapeHtml(state.teamNameB)} has ${fB.length} (${listB}). Day 1 needs 6-a-side across the singles matches.`;
 }
 
+// Shared by movePlayer (a player switching sides) and assignPlayerToTeam
+// (a player who isn't on either team yet, going through the Captain's
+// Draft for the first time) so both paths reconcile and sync identically.
+function performTeamMove(id, newTeam) {
+  const moved = applyPlayerTeamMove(state.teamA, state.teamB, id, newTeam);
+  state.teamA = moved.teamA;
+  state.teamB = moved.teamB;
+  // If this player was already slotted into a Day 1 match on the team
+  // they just left, that slot (and any result recorded against it) is now
+  // stale — clear it rather than let the dropdown silently go blank while
+  // the scoreboard keeps counting a result for a player who has moved
+  // (issue #65).
+  reconcileDay1AfterTeamMove(id, newTeam);
+  saveState();
+  // Sync as a single-player delta, not a whole-roster snapshot — two
+  // people moving different players around at the same time (e.g. during
+  // the captain's draft) would otherwise race and the second write would
+  // silently wipe out the first player's move.
+  insertUpdate('player_team', { player_id: id, value: newTeam });
+  renderTeams();
+}
+
 function movePlayer(id, fromA) {
-  requireUsername(() => {
-    const newTeam = fromA ? 'B' : 'A';
-    const moved = applyPlayerTeamMove(state.teamA, state.teamB, id, newTeam);
-    state.teamA = moved.teamA;
-    state.teamB = moved.teamB;
-    // If this player was already slotted into a Day 1 match on the team
-    // they just left, that slot (and any result recorded against it) is now
-    // stale — clear it rather than let the dropdown silently go blank while
-    // the scoreboard keeps counting a result for a player who has moved
-    // (issue #65).
-    reconcileDay1AfterTeamMove(id, newTeam);
-    saveState();
-    // Sync as a single-player delta, not a whole-roster snapshot — two
-    // people moving different players around at the same time (e.g. during
-    // the captain's draft) would otherwise race and the second write would
-    // silently wipe out the first player's move.
-    insertUpdate('player_team', { player_id: id, value: newTeam });
-    renderTeams();
-  });
+  requireUsername(() => performTeamMove(id, fromA ? 'B' : 'A'));
+}
+
+function assignPlayerToTeam(id, team) {
+  requireUsername(() => performTeamMove(id, team));
 }
 
 // Shared by both a local move (movePlayer) and a synced player_team row
@@ -1022,7 +1071,8 @@ function ntpPlayerOptions(pool, currentId) {
   let opts = `<option value="">— none yet —</option>`;
   pool.forEach(p => {
     const sel = p.id === currentId ? 'selected' : '';
-    const teamLabel = teamOf(p.id) === 'A' ? state.teamNameA : state.teamNameB;
+    const t = teamOf(p.id);
+    const teamLabel = t === 'A' ? state.teamNameA : t === 'B' ? state.teamNameB : 'Unassigned';
     opts += `<option value="${p.id}" ${sel}>${escapeHtml(p.short)} (${escapeHtml(teamLabel)})</option>`;
   });
   return opts;
@@ -1171,17 +1221,16 @@ function renderDay3() {
   sorted.forEach(p => {
     const row = document.createElement('tr');
     const isTop = p.score !== null && p.score === topScore;
-    row.className = (p.team === 'A' ? 'row-a' : 'row-b') + (isTop ? ' top-scorer' : '');
+    row.className = teamRowClass(p.team) + (isTop ? ' top-scorer' : '');
     const intensity = p.pts > 0 ? 0.05 + (p.pts / maxPts) * 0.28 : 0.03;
-    const rgb = p.team === 'A' ? '240,180,41' : '74,158,255';
-    row.style.background = `rgba(${rgb},${intensity.toFixed(3)})`;
+    row.style.background = `rgba(${teamRgb(p.team)},${intensity.toFixed(3)})`;
     const posClass = p.pos === 1 ? 'pos-1' : p.pos === 2 ? 'pos-2' : p.pos === 3 ? 'pos-3' : '';
     const posText  = p.pos ? (p.pos === 1 ? '🥇' : p.pos === 2 ? '🥈' : p.pos === 3 ? '🥉' : p.pos) : '—';
     const ptsText  = p.score !== null ? (p.pts % 1 === 0 ? p.pts : p.pts.toFixed(1)) : '—';
     row.innerHTML = `
       <td class="pos-cell ${posClass}">${posText}</td>
       <td style="color:var(--ink)">${p.name}</td>
-      <td><span class="${p.team === 'A' ? 'ta-badge' : 'tb-badge'} team-badge">Team ${p.team}</span></td>
+      <td>${teamBadgeHtml(p.team)}</td>
       <td class="grey" style="font-size:.84rem">${p.hcp}</td>
       <td><input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${state.day3.scores[p.id]||''}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
       <td class="pts-cell">${ptsText}</td>`;
@@ -1211,8 +1260,7 @@ function setStableford(pid, val) {
         const ptsCell = row.querySelector('.pts-cell');
         if (ptsCell) ptsCell.textContent = player.pts > 0 ? (player.pts % 1 === 0 ? player.pts : player.pts.toFixed(1)) : '—';
         const intensity = player.pts > 0 ? 0.05 + (player.pts / POS_PTS[0]) * 0.28 : 0.03;
-        const rgb = player.team === 'A' ? '240,180,41' : '74,158,255';
-        row.style.background = `rgba(${rgb},${intensity.toFixed(3)})`;
+        row.style.background = `rgba(${teamRgb(player.team)},${intensity.toFixed(3)})`;
       }
     }
     updateScoreboard();
