@@ -274,10 +274,10 @@ body{padding-bottom:52px}
 <body>
 
 <!-- Music Warning Modal -->
-<div id="music-modal" class="music-modal hidden">
+<div id="music-modal" class="music-modal hidden" role="dialog" aria-modal="true" aria-labelledby="music-modal-title">
   <div class="music-modal-card">
     <div class="music-modal-icon">🔊</div>
-    <div class="music-modal-title">⚠ WARNING</div>
+    <div class="music-modal-title" id="music-modal-title">⚠ WARNING</div>
     <div class="music-modal-body">This site contains <strong>appropriate music.</strong><br><br>Click YES to agree to play music.<br><br><strong>Turn your volume all the way up.</strong></div>
     <button class="music-yes" onclick="startMusic()">YES, I AGREE</button><br>
     <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
@@ -286,9 +286,9 @@ body{padding-bottom:52px}
 <audio id="bg-audio" src="TheSong.mp3" loop preload="none" style="display:none"></audio>
 
 <!-- Username Picker Modal -->
-<div id="username-modal" class="username-modal hidden">
+<div id="username-modal" class="username-modal hidden" role="dialog" aria-modal="true" aria-labelledby="username-modal-title">
   <div class="username-modal-card">
-    <div class="username-modal-title">THE WONGA CUP</div>
+    <div class="username-modal-title" id="username-modal-title">THE WONGA CUP</div>
     <div class="username-modal-desc">Enter your name to start scoring</div>
     <input type="text" id="username-input" class="username-input" placeholder="Your name" maxlength="30" autofocus>
     <button class="username-btn" onclick="confirmUsername()">Enter Tournament</button>
@@ -315,7 +315,7 @@ body{padding-bottom:52px}
 <div class="sc-page-header">
   <div class="sc-page-header-inner">
     <div class="sc-page-eyebrow">Live Scoring · A.G.E IV · 2026</div>
-    <div class="sc-page-title">The Wonga Cup</div>
+    <h1 class="sc-page-title">The Wonga Cup</h1>
     <div class="sc-page-sub">Yarrawonga &amp; Mulwala G.C. · 7–9 August</div>
   </div>
 </div>
@@ -373,8 +373,8 @@ body{padding-bottom:52px}
     <div id="win-banner" style="display:none"></div>
     <div id="tiebreak-control" class="tiebreak-row" style="display:none">
       <span style="font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;color:var(--white);align-self:center">Sudden-Death Putt-Off Winner:</span>
-      <button class="tiebreak-btn" id="tiebreak-btn-a" onclick="setTiebreak('A')">Team A</button>
-      <button class="tiebreak-btn" id="tiebreak-btn-b" onclick="setTiebreak('B')">Team B</button>
+      <button class="tiebreak-btn" id="tiebreak-btn-a" aria-pressed="false" onclick="setTiebreak('A')">Team A</button>
+      <button class="tiebreak-btn" id="tiebreak-btn-b" aria-pressed="false" onclick="setTiebreak('B')">Team B</button>
     </div>
   </div>
 
@@ -386,16 +386,16 @@ body{padding-bottom:52px}
   </div>
 
   <!-- Sub-tabs -->
-  <div class="sc-tabs">
-    <button class="sc-tab active" data-tab="teams">Teams</button>
-    <button class="sc-tab" data-tab="day1">Day 1</button>
-    <button class="sc-tab" data-tab="day2">Day 2</button>
-    <button class="sc-tab" data-tab="day3">Day 3</button>
+  <div class="sc-tabs" role="tablist" aria-label="Scorecard sections">
+    <button class="sc-tab active" data-tab="teams" role="tab" id="tab-teams" aria-selected="true" aria-controls="sc-teams" tabindex="0">Teams</button>
+    <button class="sc-tab" data-tab="day1" role="tab" id="tab-day1" aria-selected="false" aria-controls="sc-day1" tabindex="-1">Day 1</button>
+    <button class="sc-tab" data-tab="day2" role="tab" id="tab-day2" aria-selected="false" aria-controls="sc-day2" tabindex="-1">Day 2</button>
+    <button class="sc-tab" data-tab="day3" role="tab" id="tab-day3" aria-selected="false" aria-controls="sc-day3" tabindex="-1">Day 3</button>
   </div>
 
   <!-- ── TEAMS PANEL ── -->
   <div class="page-content">
-    <div class="sc-panel active" id="sc-teams">
+    <div class="sc-panel active" id="sc-teams" role="tabpanel" aria-labelledby="tab-teams" tabindex="0">
       <div class="section-header" style="padding-top:28px">
         <div class="section-label">Setup</div>
         <div class="section-title">Team Names</div>
@@ -441,7 +441,7 @@ body{padding-bottom:52px}
     </div>
 
     <!-- ── DAY 1 PANEL ── -->
-    <div class="sc-panel" id="sc-day1">
+    <div class="sc-panel" id="sc-day1" role="tabpanel" aria-labelledby="tab-day1" tabindex="0">
       <div class="section-header" style="padding-top:28px">
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
         <div class="section-title">Singles Match Play</div>
@@ -465,7 +465,7 @@ body{padding-bottom:52px}
     </div>
 
     <!-- ── DAY 2 PANEL ── -->
-    <div class="sc-panel" id="sc-day2">
+    <div class="sc-panel" id="sc-day2" role="tabpanel" aria-labelledby="tab-day2" tabindex="0">
       <div class="section-header" style="padding-top:28px">
         <div class="section-label">Saturday 8 August · Black Bull · 12:00pm</div>
         <div class="section-title">Team Scramble</div>
@@ -527,7 +527,7 @@ body{padding-bottom:52px}
     </div>
 
     <!-- ── DAY 3 PANEL ── -->
-    <div class="sc-panel" id="sc-day3">
+    <div class="sc-panel" id="sc-day3" role="tabpanel" aria-labelledby="tab-day3" tabindex="0">
       <div class="section-header" style="padding-top:28px">
         <div class="section-label">Sunday 9 August · Lake Course · 10:00am</div>
         <div class="section-title">Individual Stableford</div>
@@ -761,12 +761,32 @@ function loadState() {
 /* ─────────────────────────────────────
    NAVIGATION
 ───────────────────────────────────── */
-document.querySelectorAll('.sc-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.sc-tab').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.sc-panel').forEach(x => x.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('sc-' + btn.dataset.tab).classList.add('active');
+const scTabs = Array.from(document.querySelectorAll('.sc-tab'));
+function activateTab(btn, { focus = false } = {}) {
+  scTabs.forEach(x => {
+    x.classList.remove('active');
+    x.setAttribute('aria-selected', 'false');
+    x.tabIndex = -1;
+  });
+  document.querySelectorAll('.sc-panel').forEach(x => x.classList.remove('active'));
+  btn.classList.add('active');
+  btn.setAttribute('aria-selected', 'true');
+  btn.tabIndex = 0;
+  document.getElementById('sc-' + btn.dataset.tab).classList.add('active');
+  if (focus) btn.focus();
+}
+scTabs.forEach((btn, i) => {
+  btn.addEventListener('click', () => activateTab(btn));
+  btn.addEventListener('keydown', e => {
+    let target = null;
+    if (e.key === 'ArrowRight') target = scTabs[(i + 1) % scTabs.length];
+    else if (e.key === 'ArrowLeft') target = scTabs[(i - 1 + scTabs.length) % scTabs.length];
+    else if (e.key === 'Home') target = scTabs[0];
+    else if (e.key === 'End') target = scTabs[scTabs.length - 1];
+    if (target) {
+      e.preventDefault();
+      activateTab(target, { focus: true });
+    }
   });
 });
 
@@ -1003,17 +1023,18 @@ function renderDay1() {
     } else {
       re.innerHTML = ['front9','back9'].map((half, hi) => {
         const val = match[half];
+        const label = hi === 0 ? 'Front 9' : 'Back 9';
         return `
         <div class="nine-block">
-          <div class="nine-label">${hi === 0 ? 'Front 9' : 'Back 9'}</div>
-          <div class="match-toggle nine-toggle">
-            <button class="${val==='A'?'is-active is-active-a':''}" onclick="setNineResult(${mi},'${half}','A')">
+          <div class="nine-label" id="${half}-label-${mi}">${label}</div>
+          <div class="match-toggle nine-toggle" role="radiogroup" aria-labelledby="${half}-label-${mi}">
+            <button role="radio" aria-checked="${val==='A'}" class="${val==='A'?'is-active is-active-a':''}" onclick="setNineResult(${mi},'${half}','A')">
               <span class="rt-lab">${escapeHtml(state.teamNameA)}</span><span class="rt-pts">1pt</span>
             </button>
-            <button class="${val==='T'?'is-active':''}" onclick="setNineResult(${mi},'${half}','T')">
+            <button role="radio" aria-checked="${val==='T'}" class="${val==='T'?'is-active':''}" onclick="setNineResult(${mi},'${half}','T')">
               <span class="rt-lab">Tie</span><span class="rt-pts">0.5 each</span>
             </button>
-            <button class="${val==='B'?'is-active is-active-b':''}" onclick="setNineResult(${mi},'${half}','B')">
+            <button role="radio" aria-checked="${val==='B'}" class="${val==='B'?'is-active is-active-b':''}" onclick="setNineResult(${mi},'${half}','B')">
               <span class="rt-lab">${escapeHtml(state.teamNameB)}</span><span class="rt-pts">1pt</span>
             </button>
           </div>
@@ -1354,8 +1375,8 @@ function updateScoreboard() {
         tiebreakControl.style.display = '';
         const btnA = document.getElementById('tiebreak-btn-a');
         const btnB = document.getElementById('tiebreak-btn-b');
-        if (btnA) { btnA.textContent = state.teamNameA; btnA.classList.toggle('is-active-a', state.tiebreak === 'A'); }
-        if (btnB) { btnB.textContent = state.teamNameB; btnB.classList.toggle('is-active-b', state.tiebreak === 'B'); }
+        if (btnA) { btnA.textContent = state.teamNameA; btnA.classList.toggle('is-active-a', state.tiebreak === 'A'); btnA.setAttribute('aria-pressed', String(state.tiebreak === 'A')); }
+        if (btnB) { btnB.textContent = state.teamNameB; btnB.classList.toggle('is-active-b', state.tiebreak === 'B'); btnB.setAttribute('aria-pressed', String(state.tiebreak === 'B')); }
       }
     } else {
       const winnerName = (result.winner === 'A' ? state.teamNameA : state.teamNameB).toUpperCase();
@@ -1575,6 +1596,11 @@ function requireUsername(action) {
   document.getElementById('username-input').focus();
 }
 
+function closeUsernameModal() {
+  document.getElementById('username-modal').classList.add('hidden');
+  _pendingAction = null;
+}
+
 function confirmUsername() {
   const input = document.getElementById('username-input');
   const name = input.value.trim();
@@ -1626,6 +1652,51 @@ if (!sessionStorage.getItem('musicConsented')) {
 } else if (sessionStorage.getItem('musicConsented') === '1') {
   document.getElementById('bg-audio').play();
 }
+
+/* ─────────────────────────────────────
+   MODAL ACCESSIBILITY — focus trap + Escape-to-close.
+   Watches each modal's "hidden" class instead of hooking every open/close
+   call site, so it stays correct regardless of how a modal is toggled.
+───────────────────────────────────── */
+function getFocusable(container) {
+  return Array.from(container.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  ));
+}
+
+function setupModalA11y(modalId, onEscape) {
+  const modal = document.getElementById(modalId);
+  let lastFocused = null;
+  let wasOpen = false;
+
+  new MutationObserver(() => {
+    const isOpen = !modal.classList.contains('hidden');
+    if (isOpen && !wasOpen) {
+      lastFocused = document.activeElement;
+    } else if (!isOpen && wasOpen && lastFocused) {
+      lastFocused.focus();
+      lastFocused = null;
+    }
+    wasOpen = isOpen;
+  }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+
+  modal.addEventListener('keydown', e => {
+    if (modal.classList.contains('hidden')) return;
+    if (e.key === 'Escape') { onEscape(); return; }
+    if (e.key !== 'Tab') return;
+    const focusable = getFocusable(modal);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  });
+}
+
+setupModalA11y('music-modal', dismissMusic);
+setupModalA11y('username-modal', closeUsernameModal);
 
 initUsername();
 // Load from shared URL hash first; fall back to localStorage

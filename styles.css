@@ -96,6 +96,16 @@ body {
 
 ::selection { background: var(--ink); color: var(--canvas); }
 
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 a { color: inherit; text-decoration: none; }
 a:hover { color: var(--accent); }
 
@@ -430,6 +440,7 @@ html[data-mode="dark"] .hero-photo {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   line-height: 1;
+  margin: 0;
   padding: 16px 0 4px;
   border-top: 1px solid rgba(245,237,214,0.45);
   border-bottom: 1px solid rgba(245,237,214,0.45);
