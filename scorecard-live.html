@@ -110,6 +110,12 @@ select option{background:var(--canvas)}
 .nine-toggle button.is-active-b .rt-pts{color:rgba(255,255,255,.75)}
 @media(max-width:600px){.nine-block{flex-direction:column;align-items:stretch;gap:6px}.nine-label{min-width:0}}
 
+/* ── DAY 2: NATIONAL ANTHEM HOUSE RULE (issue #149) ── */
+.anthem-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--rule)}
+.anthem-row:last-child{border-bottom:0}
+.anthem-name{font-family:var(--font-b);font-size:.85rem;min-width:150px}
+@media(max-width:600px){.anthem-row{flex-direction:column;align-items:stretch;gap:6px}.anthem-name{min-width:0}}
+
 /* ── NEAREST THE PIN ── */
 .ntp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
 @media(max-width:600px){.ntp-grid{grid-template-columns:1fr}}
@@ -611,6 +617,12 @@ body{padding-bottom:52px}
           <select id="ntp-day2-h16" onchange="setDay2Ntp('h16', this.value)"></select>
         </div>
       </div>
+      <div class="section-header" style="padding-top:20px">
+        <div class="section-label">House Rule</div>
+        <div class="section-title" style="font-size:1.3rem">National Anthem</div>
+      </div>
+      <div class="info-box">+2 strokes to a player's own handicap if they didn't sing the national anthem, -1 if they did — folded into that player's share of their scramble group's team handicap, individually rather than as a team-wide adjustment.</div>
+      <div id="day2-anthem"></div>
     </div>
 
     <!-- ── DAY 3 PANEL ── -->
@@ -730,8 +742,17 @@ const LAST_SYNC_KEY = 'wongaCup2026_lastSync';
 
 let currentUsername = null;
 let currentWriteToken = null;
+let currentAdminToken = null;
 let isOffline = false;
 let autoPollingInterval = null;
+
+// Columns anon is actually granted SELECT on (see
+// supabase/migrations/002_restrict_write_token_column_and_admin_secret.sql)
+// -- write_token is deliberately excluded (issue #105 reopened). Every read
+// of tournament_updates must name this list explicitly: a bare `select=*`
+// now gets a permission-denied error from Postgres rather than silently
+// leaking the shared write token back out to anyone loading the page.
+const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,field_key,value,updated_by,updated_at';
 
 /* ─────────────────────────────────────
    DATA
@@ -775,7 +796,8 @@ const state = {
   day2: {
     a4:null, a3:null, b4:null, b3:null, ntp: { h4:null, h16:null },
     groups: { a4: [], a3: [], b4: [], b3: [] }, // player ids assigned to each scramble group (issue #128)
-    holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) }
+    holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
+    anthem: {} // player id -> true (sang, -1) | false (didn't sing, +2) (issue #149); absent = no adjustment
   },
   day3: { scores:{}, ntp: { h7:null, h14:null } }, // scores: id -> stableford score string
   tiebreak: null // null | 'A' | 'B' — sudden-death putt-off winner
@@ -792,6 +814,7 @@ const {
   parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
+  anthemAdjustedHandicap,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
@@ -981,6 +1004,17 @@ function normalizeState() {
     state.day2.holes = { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) };
   } else {
     GROUP_CODES.forEach(code => { state.day2.holes[code] = normalizedHoles(state.day2.holes[code], DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX); });
+  }
+  // National anthem house rule (issue #149) -- a stale/malformed saved
+  // payload could hold anything under an id key, so only true/false
+  // survive; anything else is dropped rather than fed into the handicap
+  // calc as a truthy/falsy accident.
+  if (typeof state.day2.anthem !== 'object' || state.day2.anthem === null) {
+    state.day2.anthem = {};
+  } else {
+    Object.keys(state.day2.anthem).forEach(id => {
+      if (state.day2.anthem[id] !== true && state.day2.anthem[id] !== false) delete state.day2.anthem[id];
+    });
   }
   if (!state.day3.scores) {
     const old = state.day3;
@@ -1233,11 +1267,14 @@ function fridayPlayers(team) {
 
 function playerOptions(team, matchIdx, slot, currentId) {
   const pool = fridayPlayers(team);
-  const usedInOthers = new Set();
+  // Issue #147: usedInOthers -> which OTHER match (1-indexed, for display)
+  // each already-assigned player is in, so a disabled option can say why
+  // instead of just appearing greyed out with no explanation.
+  const usedInOthers = new Map();
   state.day1.matches.forEach((m, mi) => {
     if (mi === matchIdx) return;
-    (m.pA || []).forEach(x => { if (x !== null) usedInOthers.add(x); });
-    (m.pB || []).forEach(x => { if (x !== null) usedInOthers.add(x); });
+    (m.pA || []).forEach(x => { if (x !== null) usedInOthers.set(x, mi + 1); });
+    (m.pB || []).forEach(x => { if (x !== null) usedInOthers.set(x, mi + 1); });
   });
   // Also used in same match different slots
   const match = state.day1.matches[matchIdx];
@@ -1246,9 +1283,11 @@ function playerOptions(team, matchIdx, slot, currentId) {
 
   let opts = `<option value="">— pick player —</option>`;
   pool.forEach(p => {
-    const disabled = usedInOthers.has(p.id) || usedSameMatch.has(p.id) ? 'disabled' : '';
+    const otherMatch = usedInOthers.get(p.id);
+    const disabled = otherMatch !== undefined || usedSameMatch.has(p.id) ? 'disabled' : '';
     const sel = p.id === currentId ? 'selected' : '';
-    opts += `<option value="${p.id}" ${disabled} ${sel}>${p.short} (HCP ${dailyHandicap(p.hcp, 1)})</option>`;
+    const title = otherMatch !== undefined ? ` title="Already assigned in Match ${otherMatch}"` : '';
+    opts += `<option value="${p.id}" ${disabled} ${sel}${title}>${p.short} (HCP ${dailyHandicap(p.hcp, 1)})</option>`;
   });
   return opts;
 }
@@ -1319,7 +1358,7 @@ function holeGridNineHtml(mi, match, strokes, startIdx) {
     return holeIndexes.map(i => {
       const holeNum = i + 1;
       const val = arr[i];
-      return `<td><input class="grid-in" type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
+      return `<td><input id="day1-in-${mi}-${team}-${holeNum}" class="grid-in" type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
         value="${val === null ? '' : val}"
         onchange="setHoleScore(${mi},'${team}',${holeNum},this.value)"></td>`;
     }).join('');
@@ -1342,6 +1381,16 @@ function renderDay1() {
   // reasoning as renderDay3()'s sf-in guard.
   if (document.activeElement && document.activeElement.classList.contains('grid-in')) return;
   const container = document.getElementById('day1-matches');
+  // Issue #148: capture each match's hole-grid <details> open/closed state
+  // before wiping the container -- a brand-new <details> element always
+  // starts closed, so without this every commit that falls through to a
+  // full rebuild (see setHoleScore()'s patch path below) would slam the
+  // panel shut on the scorer mid-round.
+  const wasOpen = state.day1.matches.map((_, mi) => {
+    const prev = document.getElementById(`match-card-${mi}`);
+    const d = prev ? prev.querySelector('.hole-grid-details') : null;
+    return d ? d.open : false;
+  });
   container.innerHTML = '';
   // Every match dropdown otherwise just offers "— pick player —" with
   // nothing explaining why, and the uneven-split warning stays hidden at
@@ -1366,6 +1415,7 @@ function renderDay1() {
     }
 
     const card = document.createElement('div');
+    card.id = `match-card-${mi}`;
     card.className = 'match-card' + resultClass;
 
     // Header
@@ -1374,9 +1424,9 @@ function renderDay1() {
     hd.innerHTML = `
       <div class="match-title">${titles[mi]}</div>
       <div class="match-score-display">
-        <span class="msa">${fmt(pts.a)}</span>
+        <span class="msa" id="msa-${mi}">${fmt(pts.a)}</span>
         <span class="mss">pts</span>
-        <span class="msb">${fmt(pts.b)}</span>
+        <span class="msb" id="msb-${mi}">${fmt(pts.b)}</span>
       </div>`;
     card.appendChild(hd);
 
@@ -1420,7 +1470,7 @@ function renderDay1() {
           <div class="nine-block">
             <div class="nine-label">${label}</div>
             <div class="nine-status-line">
-              <span>${nineStatusLabel(nineHoleResults)}</span>
+              <span id="nine-status-${mi}-${half}">${nineStatusLabel(nineHoleResults)}</span>
               <button type="button" class="clear-btn" onclick="clearNineHoles(${mi}, ${start})">Clear hole scores to enter manually</button>
             </div>
           </div>`;
@@ -1450,6 +1500,7 @@ function renderDay1() {
     if (playersAssigned) {
       const hg = document.createElement('details');
       hg.className = 'hole-grid-details';
+      hg.open = wasOpen[mi];
       hg.innerHTML = `
         <summary class="hole-grid-summary">Hole-by-hole entry</summary>
         ${holeGridNineHtml(mi, match, strokes, 0)}
@@ -1470,6 +1521,47 @@ function holeResultFor(match, strokes, holeIdx) {
   return holeResult(match.holesA[holeIdx], match.holesB[holeIdx], strokes.a[holeIdx], strokes.b[holeIdx]);
 }
 
+// Issue #143: renderDay1()'s grid-in focus guard makes a full rebuild a
+// no-op while the just-committed input still has focus (Enter-commit,
+// spinner arrows) -- previously that left the nine-status line, the
+// match-header points, and the clamped display value all stale until
+// blur, while updateScoreboard() (unguarded) moved on immediately, so the
+// pinned board and this card visibly disagreed. Patches the clamped value,
+// header points, card win-class, and this nine's status line directly by
+// id -- all cheap, DOM-only, and safe to do regardless of focus, since
+// none of it touches the grid table itself. Returns false when this nine
+// has no `nine-status-${mi}-${half}` element yet (it's still showing the
+// manual toggle, not the derived line) -- that swap is structural and
+// still needs a full renderDay1().
+function patchDay1HoleFeedback(matchIdx, team, holeNum, clamped) {
+  const input = document.getElementById(`day1-in-${matchIdx}-${team}-${holeNum}`);
+  if (input) input.value = clamped === null ? '' : clamped;
+
+  const match = state.day1.matches[matchIdx];
+  if (match.pA[0] === null || match.pB[0] === null) return false;
+  const strokes = matchStrokesFor(match);
+  const eff = effectiveMatch(match);
+  const pts = matchPoints(eff);
+  const msa = document.getElementById(`msa-${matchIdx}`);
+  const msb = document.getElementById(`msb-${matchIdx}`);
+  if (msa) msa.textContent = fmt(pts.a);
+  if (msb) msb.textContent = fmt(pts.b);
+  const card = document.getElementById(`match-card-${matchIdx}`);
+  if (card) {
+    card.classList.remove('win-a', 'win-b', 'win-as');
+    if (eff.front9 !== null && eff.back9 !== null) {
+      card.classList.add(pts.a > pts.b ? 'win-a' : pts.b > pts.a ? 'win-b' : 'win-as');
+    }
+  }
+  const half = holeNum <= 9 ? 'front9' : 'back9';
+  const start = half === 'front9' ? 0 : 9;
+  const statusEl = document.getElementById(`nine-status-${matchIdx}-${half}`);
+  if (!statusEl) return false;
+  const nineHoleResults = Array.from({ length: 9 }, (_, i) => holeResultFor(match, strokes, start + i));
+  statusEl.textContent = nineStatusLabel(nineHoleResults);
+  return true;
+}
+
 function setHoleScore(matchIdx, team, holeNum, rawVal) {
   requireUsername(() => {
     const match = state.day1.matches[matchIdx];
@@ -1479,8 +1571,20 @@ function setHoleScore(matchIdx, team, holeNum, rawVal) {
     arr[holeNum - 1] = clamped;
     saveState();
     insertUpdate('day1_hole', { match_idx: matchIdx, field_key: `${team}${holeNum}`, value: clamped });
-    renderDay1();
     updateScoreboard();
+    const patched = patchDay1HoleFeedback(matchIdx, team, holeNum, clamped);
+    // Issue: 'change' fires as part of the outgoing input's blur, before
+    // the browser has moved focus to whatever the scorer tapped/tabbed
+    // into next -- checking activeElement synchronously here therefore
+    // always sees no grid-in focused (even mid-tap into the next hole),
+    // forcing a full rebuild that destroys the field the scorer just
+    // moved into and slams the mobile keyboard shut. Deferring one tick
+    // lets the pending focus event land first, so the check reflects
+    // where focus actually ends up.
+    setTimeout(() => {
+      const gridHasFocus = document.activeElement && document.activeElement.classList.contains('grid-in');
+      if (!patched || !gridHasFocus) renderDay1();
+    }, 0);
   });
 }
 
@@ -1600,6 +1704,42 @@ function setDay2Ntp(hole, val) {
   });
 }
 
+// National anthem house rule (issue #149) -- per-player, Day 2 only (scope
+// confirmed via issue comment): each player gets an independent three-way
+// toggle (sang / no adjustment / didn't sing) rather than a team-wide
+// setting, feeding into that player's own handicap contribution to their
+// scramble group's team handicap (day2GroupHandicap() above).
+function renderDay2Anthem() {
+  const container = document.getElementById('day2-anthem');
+  if (!container) return;
+  const anthem = state.day2.anthem || {};
+  container.innerHTML = PLAYERS.map(p => {
+    const val = anthem[p.id];
+    return `<div class="anthem-row">
+      <span class="anthem-name">${escapeHtml(p.short)}</span>
+      <div class="match-toggle" role="radiogroup" aria-label="${escapeHtml(p.name)} sang the national anthem">
+        <button type="button" role="radio" aria-checked="${val === true}" class="${val === true ? 'is-active' : ''}" onclick="setDay2Anthem(${p.id}, true)">Sang <span class="rt-pts">-1</span></button>
+        <button type="button" role="radio" aria-checked="${val === undefined}" class="${val === undefined ? 'is-active' : ''}" onclick="setDay2Anthem(${p.id}, null)">—</button>
+        <button type="button" role="radio" aria-checked="${val === false}" class="${val === false ? 'is-active' : ''}" onclick="setDay2Anthem(${p.id}, false)">Didn't sing <span class="rt-pts">+2</span></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setDay2Anthem(playerId, sang) {
+  requireUsername(() => {
+    if (!state.day2.anthem) state.day2.anthem = {};
+    if (sang === null) delete state.day2.anthem[playerId];
+    else state.day2.anthem[playerId] = sang;
+    saveState();
+    insertUpdate('day2_anthem', { player_id: playerId, value: sang === null ? null : String(sang) });
+    renderDay2Anthem();
+    renderDay2Groups();
+    renderDay2AllGroupCards();
+    updateScoreboard();
+  });
+}
+
 function renderDay3Ntp() {
   ['h7','h14'].forEach(h => {
     const el = document.getElementById('ntp-day3-' + h);
@@ -1644,11 +1784,23 @@ function day2CourseHoles() {
 // amount than a flat index would, so the group's relative makeup (and
 // therefore the team handicap the divisors produce) has to be computed
 // from course handicaps, not indexes.
+//
+// The national anthem house rule (issue #149, Day 2 only) is applied AFTER
+// that conversion, not before: it's a fixed +2/-1 stroke adjustment for
+// that day's round, and applying it to the raw index first would let
+// Black Bull's slope (134/113) scale a "+2" into something else once
+// converted. Still per-player, still the last thing applied before
+// scrambleTeamHandicap(), per the confirmed "individual, not team-wide"
+// scope -- just against the course handicap instead of the index.
 function day2GroupHandicap(code) {
   const ids = state.day2.groups[code];
-  const hcps = ids.map(id => (PLAYERS.find(p => p.id === id) || {}).hcp).filter(h => h !== undefined);
+  const anthem = state.day2.anthem || {};
+  const hcps = ids.map(id => {
+    const p = PLAYERS.find(p => p.id === id);
+    return p === undefined ? undefined : anthemAdjustedHandicap(dailyHandicap(p.hcp, 2), anthem[id]);
+  }).filter(h => h !== undefined);
   if (hcps.length !== ids.length) return null; // stale id no longer a real player
-  return scrambleTeamHandicap(hcps.map(h => dailyHandicap(h, 2)));
+  return scrambleTeamHandicap(hcps);
 }
 
 function renderDay2Groups() {
@@ -1695,13 +1847,15 @@ function setDay2Group(playerId, groupCode) {
 // hole grid once hole scores exist for this group -- same precedence
 // rule as #124's effectiveNines (any hole data makes the derived value
 // authoritative; manual is only used when a group has no hole data at all).
-function renderDay2GroupCard(code) {
+// Issue #143: split out of renderDay2GroupCard() so a hole commit can
+// refresh the manual/derived aggregate line without ever touching gridEl
+// -- the part that would otherwise destroy focus/close the keyboard on
+// every single hole of an 18-hole round.
+function renderDay2Derived(code) {
   const manualEl = document.getElementById(code + '-manual');
   const derivedEl = document.getElementById(code + '-derived');
-  const gridEl = document.getElementById(code + '-grid');
-  if (!manualEl || !derivedEl || !gridEl) return;
+  if (!manualEl || !derivedEl) return;
 
-  const ids = state.day2.groups[code];
   const holes = state.day2.holes[code];
   const hasData = holes.some(h => h !== null);
   const handicap = day2GroupHandicap(code);
@@ -1712,27 +1866,47 @@ function renderDay2GroupCard(code) {
   if (!hasData) {
     manualEl.style.display = '';
     derivedEl.style.display = 'none';
-  } else {
-    manualEl.style.display = 'none';
-    derivedEl.style.display = '';
-    const strokes = handicap === null ? Array(18).fill(0) : groupStrokes(handicap, sis);
-    const complete = scrambleRoundComplete(holes);
-    const { netToPar, played } = scrambleNetToParThru(holes, strokes, pars);
-    const ntpStr = netToPar === null ? '—' : (netToPar > 0 ? '+' + netToPar : String(netToPar));
-    derivedEl.innerHTML = `
-      <span class="dv-big">${ntpStr}</span> to par ${complete ? '' : `(thru ${played})`}
-      ${handicap !== null ? ` · Team HCP ${handicap}` : ' · assign players to compute handicap'}
-      <button type="button" class="clear-btn" onclick="clearDay2GroupHoles('${code}')">Clear hole scores to enter manually</button>`;
+    return;
   }
+  manualEl.style.display = 'none';
+  derivedEl.style.display = '';
+  const strokes = handicap === null ? Array(18).fill(0) : groupStrokes(handicap, sis);
+  const complete = scrambleRoundComplete(holes);
+  const { netToPar, played } = scrambleNetToParThru(holes, strokes, pars);
+  const ntpStr = netToPar === null ? '—' : (netToPar > 0 ? '+' + netToPar : String(netToPar));
+  derivedEl.innerHTML = `
+    <span class="dv-big">${ntpStr}</span> to par ${complete ? '' : `(thru ${played})`}
+    ${handicap !== null ? ` · Team HCP ${handicap}` : ' · assign players to compute handicap'}
+    <button type="button" class="clear-btn" onclick="clearDay2GroupHoles('${code}')">Clear hole scores to enter manually</button>`;
+}
+
+function renderDay2GroupCard(code) {
+  const manualEl = document.getElementById(code + '-manual');
+  const derivedEl = document.getElementById(code + '-derived');
+  const gridEl = document.getElementById(code + '-grid');
+  if (!manualEl || !derivedEl || !gridEl) return;
+  renderDay2Derived(code);
+
+  const ids = state.day2.groups[code];
+  const holes = state.day2.holes[code];
+  const handicap = day2GroupHandicap(code);
+  const courseHoles = day2CourseHoles();
+  const sis = courseHoles.map(h => h.si);
 
   if (ids.length < 2 || ids.length > 4) {
     gridEl.innerHTML = `<div class="group-needs-players">Assign at least 2 players to this group to enable hole-by-hole entry (currently ${ids.length}).</div>`;
     return;
   }
+  // Issue #148: a brand-new <details> always starts closed -- without
+  // carrying the previous open/closed state across, a full grid rebuild
+  // (poll-triggered, or the no-focus fallback in setDay2HoleScore()) slams
+  // an open "Hole-by-hole entry" panel shut on the scorer.
+  const prevDetails = gridEl.querySelector('details');
+  const wasOpen = prevDetails ? prevDetails.open : false;
   const names = ids.map(id => (PLAYERS.find(p => p.id === id) || {}).short || '?').join(', ');
   const strokes = handicap === null ? Array(18).fill(0) : groupStrokes(handicap, sis);
   gridEl.innerHTML = `
-    <details class="hole-grid-details">
+    <details class="hole-grid-details"${wasOpen ? ' open' : ''}>
       <summary class="hole-grid-summary">Hole-by-hole entry — ${escapeHtml(names)}</summary>
       ${day2HoleGridNineHtml(code, holes, strokes, courseHoles, 0)}
       ${day2HoleGridNineHtml(code, holes, strokes, courseHoles, 9)}
@@ -1783,7 +1957,25 @@ function setDay2HoleScore(code, holeNum, rawVal) {
     state.day2.holes[code][holeNum - 1] = clamped;
     saveState();
     insertUpdate('day2_hole', { field_key: `${code}_${holeNum}`, value: clamped });
-    renderDay2GroupCard(code);
+    // Issue #143: a full renderDay2GroupCard() rebuilds gridEl.innerHTML --
+    // including the input that just fired and whatever cell the scorer
+    // tabbed/tapped into next -- dropping focus and closing the mobile
+    // keyboard on every single hole. Only the derived aggregate line needs
+    // to update while the grid still has focus; the full rebuild (which
+    // also refreshes the stroke-dot row) runs once focus moves on.
+    //
+    // The activeElement check has to be deferred, though: 'change' fires
+    // as part of the outgoing input's blur, before the browser has moved
+    // focus onto whatever the scorer tapped/tabbed into next. Checking
+    // synchronously here always sees nothing grid-in focused -- even when
+    // the scorer just tapped straight into the next hole -- so it took the
+    // full-rebuild branch on every commit and closed the keyboard anyway.
+    // Deferring one tick lets the pending focus event land first.
+    setTimeout(() => {
+      const gridHasFocus = document.activeElement && document.activeElement.classList.contains('grid-in');
+      if (gridHasFocus) renderDay2Derived(code);
+      else renderDay2GroupCard(code);
+    }, 0);
     _doUpdateDay2();
   });
 }
@@ -1894,14 +2086,21 @@ function safeSetInput(el, val) {
   if (el && document.activeElement !== el) el.value = val;
 }
 
+// Issue #142: this used to only write the box when state.day2[id] was
+// non-null, so a remote clear (another device sets a4/a3/b4/b3 to null)
+// left the box showing its old text -- and the _doUpdateDay2() call right
+// below re-read that stale text back into state.day2, undoing the clear on
+// the very poll that delivered it. Mirroring state into the box
+// unconditionally (empty string for null) keeps the box and state in sync
+// either way; safeSetInput()'s activeElement guard still protects a box
+// the scorer is mid-typing in.
 function restoreDay2() {
   ['a4','a3','b4','b3'].forEach(id => {
     const el = document.getElementById(id + '-score');
-    if (el && state.day2[id] !== null && state.day2[id] !== undefined) {
-      safeSetInput(el, state.day2[id]);
-    }
+    safeSetInput(el, state.day2[id] ?? '');
   });
   renderDay2Ntp();
+  renderDay2Anthem();
   renderDay2Groups();
   renderDay2AllGroupCards();
   _doUpdateDay2();
@@ -2166,6 +2365,15 @@ async function sendUpdateRow(updateType, fields) {
     field_key:  fields.field_key  !== undefined ? String(fields.field_key) : null,
     value:      fields.value      !== null && fields.value !== undefined ? String(fields.value) : null
   };
+  // Issue #141: a wrong write_token and a dropped connection used to both
+  // collapse to the same "false", which insertUpdate() reported as
+  // "offline" and queued for retry -- a scorer who mistyped the PIN once
+  // got told it was a connectivity problem and silently never synced
+  // anything again, since every retry re-fails the same auth rejection
+  // forever. RLS `WITH CHECK` violations surface as non-2xx (commonly 401
+  // for a missing/invalid apikey, or a 4xx carrying the RAISE EXCEPTION
+  // message for a bad write_token) -- either way distinguishable from a
+  // network failure (fetch throwing, no response at all).
   try {
     const resp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates`, {
       method: 'POST',
@@ -2176,18 +2384,30 @@ async function sendUpdateRow(updateType, fields) {
       },
       body: JSON.stringify(row)
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
-    return true;
+    if (resp.ok) return 'ok';
+    if (resp.status === 401 || resp.status === 403) return 'auth';
+    console.error('Supabase insert failed:', resp.status, await resp.text());
+    return 'network';
   } catch(err) {
     console.error('Supabase insert failed:', err.message);
-    return false;
+    return 'network';
   }
 }
 
 async function insertUpdate(updateType, fields) {
   if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername || !currentWriteToken) return;
   showSaveToast('Saving...', 'saving');
-  const ok = await sendUpdateRow(updateType, fields);
+  const result = await sendUpdateRow(updateType, fields);
+  if (result === 'auth') {
+    currentWriteToken = null;
+    sessionStorage.removeItem('wongaCup_writeToken');
+    showSaveToast('✗ Wrong tournament PIN', 'error');
+    const errorEl = document.getElementById('username-error');
+    if (errorEl) { errorEl.textContent = 'Wrong PIN — check with the organiser'; errorEl.style.display = 'block'; }
+    requireUsername(null);
+    return;
+  }
+  const ok = result === 'ok';
   isOffline = !ok;
   if (!ok) { pendingWrites.push({ updateType, fields }); persistPending(); }
   updateOfflineIndicator();
@@ -2196,19 +2416,45 @@ async function insertUpdate(updateType, fields) {
 
 // Called after every successful poll — resends anything that failed
 // earlier. Writes that fail again just stay in the queue for next time.
+// An 'auth' rejection stops the flush immediately (issue #141) rather than
+// re-trying every queued write against a token the server has already told
+// us is wrong -- the queue is left intact (untouched entries stay
+// pending) since the writes themselves are still valid once the PIN is
+// corrected, they just haven't been retried yet this pass.
 async function flushPendingWrites() {
   if (pendingWrites.length === 0) return;
   const stillPending = [];
-  for (const w of pendingWrites) {
-    const ok = await sendUpdateRow(w.updateType, w.fields);
-    if (!ok) stillPending.push(w);
+  for (let i = 0; i < pendingWrites.length; i++) {
+    const w = pendingWrites[i];
+    const result = await sendUpdateRow(w.updateType, w.fields);
+    if (result === 'auth') {
+      stillPending.push(...pendingWrites.slice(i));
+      break;
+    }
+    if (result === 'network') stillPending.push(w);
   }
   pendingWrites = stillPending;
   persistPending();
   updateOfflineIndicator();
 }
 
+// Issue #140: a rollback deletes rows server-side, which produces no sync
+// signal a normal replay could act on -- every other device is already
+// past those rows in its cursor and would keep them forever. The
+// rollback's own marker row (inserted after the delete, in
+// rollbackScores()) is handled here rather than in applyUpdateToState()
+// (scoring.js) because it needs cache/reload access that pure state
+// function doesn't have; scoring.js keeps ignoring unknown update_types so
+// a client running an older app version just skips this row safely.
 function applyUpdate(row) {
+  if (row.update_type === 'rollback') {
+    localStorage.removeItem('wongaCup2026');
+    localStorage.removeItem(LAST_SYNC_KEY);
+    localStorage.removeItem(LAST_SYNC_IDS_KEY);
+    localStorage.removeItem(PENDING_KEY);
+    location.reload();
+    return;
+  }
   applyUpdateToState(state, row);
 }
 
@@ -2237,7 +2483,7 @@ async function loadFromSupabase() {
     while (true) {
       const cursor = localStorage.getItem(LAST_SYNC_KEY) || '1970-01-01T00:00:00.000Z';
       const seenAtCursor = new Set(getSyncedIdsAtCursor());
-      const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
+      const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?select=${SAFE_SELECT_COLUMNS}&tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
       const resp = await fetch(url, {
         headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' }
       });
@@ -2277,17 +2523,42 @@ async function loadFromSupabase() {
   }
 }
 
+// Issue #146: rollback is destructive and tournament-wide, so it's gated
+// on a second secret distinct from the shared scoring write_token (which
+// all ~14 scorers hold) -- prompted for once and cached in sessionStorage,
+// same pattern as the scoring PIN. This is still just a UI convenience for
+// the "James McIntyre" check above it; the real boundary is the database
+// re-validating both tokens server-side in rollback_tournament_updates.
+function requireAdminToken() {
+  if (currentAdminToken) return currentAdminToken;
+  const token = window.prompt('Admin PIN (separate from the tournament scoring PIN):');
+  if (!token) return null;
+  currentAdminToken = token;
+  sessionStorage.setItem('wongaCup_adminToken', token);
+  return token;
+}
+
 // Admin-only: deletes every tournament_updates row newer than the chosen
-// cutoff, on the shared Supabase table, then wipes this device's local
-// cache and reloads so every client (including this one) rebuilds state
-// from only the rows that survived the delete. Goes through the
-// rollback_tournament_updates RPC (see supabase/migrations) rather than a
-// raw DELETE, since issue #106's fix revokes anon DELETE on the table
-// entirely -- this function is itself the only privileged-delete path
-// left, and it re-validates the write token server-side before deleting
-// anything.
+// cutoff, on the shared Supabase table, via the rollback_tournament_updates
+// RPC (see supabase/migrations) rather than a raw DELETE, since issue
+// #106's fix revokes anon DELETE on the table entirely -- this function is
+// itself the only privileged-delete path left, and it re-validates both
+// tokens server-side before deleting anything.
+//
+// Issue #140: a plain server-side delete produces no sync signal, so every
+// other device -- already past these rows in its sync cursor -- would keep
+// the rolled-back scores forever. After the delete succeeds, a `rollback`
+// marker row is inserted (timestamped *after* the cutoff, so it survives
+// its own rollback) and picked up by every device's next poll via the
+// applyUpdate() wrapper below, which wipes local caches and reloads so
+// every client rebuilds state from only the rows that survived. The admin
+// device's own pending-write queue and sync-id cache are cleared here too,
+// so a write queued right before the rollback can't resurrect a
+// just-deleted score once the reload replays it.
 async function rollbackScores() {
   if (currentUsername !== 'James McIntyre') return;
+  const adminToken = requireAdminToken();
+  if (!adminToken) return;
   const select = document.getElementById('admin-rollback-minutes');
   const minutes = parseInt(select.value, 10);
   const cutoff = new Date(Date.now() - minutes * 60000);
@@ -2302,12 +2573,26 @@ async function rollbackScores() {
       body: JSON.stringify({
         p_tournament_id: SUPABASE_CONFIG.tournamentId,
         p_cutoff: cutoff.toISOString(),
-        p_write_token: currentWriteToken
+        p_write_token: currentWriteToken,
+        p_admin_token: adminToken
       })
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+    if (!resp.ok) {
+      const bodyText = await resp.text();
+      if (resp.status === 401 || resp.status === 403 || /invalid admin token/.test(bodyText)) {
+        currentAdminToken = null;
+        sessionStorage.removeItem('wongaCup_adminToken');
+        showSaveToast('✗ Wrong admin PIN', 'error');
+        return;
+      }
+      throw new Error(`HTTP ${resp.status}: ${bodyText}`);
+    }
+    await sendUpdateRow('rollback', { value: cutoff.toISOString() });
     localStorage.removeItem('wongaCup2026');
     localStorage.removeItem(LAST_SYNC_KEY);
+    localStorage.removeItem(LAST_SYNC_IDS_KEY);
+    localStorage.removeItem(PENDING_KEY);
+    pendingWrites = [];
     showSaveToast('✓ Rolled back — reloading...', 'success');
     setTimeout(() => location.reload(), 800);
   } catch(err) {
@@ -2400,6 +2685,7 @@ async function loadFieldHistory() {
     // independent of LAST_SYNC_KEY/the sync cursor/local state, so viewing
     // history can never disturb live scoring on this or any other device.
     const params = new URLSearchParams({
+      select: SAFE_SELECT_COLUMNS,
       tournament_id: `eq.${SUPABASE_CONFIG.tournamentId}`,
       update_type: `eq.${coords.update_type}`,
       order: 'updated_at.desc',
@@ -2527,6 +2813,7 @@ function confirmUsername() {
   if (!name || !token) {
     input.style.borderColor = 'var(--gold)';
     input.setAttribute('aria-invalid', 'true');
+    error.textContent = 'Please enter your name and the tournament PIN to continue';
     error.style.display = 'block';
     setTimeout(() => { input.style.borderColor = ''; }, 300);
     return;
