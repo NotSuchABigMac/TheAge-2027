@@ -31,6 +31,11 @@ test('escapeHtml leaves ordinary team names untouched', () => {
   assert.equal(escapeHtml('Team Beer'), 'Team Beer');
 });
 
+test('escapeHtml coerces non-string input instead of throwing (issue #121, finding F3 case 7)', () => {
+  assert.equal(escapeHtml(null), 'null');
+  assert.equal(escapeHtml(123), '123');
+});
+
 test('escapeHtml defuses an attribute-breakout payload (issue #116)', () => {
   const payload = '" autofocus onfocus="window.__pwned=1';
   const escaped = escapeHtml(payload);
@@ -64,6 +69,16 @@ test('ntpTeamPoints counts one point per resolved hole, ignores unset holes', ()
   assert.deepEqual(ntpTeamPoints(['A', 'A']), { a: 2, b: 0 });
   assert.deepEqual(ntpTeamPoints([null, 'B']), { a: 0, b: 1 });
   assert.deepEqual(ntpTeamPoints([]), { a: 0, b: 0 });
+});
+
+// Empty-input floors (issue #121, finding F3 case 9) -- neither function
+// should throw or return anything other than a zeroed totals object.
+test('sumMatchPoints floors to zero totals on an empty match list', () => {
+  assert.deepEqual(sumMatchPoints([]), { a: 0, b: 0 });
+});
+
+test('ntpTeamPoints floors to zero totals when passed null', () => {
+  assert.deepEqual(ntpTeamPoints(null), { a: 0, b: 0 });
 });
 
 /* ── Day 2 — Team Scramble ── */
@@ -140,6 +155,23 @@ test('day2InputState: out-of-range numbers are clamped and the box corrected', (
 
 test('day2InputState: non-numeric garbage is left alone rather than wiped', () => {
   assert.deepEqual(day2InputState('abc'), { changed: false, stored: null, correction: null });
+});
+
+// Exact clamp boundaries and the plus-prefix case (issue #121, finding F3
+// case 4) -- pinned separately from the out-of-range clamp test above,
+// since being exactly on the boundary must NOT count as a correction.
+test('day2InputState: exact +/-20 boundaries round-trip without a correction', () => {
+  assert.deepEqual(day2InputState('20'), { changed: true, stored: '20', correction: null });
+  assert.deepEqual(day2InputState('-20'), { changed: true, stored: '-20', correction: null });
+});
+
+test('day2InputState: a plus-prefixed number parses without triggering a correction', () => {
+  assert.deepEqual(day2InputState('+5'), { changed: true, stored: '5', correction: null });
+});
+
+test('parseScoreToPar retains a deliberate partial parse (issue #121, finding F3 case 8)', () => {
+  assert.equal(parseScoreToPar('12abc'), 12);
+  assert.equal(parseScoreToPar('1e3'), 1);
 });
 
 /* ── Day 3 — Individual Stableford ── */
@@ -242,11 +274,40 @@ test('sumStablefordPoints does not credit either team for a player not yet assig
   assert.deepEqual(sumStablefordPoints(sorted), { a: 14, b: 12 });
 });
 
+// issue #121, finding F3 case 2: POS_PTS only has 14 entries -- beyond
+// that, points must fall to 0 rather than reading undefined off the end
+// of the array (POS_PTS[k] || 0 already guards this; pin it).
+test('computeStableford exhausts POS_PTS beyond 14 entries (positions 15/16 score 0)', () => {
+  const entries = Array.from({ length: 16 }, (_, i) => ({ id: i, score: 100 - i, team: 'A' }));
+  const sorted = computeStableford(entries);
+  assert.equal(sorted[14].pos, 15);
+  assert.equal(sorted[14].pts, 0);
+  assert.equal(sorted[15].pos, 16);
+  assert.equal(sorted[15].pts, 0);
+});
+
+// issue #121, finding F3 case 3: every player tied conserves the full
+// 105-point pool (sum of POS_PTS) split evenly across all 14.
+test('computeStableford splits the full 105-point pool evenly on an all-14-way tie', () => {
+  const entries = Array.from({ length: 14 }, (_, i) => ({ id: i, score: 30, team: i < 7 ? 'A' : 'B' }));
+  const sorted = computeStableford(entries);
+  sorted.forEach(p => assert.equal(p.pts, 7.5));
+  assert.deepEqual(sumStablefordPoints(sorted), { a: 52.5, b: 52.5 });
+});
+
 /* ── Tiebreak ── */
 
 test('resolveOverallWinner declares the higher total the winner', () => {
   assert.deepEqual(resolveOverallWinner(21, 18, null), { winner: 'A', mode: 'points' });
   assert.deepEqual(resolveOverallWinner(18, 21, null), { winner: 'B', mode: 'points' });
+});
+
+// issue #121, finding F3 case 1: the highest-stakes unasserted behavior --
+// a leftover sudden-death row from before a score correction must not
+// hand the Cup to the wrong team once the totals are no longer tied.
+test('resolveOverallWinner ignores a stale tiebreak when totals are not tied', () => {
+  assert.deepEqual(resolveOverallWinner(21, 18, 'B'), { winner: 'A', mode: 'points' });
+  assert.deepEqual(resolveOverallWinner(18, 21, 'A'), { winner: 'B', mode: 'points' });
 });
 
 test('resolveOverallWinner falls to the sudden-death result on a tie', () => {
@@ -368,6 +429,16 @@ test('reconcileMatchesAfterTeamMove does not mutate the input matches array', ()
   assert.deepEqual(matches[0].pA, [7], 'original match object must be untouched');
 });
 
+// issue #121, finding F3 case 6: newTeam null means "unassigned," not a
+// move to either side -- there's no stale slot to clear, so nothing
+// should be wiped.
+test('reconcileMatchesAfterTeamMove is a no-op when newTeam is null (player unassigned, not moved)', () => {
+  const matches = [{ type: 'singles', pA: [7], pB: [1], front9: 'A', back9: 'A' }];
+  const result = reconcileMatchesAfterTeamMove(matches, 7, null);
+  assert.deepEqual(result.matches, matches);
+  assert.deepEqual(result.changes, []);
+});
+
 /* ── Live sync row processing (issue #63 — one bad row wedged all future polls) ── */
 
 test('processUpdateRows applies every row when none of them fail', () => {
@@ -410,6 +481,23 @@ test('processUpdateRows always reports the last row\'s timestamp, even when that
   ];
   const result = processUpdateRows(rows, row => { if (row.broken) throw new Error('bad row'); });
   assert.equal(result.lastUpdatedAt, '2026-01-01T00:00:01Z');
+});
+
+// issue #121, finding F3 case 5: the #63 contract (a bad team_assign row
+// throws but doesn't wedge the batch) end-to-end through
+// applyUpdateToState, not just each half in isolation.
+test('processUpdateRows + applyUpdateToState: a bad team_assign row is skipped but the later row still applies', () => {
+  const state = makeState();
+  const rows = [
+    { update_type: 'team_assign', field_key: 'A', value: '{not json', updated_at: '2026-01-01T00:00:00Z' },
+    { update_type: 'team_name', field_key: 'B', value: 'X', updated_at: '2026-01-01T00:00:01Z' }
+  ];
+  const result = processUpdateRows(rows, row => applyUpdateToState(state, row));
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.applied, 1);
+  assert.equal(state.teamNameB, 'X');
+  assert.equal(result.lastUpdatedAt, '2026-01-01T00:00:01Z');
+  assert.deepEqual([...state.teamA].sort(), [...makeState().teamA].sort());
 });
 
 test('processUpdateRows on an empty batch reports no timestamp', () => {
