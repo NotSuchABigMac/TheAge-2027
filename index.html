@@ -412,6 +412,20 @@ if (!sessionStorage.getItem('musicConsented')) {
   const mast = document.querySelector('.masthead');
   const hero = document.querySelector('.hero');
   if (!mast) return;
+  function updateFromRect() {
+    // Chrome for Android has a long-standing class of bug where fixed-
+    // position elements (and the viewport metrics used to lay them out)
+    // can be wrong at initial paint and only self-correct once the user
+    // touches the screen and forces a reflow (see
+    // https://issuetracker.google.com/issues/36943422). That can make
+    // the very first IntersectionObserver callback below run against
+    // stale geometry, latching masthead--scrolled on with the hero fully
+    // in view and nothing afterward to un-stick it. Recomputing directly
+    // from getBoundingClientRect on a short delay and on first touch is
+    // a cheap, independent safety net against that.
+    if (!hero) return;
+    mast.classList.toggle('masthead--scrolled', hero.getBoundingClientRect().bottom <= 80);
+  }
   if (!hero || typeof IntersectionObserver === 'undefined') {
     // Fallback for browsers without IntersectionObserver: the original
     // scrollY check, now also re-run on resize so an address-bar
@@ -427,6 +441,8 @@ if (!sessionStorage.getItem('musicConsented')) {
     { rootMargin: '-80px 0px 0px 0px', threshold: 0 }
   );
   observer.observe(hero);
+  window.addEventListener('touchstart', updateFromRect, { once: true, passive: true });
+  setTimeout(updateFromRect, 400);
 })();
 
 // Hamburger menu
