@@ -2338,6 +2338,12 @@ async function insertUpdate(updateType, fields) {
   if (result === 'auth') {
     currentWriteToken = null;
     sessionStorage.removeItem('wongaCup_writeToken');
+    // Issue #154: the server just answered (with a rejection, but an
+    // answer) -- that proves connectivity is fine, so leaving isOffline/the
+    // "⚠ Offline" banner untouched here told the scorer two contradictory
+    // stories at once alongside the "Wrong PIN" toast.
+    isOffline = false;
+    updateOfflineIndicator();
     showSaveToast('✗ Wrong tournament PIN', 'error');
     const errorEl = document.getElementById('username-error');
     if (errorEl) { errorEl.textContent = 'Wrong PIN — check with the organiser'; errorEl.style.display = 'block'; }
@@ -2375,6 +2381,31 @@ async function flushPendingWrites() {
   updateOfflineIndicator();
 }
 
+// Issue #153: the marker row lives in the log forever, and wiping the sync
+// cursor forces the reloaded page into a from-epoch replay whose final
+// page contains that same marker -- without tracking that it's already
+// been actioned, every device (including the admin's own, after its own
+// post-rollback reload) hits it again on load, wipes again, reloads
+// again, forever. Track handled marker ids in localStorage (survives the
+// reload that's the whole point of this handler) so each marker fires its
+// wipe-and-reload exactly once per device, no matter how many times it's
+// replayed afterwards.
+const HANDLED_ROLLBACKS_KEY = 'wongaCup2026_handledRollbacks';
+function getHandledRollbacks() {
+  try {
+    const a = JSON.parse(localStorage.getItem(HANDLED_ROLLBACKS_KEY) || '[]');
+    return Array.isArray(a) ? a : [];
+  } catch(e) { return []; }
+}
+function markRollbackHandled(id) {
+  if (id === undefined || id === null) return;
+  const handled = getHandledRollbacks();
+  if (!handled.includes(id)) {
+    handled.push(id);
+    try { localStorage.setItem(HANDLED_ROLLBACKS_KEY, JSON.stringify(handled)); } catch(e) {}
+  }
+}
+
 // Issue #140: a rollback deletes rows server-side, which produces no sync
 // signal a normal replay could act on -- every other device is already
 // past those rows in its cursor and would keep them forever. The
@@ -2385,6 +2416,8 @@ async function flushPendingWrites() {
 // a client running an older app version just skips this row safely.
 function applyUpdate(row) {
   if (row.update_type === 'rollback') {
+    if (getHandledRollbacks().includes(row.id)) return; // already actioned on this device
+    markRollbackHandled(row.id);
     localStorage.removeItem('wongaCup2026');
     localStorage.removeItem(LAST_SYNC_KEY);
     localStorage.removeItem(LAST_SYNC_IDS_KEY);
@@ -2492,6 +2525,48 @@ function requireAdminToken() {
 // device's own pending-write queue and sync-id cache are cleared here too,
 // so a write queued right before the rollback can't resurrect a
 // just-deleted score once the reload replays it.
+
+// Issue #153: unlike a normal insertUpdate() call, the rollback marker's
+// own row id must be known immediately -- so this device can mark it
+// handled (see HANDLED_ROLLBACKS_KEY above) before reloading, rather than
+// discovering it again during its own post-reload from-epoch replay and
+// wiping a second time. Uses `Prefer: return=representation` (instead of
+// the usual `return=minimal`) specifically to get the id back.
+async function insertRollbackMarker(cutoffIso) {
+  const row = {
+    tournament_id: SUPABASE_CONFIG.tournamentId,
+    update_type: 'rollback',
+    updated_by: currentUsername,
+    write_token: currentWriteToken,
+    match_idx: null,
+    player_id: null,
+    field_key: null,
+    value: cutoffIso
+  };
+  try {
+    // select=id keeps the RETURNING representation to a column anon
+    // actually has SELECT on (issue #105 reopened's column-level grant
+    // excludes write_token) -- a bare `return=representation` with no
+    // select= filter would otherwise ask Postgres to return every column,
+    // including one anon is no longer allowed to read.
+    const resp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?select=id`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_CONFIG.apiKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(row)
+    });
+    if (!resp.ok) return { ok: false };
+    const inserted = await resp.json();
+    return { ok: true, id: inserted && inserted[0] && inserted[0].id };
+  } catch(err) {
+    console.error('Rollback marker insert failed:', err.message);
+    return { ok: false };
+  }
+}
+
 async function rollbackScores() {
   if (currentUsername !== 'James McIntyre') return;
   const adminToken = requireAdminToken();
@@ -2524,14 +2599,34 @@ async function rollbackScores() {
       }
       throw new Error(`HTTP ${resp.status}: ${bodyText}`);
     }
-    await sendUpdateRow('rollback', { value: cutoff.toISOString() });
-    localStorage.removeItem('wongaCup2026');
-    localStorage.removeItem(LAST_SYNC_KEY);
-    localStorage.removeItem(LAST_SYNC_IDS_KEY);
-    localStorage.removeItem(PENDING_KEY);
-    pendingWrites = [];
-    showSaveToast('✓ Rolled back — reloading...', 'success');
-    setTimeout(() => location.reload(), 800);
+    // Issue #153: this device's own id needs to be known and marked
+    // handled *before* the reload below, so its own from-epoch replay
+    // (triggered by wiping LAST_SYNC_KEY) doesn't hit its own marker again
+    // and wipe-and-reload a second time.
+    const marker = await insertRollbackMarker(cutoff.toISOString());
+    if (marker.ok) {
+      markRollbackHandled(marker.id);
+      localStorage.removeItem('wongaCup2026');
+      localStorage.removeItem(LAST_SYNC_KEY);
+      localStorage.removeItem(LAST_SYNC_IDS_KEY);
+      localStorage.removeItem(PENDING_KEY);
+      pendingWrites = [];
+      showSaveToast('✓ Rolled back — reloading...', 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      // The delete already happened server-side -- silently giving up on
+      // the marker here would leave every OTHER device holding the
+      // rolled-back scores forever (the exact divergence bug #140 was
+      // fixing, just with no visible symptom this time). Queue it through
+      // the normal retry path instead of reloading this device; it'll
+      // reach every device -- including this one, on its own next
+      // successful poll -- once connectivity recovers. Replaces rather
+      // than appends to any pre-rollback queue, since those writes refer
+      // to data that's already been deleted.
+      pendingWrites = [{ updateType: 'rollback', fields: { value: cutoff.toISOString() } }];
+      persistPending();
+      showSaveToast('⚠ Rolled back — sync signal pending, keep this page open', 'error');
+    }
   } catch(err) {
     console.error('Rollback failed:', err.message);
     showSaveToast('✗ Rollback failed', 'error');
@@ -2797,6 +2892,13 @@ function initUsername() {
     document.getElementById('username-badge').textContent = `🎯 ${saved}`;
     document.getElementById('username-badge').style.display = 'block';
   }
+  // Issue #154: requireAdminToken() was already writing this to
+  // sessionStorage but nothing ever read it back -- every reload
+  // (including the one rollbackScores() itself triggers) re-prompted for
+  // no benefit. Rehydrate it the same way the username/write-token pair
+  // above already is.
+  const savedAdmin = sessionStorage.getItem('wongaCup_adminToken');
+  if (savedAdmin) currentAdminToken = savedAdmin;
   updateAdminVisibility();
   document.getElementById('username-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') confirmUsername();
