@@ -188,7 +188,7 @@ built on the transaction log's existing shape rather than anything new:
   #71 was about. Restoring team membership goes through individual
   `player_team` rows instead.
 
-## Admin rollback: cross-device sync + separate secret (issues #140, #146)
+## Admin rollback: cross-device sync + separate secret (issues #140, #146, #153, #154)
 
 Rollback previously deleted rows server-side and only reset the admin
 device's own cache — every other device had no way to learn the deleted
@@ -201,10 +201,33 @@ specially — wipe `wongaCup2026`/`LAST_SYNC_KEY`/`LAST_SYNC_IDS_KEY`/
 `PENDING_KEY` and reload, so every client rebuilds state from only the
 surviving rows. The admin device clears the same keys itself (plus resets
 `pendingWrites` in memory) so a write queued right before the rollback
-can't resurrect a just-deleted score after the reload. Rollback is also now
+can't resurrect a just-deleted score after the reload. Rollback is also
 gated on a second `p_admin_token` distinct from the shared scoring
 `write_token` (`requireAdminToken()`, prompted once and cached in
-`sessionStorage`) — see the RLS section above.
+`sessionStorage`, and — since #154 — rehydrated from `sessionStorage` on
+subsequent loads the same way the username/write-token pair already was)
+— see the RLS section above.
+
+**#153 (critical follow-up):** the marker row above lives in the log
+forever, and wiping the sync cursor forces the reloaded page into a
+from-epoch replay whose final page contains that same marker — without
+tracking that it's already been actioned, every device (including the
+admin's own, right after its own post-rollback reload) hit it again on
+load, wiped again, reloaded again, forever. `HANDLED_ROLLBACKS_KEY`
+(`localStorage`, survives the reload that's the whole point of this
+handler) now tracks marker ids already actioned on this device, so
+`applyUpdate()` skips a marker it's already handled instead of
+wipe-and-reloading again. The admin device marks its own marker's id
+handled (via a dedicated `insertRollbackMarker()` that requests
+`Prefer: return=representation` with `select=id` — the only column that
+insert can ask for `RETURNING`, given #105's column-level grant) *before*
+its own reload, so its own from-epoch replay doesn't re-trigger. If that
+marker insert itself fails, the delete already happened server-side, so
+silently giving up would leave every other device diverged forever with no
+visible symptom — instead the marker is queued through the normal
+`pendingWrites` retry path (replacing any pre-rollback queue, since those
+writes refer to now-deleted data) and reaches every device, including this
+one, on the next successful sync.
 
 ## Day 1/Day 2 live-entry render fixes (issues #142, #143, #147, #148)
 
