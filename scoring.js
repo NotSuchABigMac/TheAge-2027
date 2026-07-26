@@ -22,6 +22,18 @@
     return String(str).replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
   }
 
+  /* ── COURSE HANDICAP (issue: slope/rating changing the day's handicap) ──
+     WHS Course Handicap = HI × (Slope / 113) + (Course Rating − Par),
+     rounded to the nearest whole stroke. `slope`/`rating`/`par` for the
+     course in play (courses.js) are passed in, never imported here, same
+     course-data-free rule as matchStrokes/groupStrokes below -- this is
+     what actually varies a player's handicap day to day across three
+     different courses even though their handicap index doesn't change. */
+  function courseHandicap(handicapIndex, slope, rating, par) {
+    const hi = parseFloat(handicapIndex);
+    return Math.round(hi * (slope / 113) + (rating - par));
+  }
+
   /* ── DAY 1 — MATCH PLAY ── */
   function ninePoints(result) {
     if (result === 'A') return { a: 1, b: 0 };
@@ -711,6 +723,7 @@
 
   return {
     escapeHtml,
+    courseHandicap,
     ninePoints, matchPoints, sumMatchPoints,
     DAY1_GROSS_MIN, DAY1_GROSS_MAX,
     matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,

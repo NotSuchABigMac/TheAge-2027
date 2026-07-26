@@ -489,6 +489,26 @@ body{padding-bottom:52px}
         </div>
       </div>
       <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:var(--r);cursor:pointer">Clear Teams</button>
+
+      <div class="section-header" style="padding-top:32px">
+        <div class="section-label">Reference</div>
+        <div class="section-title">Daily Handicaps</div>
+      </div>
+      <div class="info-box">Each course has its own Slope and Course Rating, so a player's <strong>course handicap</strong> — the strokes they actually play off — changes from day to day even though their handicap index doesn't. Sunday's Lake column matters most: it directly sets each player's net Stableford score.</div>
+      <div class="sf-table-wrap">
+        <table class="sf-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th style="text-align:right">HCP Index</th>
+              <th style="text-align:right">Murray</th>
+              <th style="text-align:right">Black Bull</th>
+              <th style="text-align:right">Lake</th>
+            </tr>
+          </thead>
+          <tbody id="daily-hcp-tbody"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ── DAY 1 PANEL ── -->
@@ -608,7 +628,7 @@ body{padding-bottom:52px}
               <th style="width:44px">Pos</th>
               <th>Player</th>
               <th>Team</th>
-              <th>HCP</th>
+              <th>Course HCP</th>
               <th>Net Stableford</th>
               <th style="text-align:right">Pts</th>
             </tr>
@@ -764,6 +784,7 @@ const state = {
 // Pure scoring math lives in scoring.js (shared with the Node test suite)
 const {
   escapeHtml,
+  courseHandicap,
   matchPoints, sumMatchPoints,
   DAY1_GROSS_MIN, DAY1_GROSS_MAX,
   matchStrokes, holeResult, nineStatus, effectiveNines,
@@ -1024,6 +1045,33 @@ scTabs.forEach((btn) => {
     }
   });
 });
+
+/* ─────────────────────────────────────
+   DAILY HANDICAPS
+   Each day's course has its own slope/rating (courses.js), so a player's
+   course handicap -- what courseHandicap() (scoring.js) actually returns --
+   differs day to day even though their handicap index (PLAYERS[].hcp)
+   doesn't. This is static for the whole tournament like the course cards,
+   so it renders once at init rather than on every 30s poll (see init below).
+───────────────────────────────────── */
+function dailyHandicap(hcp, day) {
+  const course = COURSES && COURSES[day];
+  if (!course) return null;
+  return courseHandicap(hcp, course.slope, course.rating, course.total.par);
+}
+
+function renderDailyHandicaps() {
+  const tbody = document.getElementById('daily-hcp-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = PLAYERS.map(p => `
+    <tr>
+      <td style="color:var(--ink)">${escapeHtml(p.name)}</td>
+      <td class="grey" style="text-align:right">${escapeHtml(p.hcp)}</td>
+      <td style="text-align:right;font-family:var(--font-d)">${dailyHandicap(p.hcp, 1)}</td>
+      <td style="text-align:right;font-family:var(--font-d)">${dailyHandicap(p.hcp, 2)}</td>
+      <td style="text-align:right;font-family:var(--font-d);color:var(--gold);font-weight:600">${dailyHandicap(p.hcp, 3)}</td>
+    </tr>`).join('');
+}
 
 /* ─────────────────────────────────────
    TEAM SETUP
@@ -1892,7 +1940,7 @@ function renderDay3() {
       <td class="pos-cell ${posClass}">${posText}</td>
       <td style="color:var(--ink)">${escapeHtml(p.name)}</td>
       <td>${teamBadgeHtml(p.team)}</td>
-      <td class="grey" style="font-size:.84rem">${escapeHtml(p.hcp)}</td>
+      <td style="font-family:var(--font-d)">${dailyHandicap(p.hcp, 3)}<small class="grey" style="display:block;font-family:var(--font-h);font-size:.68rem">idx ${escapeHtml(p.hcp)}</small></td>
       <td><input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${escapeHtml(state.day3.scores[p.id]||'')}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
       <td class="pts-cell">${ptsText}</td>`;
     tbody.appendChild(row);
@@ -2608,6 +2656,7 @@ try {
   renderCourseCard(1);
   renderCourseCard(2);
   renderCourseCard(3);
+  renderDailyHandicaps();
   initHistoryPicker();
   renderTeams();
   renderDay1();

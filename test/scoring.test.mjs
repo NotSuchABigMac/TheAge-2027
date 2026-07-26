@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const {
   escapeHtml,
+  courseHandicap,
   ninePoints, matchPoints, sumMatchPoints,
   DAY1_GROSS_MIN, DAY1_GROSS_MAX,
   matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
@@ -46,6 +47,32 @@ test('escapeHtml defuses an attribute-breakout payload (issue #116)', () => {
   const escaped = escapeHtml(payload);
   assert.ok(!escaped.includes('"'), 'no raw quote should survive escaping');
   assert.equal(escaped, '&quot; autofocus onfocus=&quot;window.__pwned=1');
+});
+
+/* ── Course Handicap (slope/rating changing the day's handicap) ── */
+
+test('courseHandicap: neutral slope (113) and rating==par just rounds the index', () => {
+  assert.equal(courseHandicap(18.4, 113, 72, 72), 18);
+  assert.equal(courseHandicap(18.5, 113, 72, 72), 19); // .5 rounds up, per WHS
+});
+
+test('courseHandicap: Murray (slope 128, rating 72.3, par 72) runs above index', () => {
+  assert.equal(courseHandicap('19.0', 128, 72.3, 72), 22);
+  assert.equal(courseHandicap('10.0', 128, 72.3, 72), 12);
+});
+
+test('courseHandicap: Black Bull (slope 134, rating 73.8, par 72) runs highest of the three', () => {
+  assert.equal(courseHandicap('8.0', 134, 73.8, 72), 11);
+  assert.equal(courseHandicap('30.0', 134, 73.8, 72), 37);
+});
+
+test('courseHandicap: Lake (slope 126, rating 71.5, par 72) can round down below index', () => {
+  assert.equal(courseHandicap('19.0', 126, 71.5, 72), 21);
+  assert.equal(courseHandicap('8.0', 126, 71.5, 72), 8);
+});
+
+test('courseHandicap: accepts a string handicap index just like matchStrokes does', () => {
+  assert.equal(courseHandicap('19.0', 128, 72.3, 72), courseHandicap(19, 128, 72.3, 72));
 });
 
 /* ── Day 1 — Match Play ── */

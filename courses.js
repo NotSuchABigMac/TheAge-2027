@@ -4,6 +4,10 @@
    cards for issue #122. Static data only — no DOM, no Supabase. Same
    UMD pattern as scoring.js, loaded the same way.
 
+   `rating`/`slope` (Blue tees, Course Rating / Slope Rating) feed
+   scoring.js's courseHandicap() so each player's daily/course handicap
+   can be shown per day rather than just their flat handicap index.
+
    Day → course mapping (see index.html / TODO.md):
      Day 1 (Fri) → Murray      (key 1) — Singles Match Play
      Day 2 (Sat) → Black Bull  (key 2) — Team Scramble
@@ -27,6 +31,8 @@
     1: {
       name: 'Murray',
       tee: 'Blue',
+      rating: 72.3,
+      slope: 128,
       holes: [
         { hole: 1,  par: 4, si: 6,  dist: 373 },
         { hole: 2,  par: 3, si: 18, dist: 162 },
@@ -54,6 +60,8 @@
     2: {
       name: 'Black Bull',
       tee: 'Blue',
+      rating: 73.8,
+      slope: 134,
       holes: [
         { hole: 1,  par: 4, si: 16, dist: 337 },
         { hole: 2,  par: 5, si: 6,  dist: 530 },
@@ -81,6 +89,8 @@
     3: {
       name: 'Lake',
       tee: 'Blue',
+      rating: 71.5,
+      slope: 126,
       holes: [
         { hole: 1,  par: 4, si: 9,  dist: 366 },
         { hole: 2,  par: 3, si: 14, dist: 165 },

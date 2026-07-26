@@ -162,3 +162,32 @@ built on the transaction log's existing shape rather than anything new:
   one over later per-player deltas is exactly the corruption pattern issue
   #71 was about. Restoring team membership goes through individual
   `player_team` rows instead.
+
+## Daily handicaps (slope/rating per course)
+
+Each of the three courses has its own Slope Rating and Course Rating (Blue
+tees, added to `courses.js` alongside par/SI/dist), so a player's **course
+handicap** — the strokes they actually play off — differs day to day even
+though their handicap index (`PLAYERS[].hcp`) doesn't:
+
+| Day | Course | Rating | Slope |
+|---|---|---|---|
+| 1 (Fri) | Murray | 72.3 | 128 |
+| 2 (Sat) | Black Bull | 73.8 | 134 |
+| 3 (Sun) | Lake | 71.5 | 126 |
+
+`courseHandicap(handicapIndex, slope, rating, par)` (`scoring.js`) computes
+the standard WHS formula — `HI × (Slope / 113) + (Course Rating − Par)`,
+rounded to the nearest whole stroke — and stays course-data-free like
+`matchStrokes`/`groupStrokes`; `dailyHandicap(hcp, day)` in
+`scorecard-live.html` is the glue that feeds it a given day's `COURSES`
+entry.
+
+This is a **display-only** addition — it does not change how strokes are
+allocated in Day 1 match play or the Day 2 scramble team handicap, both of
+which only ever cared about the relative handicap differential, not an
+absolute course handicap. The Teams tab's "Daily Handicaps" table shows
+every player's computed handicap for all three courses side by side (static
+for the tournament, rendered once at init like the course cards); the Day 3
+table's "Course HCP" column shows the Lake number specifically, since
+that's the one that directly determines a player's net Stableford score.
