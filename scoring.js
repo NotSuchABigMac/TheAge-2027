@@ -46,6 +46,106 @@
     return { a, b };
   }
 
+  /* ── DAY 1 — AUTOMATIC HOLE-BY-HOLE SCORING (issue #124) ──
+     Pure functions only -- the Murray Course stroke index (#122's
+     courses.js) is passed in as `strokeIndexes`, never imported here,
+     so this stays DOM-free and course-data-free. */
+  const DAY1_GROSS_MIN = 1, DAY1_GROSS_MAX = 15;
+
+  // Standard difference-in-handicap allocation: the lower-handicap player
+  // plays off scratch; the higher-handicap player receives one stroke on
+  // every hole plus a second stroke on the lowest-stroke-index holes, for
+  // as many holes as the (rounded) handicap difference requires -- e.g. a
+  // difference of 31 over an 18-hole nine-and-back match means 2 strokes
+  // on SI 1-13 and 1 stroke on SI 14-18 (13*2 + 5*1 = 31).
+  function matchStrokes(hcpA, hcpB, strokeIndexes) {
+    const zeros = strokeIndexes.map(() => 0);
+    const a = parseFloat(hcpA), b = parseFloat(hcpB);
+    if (a === b) return { receiver: null, a: zeros, b: zeros };
+    const receiver = a > b ? 'A' : 'B';
+    const diff = Math.round(Math.abs(a - b));
+    const base = Math.floor(diff / 18);
+    const extra = diff % 18;
+    const strokesFor = strokeIndexes.map(si => base + (si <= extra ? 1 : 0));
+    return {
+      receiver,
+      a: receiver === 'A' ? strokesFor : zeros,
+      b: receiver === 'B' ? strokesFor : zeros
+    };
+  }
+
+  // Compares net scores (gross - strokes received) for one hole. Null
+  // whenever either player's gross score hasn't been entered yet, so a
+  // half-entered hole never gets silently resolved.
+  function holeResult(grossA, grossB, strokesA, strokesB) {
+    if (grossA === null || grossA === undefined || grossB === null || grossB === undefined) return null;
+    const netA = grossA - strokesA, netB = grossB - strokesB;
+    if (netA < netB) return 'A';
+    if (netB < netA) return 'B';
+    return 'T';
+  }
+
+  // Rolls up 9 per-hole results ('A'|'B'|'T'|null) into a nine's outcome.
+  // `decided` covers both a fully-played nine and one that's mathematically
+  // over early (the leader's margin exceeds the holes left to play) --
+  // being exactly dormie (margin == holes left) is deliberately NOT
+  // decided, since the trailing player can still force a halve.
+  function nineFromHoles(nineResults) {
+    const wonA = nineResults.filter(r => r === 'A').length;
+    const wonB = nineResults.filter(r => r === 'B').length;
+    const played = nineResults.filter(r => r !== null && r !== undefined).length;
+    const remaining = nineResults.length - played;
+    const lead = Math.abs(wonA - wonB);
+    const decided = played === nineResults.length || lead > remaining;
+    let result = null;
+    if (decided) result = wonA > wonB ? 'A' : wonB > wonA ? 'B' : 'T';
+    return { result, decided, wonA, wonB, played };
+  }
+
+  // Structured status for the UI's per-nine progress line -- callers format
+  // this into strings like "AS thru 4", "2UP thru 6", "DORMIE", "Won 3&2",
+  // "Won 2UP". `margin` is the second number in an early finish ("&2" in
+  // "3&2") and is null once the nine has been fully played (a completed
+  // nine is just "2UP"/"AS", never "&"-suffixed).
+  function nineStatus(nineResults) {
+    const wonA = nineResults.filter(r => r === 'A').length;
+    const wonB = nineResults.filter(r => r === 'B').length;
+    const thru = nineResults.filter(r => r !== null && r !== undefined).length;
+    const remaining = nineResults.length - thru;
+    const lead = Math.abs(wonA - wonB);
+    const leader = wonA > wonB ? 'A' : wonB > wonA ? 'B' : null;
+    const decided = thru === nineResults.length || lead > remaining;
+    const dormie = !decided && remaining > 0 && lead === remaining && lead > 0;
+    const margin = (decided && thru < nineResults.length) ? remaining : null;
+    return { lead, leader, thru, dormie, decided, margin };
+  }
+
+  // Precedence rule between per-hole data and the manual front9/back9
+  // toggles: as soon as ANY hole in a nine has a score, that nine's result
+  // is derived (and null while undecided, even if a stale manual value is
+  // still sitting underneath) -- the manual value is only used when the
+  // nine has no hole data at all. Feeds the *unchanged* matchPoints() /
+  // ninePoints(), so Day 1 point totals are provably unaffected by this
+  // feature (see the equivalence test in test/scoring.test.mjs).
+  function effectiveNines(match, strokes) {
+    function deriveNine(start) {
+      const holesA = match.holesA.slice(start, start + 9);
+      const holesB = match.holesB.slice(start, start + 9);
+      const hasData = holesA.some(v => v !== null) || holesB.some(v => v !== null);
+      if (!hasData) return { hasData: false, result: null };
+      const strokesA = strokes.a.slice(start, start + 9);
+      const strokesB = strokes.b.slice(start, start + 9);
+      const results = holesA.map((g, i) => holeResult(g, holesB[i], strokesA[i], strokesB[i]));
+      return { hasData: true, result: nineFromHoles(results).result };
+    }
+    const front = deriveNine(0);
+    const back = deriveNine(9);
+    return {
+      front9: front.hasData ? front.result : match.front9,
+      back9: back.hasData ? back.result : match.back9
+    };
+  }
+
   /* ── NEAREST THE PIN (shared across all 3 days) ──
      holeTeams: array of 'A' | 'B' | null — one entry per NTP hole,
      already resolved to the winning player's team. Each non-null
@@ -233,7 +333,24 @@
       changes.push({ matchIdx, field: staleField, value: null });
       if (m.front9 !== null) changes.push({ matchIdx, field: 'front9', value: null });
       if (m.back9 !== null) changes.push({ matchIdx, field: 'back9', value: null });
-      return { ...m, [staleField]: [null], front9: null, back9: null };
+      const next = { ...m, [staleField]: [null], front9: null, back9: null };
+      // A moved player's per-hole gross scores (issue #124) are stale in
+      // exactly the same way front9/back9 were -- clear them too, but only
+      // for matches that actually carry hole data (older callers/tests
+      // still pass plain front9/back9-only match objects).
+      if (Array.isArray(m.holesA)) {
+        next.holesA = m.holesA.map((val, i) => {
+          if (val !== null) changes.push({ matchIdx, field: `A${i + 1}`, value: null });
+          return null;
+        });
+      }
+      if (Array.isArray(m.holesB)) {
+        next.holesB = m.holesB.map((val, i) => {
+          if (val !== null) changes.push({ matchIdx, field: `B${i + 1}`, value: null });
+          return null;
+        });
+      }
+      return next;
     });
     return { matches: nextMatches, changes };
   }
@@ -312,6 +429,22 @@
         }
         break;
       }
+      case 'day1_hole': {
+        // field_key isn't a fixed-size whitelist (A1..A18/B1..B18), so it's
+        // validated here via pattern + range rather than UPDATE_FIELD_KEYS.
+        if (!Number.isInteger(row.match_idx) || row.match_idx < 0 || row.match_idx > 5) break;
+        const match = state.day1.matches[row.match_idx];
+        if (!match || !row.field_key) break;
+        const keyMatch = /^([AB])(\d{1,2})$/.exec(row.field_key);
+        if (!keyMatch) break;
+        const holeNum = parseInt(keyMatch[2], 10);
+        if (holeNum < 1 || holeNum > 18) break;
+        const arr = keyMatch[1] === 'A' ? match.holesA : match.holesB;
+        if (!Array.isArray(arr)) break;
+        const n = parseIntOrNull(v);
+        arr[holeNum - 1] = n === null ? null : Math.max(DAY1_GROSS_MIN, Math.min(DAY1_GROSS_MAX, n));
+        break;
+      }
       case 'day1_ntp':
         if (row.field_key) state.day1.ntp[row.field_key] = parseIntOrNull(v);
         break;
@@ -366,6 +499,8 @@
   return {
     escapeHtml,
     ninePoints, matchPoints, sumMatchPoints,
+    DAY1_GROSS_MIN, DAY1_GROSS_MAX,
+    matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
     ntpTeamPoints,
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     POS_PTS, computeStableford, sumStablefordPoints,

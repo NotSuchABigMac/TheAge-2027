@@ -47,7 +47,8 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 
 | update_type | field_key | value |
 |---|---|---|
-| `day1_match` | `pA` / `pB` (player assigned to the match) or `front9` / `back9` (result) | player id, or `'A'`\|`'T'`\|`'B'` |
+| `day1_match` | `pA` / `pB` (player assigned to the match) or `front9` / `back9` (manual result, used only when the nine has no hole-by-hole scores — see `day1_hole` below) | player id, or `'A'`\|`'T'`\|`'B'` |
+| `day1_hole` | `A1`..`A18` / `B1`..`B18` (gross score for that player on that hole) | integer gross score, 1-15 |
 | `day1_ntp` | `h8` / `h17` | nearest-the-pin winner's player id |
 | `day2_score` | `a4` / `a3` / `b4` / `b3` (4-man / 3-man group net score to par) | integer score to par |
 | `day2_ntp` | `h4` / `h16` | nearest-the-pin winner's player id |
@@ -66,3 +67,38 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 
 The old single-record `tournament_scores` table is no longer referenced by
 the app anywhere; it can be dropped from Supabase whenever convenient.
+
+## Course data (issue #122)
+
+`courses.js` is a static, DOM-free data module (same UMD pattern as
+`scoring.js`) holding the official scorecards — par, stroke index, and
+distance per hole, transcribed from the physical club cards — for the three
+courses in play:
+
+| Day | Course | `COURSES` key |
+|---|---|---|
+| 1 (Fri) | Murray | `1` |
+| 2 (Sat) | Black Bull | `2` |
+| 3 (Sun) | Lake | `3` |
+
+Each entry's `holes` array sums to the card's own printed OUT/IN/TOTAL
+figures (asserted in `test/courses.test.mjs` as an independent check on the
+transcription), and `NTP_HOLES` mirrors the hardcoded NTP hole numbers
+already used in `scorecard-live.html`. `scorecard-live.html` renders this
+once at init via `renderCourseCard(day)` — it's static for the whole
+tournament, so it deliberately stays out of the 30s poll/`refreshAllDays()`
+cycle.
+
+## Day 1 automatic hole-by-hole scoring (issue #124)
+
+Each Day 1 match optionally carries per-hole gross scores (`holesA`/`holesB`,
+18 entries each, synced via `day1_hole` above). `scoring.js` exports the pure
+functions this is built on — `matchStrokes` (handicap allocation using the
+Murray Course stroke index from `courses.js`), `holeResult`, `nineFromHoles`,
+`nineStatus`, and `effectiveNines` (the precedence rule between hole data and
+the manual `front9`/`back9` toggle). As soon as any hole in a nine has a
+score, that nine's result is derived from the hole data and the manual toggle
+for it is disabled (with a "clear the hole scores" escape hatch); a nine with
+no hole data at all keeps using the manual toggle exactly as before. Either
+way, the result feeds the same unchanged `matchPoints()`, so Day 1 point
+totals are unaffected by which entry method was used.
