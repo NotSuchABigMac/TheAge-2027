@@ -19,7 +19,28 @@ in order via `applyUpdateToState()` (`scoring.js`).
 | field_key | text | meaning depends on `update_type`, see below |
 | value | text | The score/result/player-id value |
 | updated_by | text | Username of who entered it |
+| write_token | text | Shared passphrase required by RLS on insert (see below) |
 | updated_at | timestamptz | When it was entered |
+
+## Security: RLS lockdown (issues #105, #106)
+
+The Supabase publishable key ships in `scorecard-live.html`'s page source
+by design — it is not a secret, so it cannot be the access control.
+`supabase/migrations/001_lock_down_tournament_updates.sql` locks the table
+down at the database level and **must be run manually** (Supabase
+dashboard → SQL Editor) against the project in `SUPABASE_CONFIG`; nothing
+client-side can apply it. After running it:
+
+- `anon` can `SELECT` and `INSERT` (with a matching `write_token`) but not
+  `UPDATE` or `DELETE` — the log is append-only from the app's perspective.
+- The admin "Rollback Scores" control (issue #103) goes through a
+  `rollback_tournament_updates` RPC instead of a raw `DELETE`, since anon
+  `DELETE` is revoked; the RPC re-checks the token server-side.
+- The app prompts once for a "Tournament PIN" (stored in
+  `sessionStorage`) and sends it as `write_token` on every insert — set
+  the real passphrase server-side with `ALTER DATABASE postgres SET
+  app.tournament_secret = '...'` and hand it out to scorers out-of-band;
+  it is never baked into the client bundle.
 
 `update_type` values the app writes and reads, and what `field_key`/`value`
 mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):

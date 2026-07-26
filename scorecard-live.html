@@ -294,7 +294,8 @@ body{padding-bottom:52px}
     <div class="username-modal-title" id="username-modal-title">THE WONGA CUP</div>
     <div class="username-modal-desc">Select your name to start scoring</div>
     <select id="username-input" class="username-input" autofocus></select>
-    <div id="username-error" class="username-modal-desc" style="color:#ff6b6b;display:none" role="alert">Please enter your name to continue</div>
+    <input type="password" inputmode="numeric" id="write-token-input" class="username-input" placeholder="Tournament PIN" autocomplete="off">
+    <div id="username-error" class="username-modal-desc" style="color:#ff6b6b;display:none" role="alert">Please enter your name and the tournament PIN to continue</div>
     <button class="username-btn" onclick="confirmUsername()">Enter Tournament</button>
     <div class="username-modal-desc" style="font-size:.75rem;margin-top:16px;color:var(--ink-mute)">Your scores will sync live across all devices</div>
   </div>
@@ -630,6 +631,7 @@ const SUPABASE_CONFIG = {
 const LAST_SYNC_KEY = 'wongaCup2026_lastSync';
 
 let currentUsername = null;
+let currentWriteToken = null;
 let isOffline = false;
 let autoPollingInterval = null;
 
@@ -1534,6 +1536,12 @@ async function sendUpdateRow(updateType, fields) {
     tournament_id: SUPABASE_CONFIG.tournamentId,
     update_type: updateType,
     updated_by: currentUsername,
+    // Required by the anon_insert_with_token RLS policy (issue #105) once
+    // the supabase/migrations SQL has been applied -- without it, every
+    // insert here is rejected by Postgres regardless of currentUsername,
+    // which is just a free-text label with no enforcement power of its
+    // own.
+    write_token: currentWriteToken,
     match_idx:  fields.match_idx  !== undefined ? fields.match_idx  : null,
     player_id:  fields.player_id  !== undefined ? fields.player_id  : null,
     field_key:  fields.field_key  !== undefined ? String(fields.field_key) : null,
@@ -1558,7 +1566,7 @@ async function sendUpdateRow(updateType, fields) {
 }
 
 async function insertUpdate(updateType, fields) {
-  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername) return;
+  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername || !currentWriteToken) return;
   showSaveToast('Saving...', 'saving');
   const ok = await sendUpdateRow(updateType, fields);
   isOffline = !ok;
@@ -1653,7 +1661,12 @@ async function loadFromSupabase() {
 // Admin-only: deletes every tournament_updates row newer than the chosen
 // cutoff, on the shared Supabase table, then wipes this device's local
 // cache and reloads so every client (including this one) rebuilds state
-// from only the rows that survived the delete.
+// from only the rows that survived the delete. Goes through the
+// rollback_tournament_updates RPC (see supabase/migrations) rather than a
+// raw DELETE, since issue #106's fix revokes anon DELETE on the table
+// entirely -- this function is itself the only privileged-delete path
+// left, and it re-validates the write token server-side before deleting
+// anything.
 async function rollbackScores() {
   if (currentUsername !== 'James McIntyre') return;
   const select = document.getElementById('admin-rollback-minutes');
@@ -1663,10 +1676,15 @@ async function rollbackScores() {
   if (!confirm(`Delete every scoring update from the ${label.toLowerCase()} (since ${cutoff.toLocaleString()})? This affects every device and cannot be undone.`)) return;
   showSaveToast('Rolling back...', 'saving');
   try {
-    const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gt.${encodeURIComponent(cutoff.toISOString())}`;
+    const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/rpc/rollback_tournament_updates`;
     const resp = await fetch(url, {
-      method: 'DELETE',
-      headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        p_tournament_id: SUPABASE_CONFIG.tournamentId,
+        p_cutoff: cutoff.toISOString(),
+        p_write_token: currentWriteToken
+      })
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
     localStorage.removeItem('wongaCup2026');
@@ -1685,7 +1703,7 @@ async function rollbackScores() {
 var _pendingAction = null;
 
 function requireUsername(action) {
-  if (currentUsername) { if (action) action(); return; }
+  if (currentUsername && currentWriteToken) { if (action) action(); return; }
   _pendingAction = action || null;
   document.getElementById('username-modal').classList.remove('hidden');
   document.getElementById('username-input').focus();
@@ -1698,9 +1716,11 @@ function closeUsernameModal() {
 
 function confirmUsername() {
   const input = document.getElementById('username-input');
+  const tokenInput = document.getElementById('write-token-input');
   const error = document.getElementById('username-error');
   const name = input.value.trim();
-  if (!name) {
+  const token = tokenInput.value.trim();
+  if (!name || !token) {
     input.style.borderColor = 'var(--gold)';
     input.setAttribute('aria-invalid', 'true');
     error.style.display = 'block';
@@ -1710,7 +1730,9 @@ function confirmUsername() {
   input.removeAttribute('aria-invalid');
   error.style.display = 'none';
   currentUsername = name;
+  currentWriteToken = token;
   sessionStorage.setItem('wongaCup_username', name);
+  sessionStorage.setItem('wongaCup_writeToken', token);
   document.getElementById('username-modal').classList.add('hidden');
   document.getElementById('username-badge').textContent = `🎯 ${name}`;
   document.getElementById('username-badge').style.display = 'block';
@@ -1738,14 +1760,20 @@ function populateUsernameSelect() {
 function initUsername() {
   populateUsernameSelect();
   const saved = sessionStorage.getItem('wongaCup_username');
-  if (saved) {
+  const savedToken = sessionStorage.getItem('wongaCup_writeToken');
+  if (saved && savedToken) {
     currentUsername = saved;
+    currentWriteToken = savedToken;
     document.getElementById('username-input').value = saved;
+    document.getElementById('write-token-input').value = savedToken;
     document.getElementById('username-badge').textContent = `🎯 ${saved}`;
     document.getElementById('username-badge').style.display = 'block';
   }
   updateAdminVisibility();
   document.getElementById('username-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmUsername();
+  });
+  document.getElementById('write-token-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') confirmUsername();
   });
 }
