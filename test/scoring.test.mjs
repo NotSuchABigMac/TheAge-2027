@@ -10,6 +10,8 @@ const {
   matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
   ntpTeamPoints,
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
+  DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
+  scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
@@ -540,7 +542,11 @@ function makeState() {
       ],
       ntp: { h8: null, h17: null }
     },
-    day2: { a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null } },
+    day2: {
+      a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null },
+      groups: { a4: [], a3: [], b4: [], b3: [] },
+      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) }
+    },
     day3: { scores: {}, ntp: { h7: null, h14: null } },
     tiebreak: null
   };
@@ -980,4 +986,122 @@ test('reconcileMatchesAfterTeamMove clears entered per-hole gross scores and rep
   assert.deepEqual(result.matches[0].holesB, Array(18).fill(null));
   assert.ok(result.changes.some(c => c.field === 'A1' && c.value === null));
   assert.ok(result.changes.some(c => c.field === 'B1' && c.value === null));
+});
+
+/* ── DAY 2 — AUTOMATIC HOLE-BY-HOLE SCRAMBLE SCORING (issue #128) ──
+   Golf Australia divisors confirmed by issue #136; team handicap rounds
+   to the nearest whole number and is allocated per hole via stroke index
+   (both confirmed decisions for issue #128). ── */
+
+test('scrambleTeamHandicap: a 4-player group applies the 25/20/15/10 divisors, lowest handicap first', () => {
+  // hcps sorted ascending: 8, 16, 19, 30 -> 8*.25 + 16*.20 + 19*.15 + 30*.10 = 2 + 3.2 + 2.85 + 3 = 11.05 -> rounds to 11
+  const result = scrambleTeamHandicap(['19.0', '8.0', '30.0', '16.0']);
+  assert.equal(result, 11);
+});
+
+test('scrambleTeamHandicap: a 3-player group applies the 30/20/10 divisors', () => {
+  // sorted ascending: 8, 18, 26 -> 8*.30 + 18*.20 + 26*.10 = 2.4 + 3.6 + 2.6 = 8.6 -> rounds to 9
+  const result = scrambleTeamHandicap(['26.0', '8.0', '18.0']);
+  assert.equal(result, 9);
+});
+
+test('scrambleTeamHandicap: a 2-player group applies the 35/15 divisors', () => {
+  // sorted ascending: 10, 20 -> 10*.35 + 20*.15 = 3.5 + 3 = 6.5 -> rounds to 7 (0.5 rounds up)
+  const result = scrambleTeamHandicap(['20.0', '10.0']);
+  assert.equal(result, 7);
+});
+
+test('scrambleTeamHandicap: an unsupported group size (not 2, 3, or 4) returns null rather than guessing', () => {
+  assert.equal(scrambleTeamHandicap(['8.0']), null);
+  assert.equal(scrambleTeamHandicap(['8.0', '9.0', '10.0', '11.0', '12.0']), null);
+});
+
+test('groupStrokes: allocates the base stroke to every hole plus one extra on the lowest-SI holes', () => {
+  // handicap 11 over 18 holes -> base 0, extra 11 -> 1 stroke on SI 1-11, 0 on SI 12-18
+  const result = groupStrokes(11, SI_ASCENDING);
+  assert.deepEqual(result, SI_ASCENDING.map(si => (si <= 11 ? 1 : 0)));
+});
+
+test('groupStrokes: a handicap over 18 wraps around (handicap 22 -> 1 stroke everywhere, 2 on SI 1-4)', () => {
+  const result = groupStrokes(22, SI_ASCENDING);
+  assert.deepEqual(result, SI_ASCENDING.map(si => (si <= 4 ? 2 : 1)));
+  assert.equal(result.reduce((s, n) => s + n, 0), 22);
+});
+
+test('scrambleNetToParThru: sums net-to-par only over holes actually played', () => {
+  const pars = Array(9).fill(4); // 9 holes, par 4 each -> par 36
+  const strokes = Array(9).fill(1); // 1 stroke per hole
+  const gross = [4, 4, 4, null, null, null, null, null, null]; // 3 holes played, gross 4 each
+  const result = scrambleNetToParThru(gross, strokes, pars);
+  // net per played hole = 4 - 1 = 3; 3 holes -> net 9, par played = 12 -> net-to-par = -3
+  assert.deepEqual(result, { netToPar: -3, played: 3 });
+});
+
+test('scrambleNetToParThru: no holes played yet returns null, not zero', () => {
+  const result = scrambleNetToParThru(Array(18).fill(null), Array(18).fill(0), Array(18).fill(4));
+  assert.deepEqual(result, { netToPar: null, played: 0 });
+});
+
+test('scrambleRoundComplete: true only once every one of the 18 holes has a gross score', () => {
+  assert.equal(scrambleRoundComplete(Array(18).fill(4)), true);
+  const partial = Array(18).fill(4); partial[17] = null;
+  assert.equal(scrambleRoundComplete(partial), false);
+});
+
+test('applyPlayerGroupMove: moves a player into a group, removing them from any other group first', () => {
+  const groups = { a4: [1, 2], a3: [3], b4: [], b3: [] };
+  const result = applyPlayerGroupMove(groups, 3, 'a4');
+  assert.deepEqual(result.a4.sort(), [1, 2, 3]);
+  assert.deepEqual(result.a3, []);
+});
+
+test('applyPlayerGroupMove: a null groupCode removes the player from every group without reassigning', () => {
+  const groups = { a4: [1, 2], a3: [], b4: [], b3: [] };
+  const result = applyPlayerGroupMove(groups, 1, null);
+  assert.deepEqual(result.a4, [2]);
+  assert.deepEqual(result.a3, []);
+});
+
+test('applyUpdateToState: day2_hole sets and clears one group\'s gross score for one hole', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_hole', field_key: 'a4_7', value: '5' });
+  assert.equal(state.day2.holes.a4[6], 5);
+  applyUpdateToState(state, { update_type: 'day2_hole', field_key: 'a4_7', value: 'null' });
+  assert.equal(state.day2.holes.a4[6], null);
+});
+
+test('applyUpdateToState: day2_hole clamps to DAY2_HOLE_GROSS_MIN/MAX', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_hole', field_key: 'b3_1', value: '999' });
+  assert.equal(state.day2.holes.b3[0], DAY2_HOLE_GROSS_MAX);
+  applyUpdateToState(state, { update_type: 'day2_hole', field_key: 'b3_1', value: '-5' });
+  assert.equal(state.day2.holes.b3[0], DAY2_HOLE_GROSS_MIN);
+});
+
+test('applyUpdateToState: day2_hole rejects a malformed field_key without throwing or writing anything', () => {
+  const state = makeState();
+  const before = JSON.stringify(state.day2.holes);
+  ['c4_7', 'a4_19', 'a4_0', 'a4', 'front9'].forEach(key => {
+    assert.doesNotThrow(() => {
+      applyUpdateToState(state, { update_type: 'day2_hole', field_key: key, value: '5' });
+    });
+  });
+  assert.equal(JSON.stringify(state.day2.holes), before);
+});
+
+test('applyUpdateToState: day2_group assigns and reassigns a player between groups', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_group', player_id: 2, value: 'a4' });
+  assert.deepEqual(state.day2.groups.a4, [2]);
+  applyUpdateToState(state, { update_type: 'day2_group', player_id: 2, value: 'a3' });
+  assert.deepEqual(state.day2.groups.a4, []);
+  assert.deepEqual(state.day2.groups.a3, [2]);
+});
+
+test('applyUpdateToState: day2_group rejects an out-of-range player_id and an invalid group code', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_group', player_id: 14, value: 'a4' });
+  assert.deepEqual(state.day2.groups, { a4: [], a3: [], b4: [], b3: [] });
+  applyUpdateToState(state, { update_type: 'day2_group', player_id: 2, value: 'c9' });
+  assert.deepEqual(state.day2.groups, { a4: [], a3: [], b4: [], b3: [] });
 });

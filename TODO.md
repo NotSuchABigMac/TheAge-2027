@@ -50,7 +50,9 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 | `day1_match` | `pA` / `pB` (player assigned to the match) or `front9` / `back9` (manual result, used only when the nine has no hole-by-hole scores — see `day1_hole` below) | player id, or `'A'`\|`'T'`\|`'B'` |
 | `day1_hole` | `A1`..`A18` / `B1`..`B18` (gross score for that player on that hole) | integer gross score, 1-15 |
 | `day1_ntp` | `h8` / `h17` | nearest-the-pin winner's player id |
-| `day2_score` | `a4` / `a3` / `b4` / `b3` (4-man / 3-man group net score to par) | integer score to par |
+| `day2_score` | `a4` / `a3` / `b4` / `b3` (manual net score to par, used only when the group has no hole-by-hole scores — see `day2_hole` below) | integer score to par |
+| `day2_hole` | `a4_1`..`a4_18` / `a3_1`..`a3_18` / `b4_1`..`b4_18` / `b3_1`..`b3_18` (gross scramble score for that group on that hole) | integer gross score, 1-15 |
+| `day2_group` | — (uses `player_id`) | `'a4'` \| `'a3'` \| `'b4'` \| `'b3'` \| `null` — the scramble group that player was just moved to (or removed from all groups) |
 | `day2_ntp` | `h4` / `h16` | nearest-the-pin winner's player id |
 | `day3_stableford` | — (uses `player_id`) | net stableford score |
 | `day3_ntp` | `h7` / `h14` | nearest-the-pin winner's player id |
@@ -102,3 +104,27 @@ for it is disabled (with a "clear the hole scores" escape hatch); a nine with
 no hole data at all keeps using the manual toggle exactly as before. Either
 way, the result feeds the same unchanged `matchPoints()`, so Day 1 point
 totals are unaffected by which entry method was used.
+
+## Day 2 automatic hole-by-hole scramble scoring (issue #128)
+
+Each Day 2 scramble group (`a4`/`a3`/`b4`/`b3`) optionally carries player
+group assignments (`state.day2.groups`, synced via `day2_group`) and per-hole
+gross scores (`state.day2.holes`, 18 entries per group, synced via
+`day2_hole`). `scoring.js` exports the pure functions this is built on:
+
+- `scrambleTeamHandicap(hcps)` — standard Australian Ambrose divisors
+  (confirmed by issue #136: 25/20/15/10 for a 4-player group, 30/20/10 for a
+  3-player group, 35/15 for a 2-player group, applied lowest-handicap-first),
+  rounded to the nearest whole number.
+- `groupStrokes(handicap, strokeIndexes)` — allocates that single team
+  handicap across 18 holes via the Black Bull stroke index (`courses.js`),
+  chosen over a whole-round-only handicap so a partial round's net-to-par is
+  meaningful thru N holes, not just at 18 (confirmed decision for #128).
+- `scrambleNetToParThru`/`scrambleRoundComplete` — net-to-par summed over
+  only the holes actually played, and a check that all 18 are in.
+
+A group's net-to-par is only derived (and fed into the unchanged
+`day2GroupPoints()`/`day2Bonus()`) once its 18 holes are complete — an
+incomplete round falls back to the manual `day2_score` aggregate exactly like
+before, per the confirmed "manual fallback only" decision for an
+abandoned/unfinished round.

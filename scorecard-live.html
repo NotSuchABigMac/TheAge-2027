@@ -215,6 +215,15 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .hole-grid-table input:disabled{opacity:.4}
 .nine-status-line{font-size:.72rem;color:var(--ink-mute);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .nine-status-line .clear-btn{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:3px;padding:2px 8px;cursor:pointer}
+/* ── Day 2 scramble groups + hole-by-hole entry (issue #128) ── */
+.day2-group-team{margin-bottom:14px}
+.day2-group-team .pg-label{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px}
+.day2-group-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:.85rem}
+.day2-group-row select{font-family:var(--font-h);font-size:.75rem;background:var(--canvas);color:var(--ink);border:1px solid var(--rule-strong);border-radius:4px;padding:4px 6px}
+.derived-score{font-size:.82rem;color:var(--ink-mute);margin-top:4px}
+.derived-score .dv-big{font-family:var(--font-d);font-size:1.6rem;color:var(--ink)}
+.derived-score .clear-btn{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:3px;padding:2px 8px;cursor:pointer;margin-left:8px}
+.group-needs-players{font-size:.78rem;color:var(--ink-mute);padding:4px 0 8px}
 
 /* ── LIVE SYNC BAR ── */
 .sync-bar{max-width:1200px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--rule);background:var(--canvas-2)}
@@ -506,41 +515,55 @@ body{padding-bottom:52px}
       </div>
       <div class="info-box">Each team splits into a <strong>group of 4</strong> and a <strong>group of 3</strong>. Enter each group's net score <strong>to par</strong> (e.g. <strong>-15</strong> for 15 under). <strong>Scoring:</strong> in each grouping (4v4 and 3v3) the team with the better score wins points equal to the stroke differential — e.g. -15 beats -12 for 3pts. Whichever team's <strong>combined</strong> 4+3 score is better also takes a flat <strong>5pt bonus</strong>.</div>
       <div id="course-card-day2"></div>
+      <div class="section-header" style="padding-top:4px">
+        <div class="section-label">Groups</div>
+        <div class="section-title" style="font-size:1.3rem">Assign Scramble Groups</div>
+      </div>
+      <div class="info-box">Assign each player to their team's group of 4 or group of 3 — needed to compute the group's automatic team handicap. <strong>Once assigned, enter gross scores hole-by-hole below and the net score to par is worked out automatically</strong> (handicap strokes allocated by Black Bull's stroke index). No hole scores yet? The manual net-to-par box still works.</div>
+      <div id="day2-groups"></div>
       <div class="scramble-grid">
         <div class="scramble-team-card scramble-team-a">
           <div class="scramble-team-title" id="scramble-title-a">Team Beer</div>
           <div class="sig">
             <label>Group of 4 — Net Score to Par</label>
-            <div class="sig-row">
+            <div id="a4-manual" class="sig-row">
               <input type="number" id="a4-score" min="-20" max="20" placeholder="0" oninput="updateDay2('a4')">
               <div class="pts-badge" id="a4-pts">— pts</div>
             </div>
+            <div id="a4-derived" class="derived-score" style="display:none"></div>
           </div>
+          <div id="a4-grid"></div>
           <div class="sig">
             <label>Group of 3 — Net Score to Par</label>
-            <div class="sig-row">
+            <div id="a3-manual" class="sig-row">
               <input type="number" id="a3-score" min="-20" max="20" placeholder="0" oninput="updateDay2('a3')">
               <div class="pts-badge" id="a3-pts">— pts</div>
             </div>
+            <div id="a3-derived" class="derived-score" style="display:none"></div>
           </div>
+          <div id="a3-grid"></div>
           <div class="day-total-row"><span class="lbl">Team A Day 2 Total</span><span class="val" id="a-day2-total">0 pts</span></div>
         </div>
         <div class="scramble-team-card scramble-team-b">
           <div class="scramble-team-title" id="scramble-title-b">Team Golf</div>
           <div class="sig">
             <label>Group of 4 — Net Score to Par</label>
-            <div class="sig-row">
+            <div id="b4-manual" class="sig-row">
               <input type="number" id="b4-score" min="-20" max="20" placeholder="0" oninput="updateDay2('b4')">
               <div class="pts-badge" id="b4-pts">— pts</div>
             </div>
+            <div id="b4-derived" class="derived-score" style="display:none"></div>
           </div>
+          <div id="b4-grid"></div>
           <div class="sig">
             <label>Group of 3 — Net Score to Par</label>
-            <div class="sig-row">
+            <div id="b3-manual" class="sig-row">
               <input type="number" id="b3-score" min="-20" max="20" placeholder="0" oninput="updateDay2('b3')">
               <div class="pts-badge" id="b3-pts">— pts</div>
             </div>
+            <div id="b3-derived" class="derived-score" style="display:none"></div>
           </div>
+          <div id="b3-grid"></div>
           <div class="day-total-row"><span class="lbl">Team B Day 2 Total</span><span class="val" id="b-day2-total">0 pts</span></div>
         </div>
       </div>
@@ -705,7 +728,11 @@ const state = {
     })),
     ntp: { h8:null, h17:null } // player id nearest the pin, or null
   },
-  day2: { a4:null, a3:null, b4:null, b3:null, ntp: { h4:null, h16:null } },
+  day2: {
+    a4:null, a3:null, b4:null, b3:null, ntp: { h4:null, h16:null },
+    groups: { a4: [], a3: [], b4: [], b3: [] }, // player ids assigned to each scramble group (issue #128)
+    holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) }
+  },
   day3: { scores:{}, ntp: { h7:null, h14:null } }, // scores: id -> stableford score string
   tiebreak: null // null | 'A' | 'B' — sudden-death putt-off winner
 };
@@ -718,6 +745,8 @@ const {
   matchStrokes, holeResult, nineStatus, effectiveNines,
   ntpTeamPoints,
   parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
+  DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
+  scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
@@ -836,7 +865,11 @@ function normalizeState() {
     state.day1 = { matches: [], ntp: { h8: null, h17: null } };
   }
   if (typeof state.day2 !== 'object' || state.day2 === null) {
-    state.day2 = { a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null } };
+    state.day2 = {
+      a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null },
+      groups: { a4: [], a3: [], b4: [], b3: [] },
+      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) }
+    };
   }
   if (typeof state.day3 !== 'object' || state.day3 === null) {
     state.day3 = { scores: {}, ntp: { h7: null, h14: null } };
@@ -849,12 +882,14 @@ function normalizeState() {
   // Pads/repairs a hole-scores array to exactly 18 entries so a
   // stale/malformed synced payload (missing holesA/holesB entirely, or an
   // array of the wrong length) can't crash the per-hole grid.
-  function normalizedHoles(arr) {
+  function normalizedHoles(arr, min, max) {
+    const lo = min === undefined ? DAY1_GROSS_MIN : min;
+    const hi = max === undefined ? DAY1_GROSS_MAX : max;
     const out = Array(18).fill(null);
     if (Array.isArray(arr)) {
       for (let i = 0; i < 18; i++) {
         const n = parseIntOrNull(arr[i]);
-        out[i] = n === null ? null : Math.max(DAY1_GROSS_MIN, Math.min(DAY1_GROSS_MAX, n));
+        out[i] = n === null ? null : Math.max(lo, Math.min(hi, n));
       }
     }
     return out;
@@ -875,6 +910,32 @@ function normalizeState() {
   if (!state.day2.ntp) state.day2.ntp = { h4:null, h16:null };
   if (state.day2.a2 !== undefined) { if (state.day2.a3 === undefined) state.day2.a3 = state.day2.a2; delete state.day2.a2; }
   if (state.day2.b2 !== undefined) { if (state.day2.b3 === undefined) state.day2.b3 = state.day2.b2; delete state.day2.b2; }
+  // Group assignments/hole scores (issue #128) -- pad/repair the same way
+  // holesA/holesB is above, so a stale/pre-#128 saved payload can't crash
+  // the scramble grid.
+  const GROUP_CODES = ['a4', 'a3', 'b4', 'b3'];
+  if (typeof state.day2.groups !== 'object' || state.day2.groups === null) {
+    state.day2.groups = { a4: [], a3: [], b4: [], b3: [] };
+  } else {
+    const seen = new Set();
+    GROUP_CODES.forEach(code => {
+      const raw = Array.isArray(state.day2.groups[code]) ? state.day2.groups[code] : [];
+      // A player should never structurally belong to two groups at once --
+      // first group (in a4/a3/b4/b3 order) wins, same self-heal philosophy
+      // as dedupeTeams().
+      state.day2.groups[code] = raw.filter(id => {
+        const n = parseIntOrNull(id);
+        if (n === null || seen.has(n)) return false;
+        seen.add(n);
+        return true;
+      });
+    });
+  }
+  if (typeof state.day2.holes !== 'object' || state.day2.holes === null) {
+    state.day2.holes = { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) };
+  } else {
+    GROUP_CODES.forEach(code => { state.day2.holes[code] = normalizedHoles(state.day2.holes[code], DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX); });
+  }
   if (!state.day3.scores) {
     const old = state.day3;
     state.day3 = { scores: old.scores || old || {}, ntp: old.ntp || { h7:null, h14:null } };
@@ -1181,7 +1242,7 @@ function holeGridNineHtml(mi, match, strokes, startIdx) {
     return holeIndexes.map(i => {
       const holeNum = i + 1;
       const val = arr[i];
-      return `<td><input type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
+      return `<td><input class="grid-in" type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
         value="${val === null ? '' : val}"
         onchange="setHoleScore(${mi},'${team}',${holeNum},this.value)"></td>`;
     }).join('');
@@ -1198,6 +1259,11 @@ function holeGridNineHtml(mi, match, strokes, startIdx) {
 }
 
 function renderDay1() {
+  // A poll-triggered re-render fully rebuilds every match card (destroying
+  // and recreating each hole-grid <input>) -- doing that while the user is
+  // mid-keystroke in one would drop focus and whatever they'd typed, same
+  // reasoning as renderDay3()'s sf-in guard.
+  if (document.activeElement && document.activeElement.classList.contains('grid-in')) return;
   const container = document.getElementById('day1-matches');
   container.innerHTML = '';
   // Every match dropdown otherwise just offers "— pick player —" with
@@ -1476,6 +1542,207 @@ function setDay3Ntp(hole, val) {
 /* ─────────────────────────────────────
    DAY 2 — SCRAMBLE
 ───────────────────────────────────── */
+const DAY2_GROUP_CODES = ['a4', 'a3', 'b4', 'b3'];
+const DAY2_GROUP_TEAM = { a4: 'A', a3: 'A', b4: 'B', b3: 'B' };
+
+function groupOf(playerId) {
+  for (const code of DAY2_GROUP_CODES) {
+    if (state.day2.groups[code].includes(playerId)) return code;
+  }
+  return null;
+}
+
+// Black Bull's par/stroke index per hole, in hole order (issue #122's
+// courses.js). Falls back to flat par-4/ascending-SI if courses.js
+// somehow isn't loaded, matching day1StrokeIndexes()'s degrade-gracefully
+// approach.
+function day2CourseHoles() {
+  const course = COURSES && COURSES[2];
+  return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
+}
+
+function day2GroupHandicap(code) {
+  const ids = state.day2.groups[code];
+  const hcps = ids.map(id => (PLAYERS.find(p => p.id === id) || {}).hcp).filter(h => h !== undefined);
+  if (hcps.length !== ids.length) return null; // stale id no longer a real player
+  return scrambleTeamHandicap(hcps);
+}
+
+function renderDay2Groups() {
+  const container = document.getElementById('day2-groups');
+  if (!container) return;
+  const teamLabel = { A: state.teamNameA, B: state.teamNameB };
+  let html = '';
+  ['A', 'B'].forEach(team => {
+    const players = PLAYERS.filter(p => teamOf(p.id) === team);
+    html += `<div class="day2-group-team"><div class="pg-label">${escapeHtml(teamLabel[team])}</div>`;
+    if (players.length === 0) {
+      html += `<div class="grey" style="font-size:.82rem">No players drafted to this team yet.</div>`;
+    }
+    players.forEach(p => {
+      const current = groupOf(p.id);
+      const fourCode = team === 'A' ? 'a4' : 'b4';
+      const threeCode = team === 'A' ? 'a3' : 'b3';
+      html += `<div class="day2-group-row"><span>${escapeHtml(p.short)} (${p.hcp})</span>
+        <select onchange="setDay2Group(${p.id}, this.value)">
+          <option value="" ${!current ? 'selected' : ''}>— unassigned —</option>
+          <option value="${fourCode}" ${current === fourCode ? 'selected' : ''}>Group of 4</option>
+          <option value="${threeCode}" ${current === threeCode ? 'selected' : ''}>Group of 3</option>
+        </select></div>`;
+    });
+    html += `</div>`;
+  });
+  container.innerHTML = html;
+}
+
+function setDay2Group(playerId, groupCode) {
+  requireUsername(() => {
+    const code = groupCode || null;
+    state.day2.groups = applyPlayerGroupMove(state.day2.groups, playerId, code);
+    saveState();
+    insertUpdate('day2_group', { player_id: playerId, value: code });
+    renderDay2Groups();
+    renderDay2AllGroupCards();
+    updateScoreboard();
+  });
+}
+
+// One group's manual-vs-derived card: the aggregate input/points badge
+// when there's no hole data yet, or the computed handicap + net-to-par +
+// hole grid once hole scores exist for this group -- same precedence
+// rule as #124's effectiveNines (any hole data makes the derived value
+// authoritative; manual is only used when a group has no hole data at all).
+function renderDay2GroupCard(code) {
+  const manualEl = document.getElementById(code + '-manual');
+  const derivedEl = document.getElementById(code + '-derived');
+  const gridEl = document.getElementById(code + '-grid');
+  if (!manualEl || !derivedEl || !gridEl) return;
+
+  const ids = state.day2.groups[code];
+  const holes = state.day2.holes[code];
+  const hasData = holes.some(h => h !== null);
+  const handicap = day2GroupHandicap(code);
+  const courseHoles = day2CourseHoles();
+  const pars = courseHoles.map(h => h.par);
+  const sis = courseHoles.map(h => h.si);
+
+  if (!hasData) {
+    manualEl.style.display = '';
+    derivedEl.style.display = 'none';
+  } else {
+    manualEl.style.display = 'none';
+    derivedEl.style.display = '';
+    const strokes = handicap === null ? Array(18).fill(0) : groupStrokes(handicap, sis);
+    const complete = scrambleRoundComplete(holes);
+    const { netToPar, played } = scrambleNetToParThru(holes, strokes, pars);
+    const ntpStr = netToPar === null ? '—' : (netToPar > 0 ? '+' + netToPar : String(netToPar));
+    derivedEl.innerHTML = `
+      <span class="dv-big">${ntpStr}</span> to par ${complete ? '' : `(thru ${played})`}
+      ${handicap !== null ? ` · Team HCP ${handicap}` : ' · assign players to compute handicap'}
+      <button type="button" class="clear-btn" onclick="clearDay2GroupHoles('${code}')">Clear hole scores to enter manually</button>`;
+  }
+
+  if (ids.length < 2 || ids.length > 4) {
+    gridEl.innerHTML = `<div class="group-needs-players">Assign at least 2 players to this group to enable hole-by-hole entry (currently ${ids.length}).</div>`;
+    return;
+  }
+  const names = ids.map(id => (PLAYERS.find(p => p.id === id) || {}).short || '?').join(', ');
+  const strokes = handicap === null ? Array(18).fill(0) : groupStrokes(handicap, sis);
+  gridEl.innerHTML = `
+    <details class="hole-grid-details">
+      <summary class="hole-grid-summary">Hole-by-hole entry — ${escapeHtml(names)}</summary>
+      ${day2HoleGridNineHtml(code, holes, strokes, courseHoles, 0)}
+      ${day2HoleGridNineHtml(code, holes, strokes, courseHoles, 9)}
+    </details>`;
+}
+
+// Guards against a poll-triggered rebuild dropping focus/keystrokes in a
+// hole-grid input, same reasoning as renderDay1()'s grid-in guard -- only
+// applied to the periodic bulk re-render, not to the single-group refresh
+// setDay2HoleScore()/clearDay2GroupHoles() do right after their own commit.
+function renderDay2AllGroupCards() {
+  if (document.activeElement && document.activeElement.classList.contains('grid-in')) return;
+  DAY2_GROUP_CODES.forEach(renderDay2GroupCard);
+}
+
+function day2HoleGridNineHtml(code, holes, strokes, courseHoles, startIdx) {
+  const holeIndexes = Array.from({ length: 9 }, (_, i) => startIdx + i);
+  const ntpHoles = NTP_HOLES[2] || [];
+  const headerCells = holeIndexes.map(i => {
+    const holeNum = i + 1;
+    const isNtp = ntpHoles.includes(holeNum);
+    return `<th class="${isNtp ? 'ntp' : ''}">${holeNum}${isNtp ? ' 📍' : ''}</th>`;
+  }).join('');
+  const dotsRow = holeIndexes.map(i => `<td class="dots">${strokes[i] > 0 ? '●'.repeat(strokes[i]) : ''}</td>`).join('');
+  const parRow = holeIndexes.map(i => `<td>${courseHoles[i].par}</td>`).join('');
+  const inputRow = holeIndexes.map(i => {
+    const holeNum = i + 1;
+    const val = holes[i];
+    return `<td><input class="grid-in" type="number" inputmode="numeric" min="${DAY2_HOLE_GROSS_MIN}" max="${DAY2_HOLE_GROSS_MAX}"
+      value="${val === null ? '' : val}"
+      onchange="setDay2HoleScore('${code}',${holeNum},this.value)"></td>`;
+  }).join('');
+  return `
+    <table class="hole-grid-table">
+      <thead><tr><th class="rlab">Hole</th>${headerCells}</tr></thead>
+      <tbody>
+        <tr><td class="rlab">Par</td>${parRow}</tr>
+        <tr><td class="rlab">Strokes</td>${dotsRow}</tr>
+        <tr><td class="rlab">Gross</td>${inputRow}</tr>
+      </tbody>
+    </table>`;
+}
+
+function setDay2HoleScore(code, holeNum, rawVal) {
+  requireUsername(() => {
+    const n = parseIntOrNull(rawVal);
+    const clamped = n === null ? null : Math.max(DAY2_HOLE_GROSS_MIN, Math.min(DAY2_HOLE_GROSS_MAX, n));
+    state.day2.holes[code][holeNum - 1] = clamped;
+    saveState();
+    insertUpdate('day2_hole', { field_key: `${code}_${holeNum}`, value: clamped });
+    renderDay2GroupCard(code);
+    _doUpdateDay2();
+  });
+}
+
+function clearDay2GroupHoles(code) {
+  requireUsername(() => {
+    const holes = state.day2.holes[code];
+    holes.forEach((v, i) => {
+      if (v !== null) {
+        holes[i] = null;
+        insertUpdate('day2_hole', { field_key: `${code}_${i + 1}`, value: null });
+      }
+    });
+    saveState();
+    renderDay2GroupCard(code);
+    _doUpdateDay2();
+  });
+}
+
+// The derived net-to-par that actually feeds calcDay2()/day2GroupPoints()
+// -- a complete group's hole data overrides the manual aggregate; an
+// incomplete or absent-hole-data group falls back to the manual value,
+// same precedence rule as effectiveMatch() for Day 1 (issue #124/#128).
+function effectiveDay2Field(code) {
+  const holes = state.day2.holes[code];
+  if (!holes.some(h => h !== null)) return state.day2[code];
+  if (!scrambleRoundComplete(holes)) return null;
+  const handicap = day2GroupHandicap(code);
+  if (handicap === null) return null;
+  const courseHoles = day2CourseHoles();
+  const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
+  const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
+  return netToPar === null ? null : String(netToPar);
+}
+
+function effectiveDay2State() {
+  return {
+    a4: effectiveDay2Field('a4'), a3: effectiveDay2Field('a3'),
+    b4: effectiveDay2Field('b4'), b3: effectiveDay2Field('b3')
+  };
+}
+
 // Only the box the user actually touched may be synced -- emitting all
 // four fields from this device's local state on every keystroke lets one
 // scorer's stale copy of the OTHER team's not-yet-polled-in score
@@ -1502,7 +1769,10 @@ function _doUpdateDay2() {
     if (r.changed) state.day2[id] = r.stored;
   });
 
-  const result = calcDay2Points(state.day2);
+  // calcDay2Points() itself is unchanged (issue #128) -- only the
+  // a4/a3/b4/b3 fed into it now come from effectiveDay2State() (derived
+  // from complete hole-by-hole data where it exists, manual otherwise).
+  const result = calcDay2Points(effectiveDay2State());
   const setBadge = (id, pts) => {
     const el = document.getElementById(id + '-pts');
     if (!el) return;
@@ -1549,6 +1819,8 @@ function restoreDay2() {
     }
   });
   renderDay2Ntp();
+  renderDay2Groups();
+  renderDay2AllGroupCards();
   _doUpdateDay2();
 }
 
@@ -1646,7 +1918,7 @@ function calcDay1() {
 }
 
 function calcDay2() {
-  const scramble = calcDay2Points(state.day2);
+  const scramble = calcDay2Points(effectiveDay2State());
   const ntp = ntpPointsFor(state.day2.ntp, ['h4','h16']);
   return { a: scramble.a + ntp.a, b: scramble.b + ntp.b, scramble, ntp };
 }
@@ -1663,7 +1935,8 @@ function isDay1Complete() {
 }
 
 function isDay2Complete() {
-  return ['a4','a3','b4','b3'].every(k => state.day2[k] !== null && state.day2[k] !== undefined && state.day2[k] !== '');
+  const eff = effectiveDay2State();
+  return ['a4','a3','b4','b3'].every(k => eff[k] !== null && eff[k] !== undefined && eff[k] !== '');
 }
 
 function isDay3Complete() {
