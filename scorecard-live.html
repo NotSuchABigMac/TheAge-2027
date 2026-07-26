@@ -224,6 +224,15 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .derived-score .dv-big{font-family:var(--font-d);font-size:1.6rem;color:var(--ink)}
 .derived-score .clear-btn{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:3px;padding:2px 8px;cursor:pointer;margin-left:8px}
 .group-needs-players{font-size:.78rem;color:var(--ink-mute);padding:4px 0 8px}
+/* ── Admin field history + restore (issues #129, #132) ── */
+.history-table-wrap{overflow-x:auto}
+.history-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.history-table th,.history-table td{text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb,var(--rule-strong) 50%,transparent);white-space:nowrap}
+.history-table tr.current-row{background:color-mix(in srgb,var(--gold) 10%,transparent)}
+.history-table .current-tag{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;color:var(--gold);margin-left:6px}
+.history-table .restore-btn{font-size:.68rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--gold);color:var(--gold);border-radius:3px;padding:3px 10px;cursor:pointer}
+.history-empty{font-size:.85rem;color:var(--ink-mute);padding:10px 0}
+.history-cascade-note{font-size:.72rem;color:var(--ink-mute);margin-top:6px}
 
 /* ── LIVE SYNC BAR ── */
 .sync-bar{max-width:1200px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--rule);background:var(--canvas-2)}
@@ -644,6 +653,21 @@ body{padding-bottom:52px}
         </div>
       </div>
       <button class="username-btn" style="max-width:280px;margin-top:16px" onclick="rollbackScores()">Rollback Scores</button>
+
+      <div class="section-header" style="padding-top:32px">
+        <div class="section-label">Admin</div>
+        <div class="section-title">Field History</div>
+      </div>
+      <div class="info-box">Look up every value a field has ever held, who set it, and when — read-only, never changes live scores. Rows already removed by a rollback are gone from history too.</div>
+      <div class="ntp-grid">
+        <div class="sig">
+          <label for="history-type">Field type</label>
+          <select id="history-type" onchange="renderHistoryContext()"></select>
+        </div>
+        <div class="sig" id="history-context"></div>
+      </div>
+      <button class="username-btn" style="max-width:280px;margin-top:12px" onclick="loadFieldHistory()">Show History</button>
+      <div id="history-results" style="margin-top:20px"></div>
     </div>
 
   </div><!-- /page-content -->
@@ -750,7 +774,8 @@ const {
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
-  parseIntOrNull, applyUpdateToState
+  parseIntOrNull, applyUpdateToState,
+  UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow
 } = WongaScoring;
 // Static course data (par/stroke index/distance) lives in courses.js (issue #122)
 const { COURSES, NTP_HOLES } = WongaCourses;
@@ -2234,6 +2259,191 @@ async function rollbackScores() {
 }
 
 /* ─────────────────────────────────────
+   ADMIN — FIELD HISTORY + RESTORE (issues #129, #132)
+   Read-only lookup of a field's full change history (who set what, when),
+   plus a per-row Restore that re-inserts an old value as a brand-new row
+   -- the log itself is never edited or deleted, so history stays intact
+   and the restore is itself visible afterwards as the newest entry.
+───────────────────────────────────── */
+function initHistoryPicker() {
+  const sel = document.getElementById('history-type');
+  if (!sel) return;
+  sel.innerHTML = Object.entries(UPDATE_TYPE_DESCRIPTORS)
+    .map(([type, d]) => `<option value="${type}">${escapeHtml(d.label)}</option>`).join('');
+  renderHistoryContext();
+}
+
+// Renders the follow-up selector(s) a field type needs to fully address one
+// specific field instance -- driven entirely by UPDATE_TYPE_DESCRIPTORS'
+// `addressing`, so a new update_type only needs one descriptor entry to
+// get a working picker, not new UI code here.
+function renderHistoryContext() {
+  const sel = document.getElementById('history-type');
+  const ctx = document.getElementById('history-context');
+  if (!sel || !ctx) return;
+  const d = UPDATE_TYPE_DESCRIPTORS[sel.value];
+  if (!d) { ctx.innerHTML = ''; return; }
+  const matchOptions = () => Array.from({ length: 6 }, (_, i) => `<option value="${i}">Match ${i + 1}</option>`).join('');
+  const holeOptions = () => Array.from({ length: 18 }, (_, i) => `<option value="${i + 1}">Hole ${i + 1}</option>`).join('');
+  const fieldKeyOptions = () => (d.fieldKeys || []).map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+  const playerSelectOptions = () => PLAYERS.map(p => `<option value="${p.id}">${escapeHtml(p.short)}</option>`).join('');
+  if (d.addressing === 'match+field') {
+    ctx.innerHTML = `<label>Match / field</label><div style="display:flex;gap:8px">
+      <select id="history-ctx-match">${matchOptions()}</select>
+      <select id="history-ctx-fieldkey">${fieldKeyOptions()}</select></div>`;
+  } else if (d.addressing === 'match+hole') {
+    ctx.innerHTML = `<label>Match / team / hole</label><div style="display:flex;gap:8px">
+      <select id="history-ctx-match">${matchOptions()}</select>
+      <select id="history-ctx-side"><option value="A">Team A</option><option value="B">Team B</option></select>
+      <select id="history-ctx-hole">${holeOptions()}</select></div>`;
+  } else if (d.addressing === 'group+hole') {
+    ctx.innerHTML = `<label>Group / hole</label><div style="display:flex;gap:8px">
+      <select id="history-ctx-group"><option value="a4">A · Group of 4</option><option value="a3">A · Group of 3</option><option value="b4">B · Group of 4</option><option value="b3">B · Group of 3</option></select>
+      <select id="history-ctx-hole">${holeOptions()}</select></div>`;
+  } else if (d.addressing === 'field') {
+    ctx.innerHTML = `<label>Field</label><select id="history-ctx-fieldkey">${fieldKeyOptions()}</select>`;
+  } else if (d.addressing === 'player') {
+    ctx.innerHTML = `<label>Player</label><select id="history-ctx-player">${playerSelectOptions()}</select>`;
+  } else {
+    ctx.innerHTML = `<label>&nbsp;</label><div class="grey" style="font-size:.82rem">No further selection needed.</div>`;
+  }
+}
+
+function currentHistoryCoords() {
+  const type = document.getElementById('history-type').value;
+  const d = UPDATE_TYPE_DESCRIPTORS[type];
+  const coords = { update_type: type, match_idx: null, player_id: null, field_key: null };
+  if (d.addressing === 'match+field') {
+    coords.match_idx = parseInt(document.getElementById('history-ctx-match').value, 10);
+    coords.field_key = document.getElementById('history-ctx-fieldkey').value;
+  } else if (d.addressing === 'match+hole') {
+    coords.match_idx = parseInt(document.getElementById('history-ctx-match').value, 10);
+    coords.field_key = document.getElementById('history-ctx-side').value + document.getElementById('history-ctx-hole').value;
+  } else if (d.addressing === 'group+hole') {
+    coords.field_key = document.getElementById('history-ctx-group').value + '_' + document.getElementById('history-ctx-hole').value;
+  } else if (d.addressing === 'field') {
+    coords.field_key = document.getElementById('history-ctx-fieldkey').value;
+  } else if (d.addressing === 'player') {
+    coords.player_id = parseInt(document.getElementById('history-ctx-player').value, 10);
+  }
+  return coords;
+}
+
+let _lastHistoryRows = [];
+
+async function loadFieldHistory() {
+  if (currentUsername !== 'James McIntyre') return;
+  const resultsEl = document.getElementById('history-results');
+  if (!resultsEl) return;
+  const coords = currentHistoryCoords();
+  resultsEl.innerHTML = '<div class="history-empty">Loading…</div>';
+  try {
+    // Read-only GET, filtered to this exact field's coordinates -- entirely
+    // independent of LAST_SYNC_KEY/the sync cursor/local state, so viewing
+    // history can never disturb live scoring on this or any other device.
+    const params = new URLSearchParams({
+      tournament_id: `eq.${SUPABASE_CONFIG.tournamentId}`,
+      update_type: `eq.${coords.update_type}`,
+      order: 'updated_at.desc',
+      limit: '200'
+    });
+    if (coords.match_idx !== null) params.set('match_idx', `eq.${coords.match_idx}`);
+    if (coords.player_id !== null) params.set('player_id', `eq.${coords.player_id}`);
+    if (coords.field_key !== null) params.set('field_key', `eq.${coords.field_key}`);
+    const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?${params.toString()}`;
+    const resp = await fetch(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    _lastHistoryRows = await resp.json();
+    renderHistoryResults();
+  } catch (err) {
+    console.error('Field history load failed:', err.message);
+    resultsEl.innerHTML = '<div class="history-empty">✗ Could not load history — check your connection and try again.</div>';
+  }
+}
+
+function historyTeamNames() {
+  return { A: state.teamNameA, B: state.teamNameB };
+}
+
+function renderHistoryResults() {
+  const resultsEl = document.getElementById('history-results');
+  if (!resultsEl) return;
+  const rows = _lastHistoryRows;
+  if (rows.length === 0) {
+    resultsEl.innerHTML = '<div class="history-empty">No changes recorded for this field. (Rows already removed by a rollback no longer appear here.)</div>';
+    return;
+  }
+  const type = rows[0].update_type;
+  const d = UPDATE_TYPE_DESCRIPTORS[type] || {};
+  const restorable = isRestorable(type);
+  const fieldLabel = describeUpdateRow(rows[0], PLAYERS, historyTeamNames()).fieldLabel;
+  let html = `<div style="font-size:.85rem;color:var(--ink-mute);margin-bottom:8px">${escapeHtml(fieldLabel)}</div>
+    <div class="history-table-wrap"><table class="history-table"><thead><tr>
+      <th>When</th><th>By</th><th>Value</th><th></th>
+    </tr></thead><tbody>`;
+  rows.forEach((row, i) => {
+    const decoded = describeUpdateRow(row, PLAYERS, historyTeamNames());
+    const isCurrent = i === 0;
+    const when = new Date(row.updated_at).toLocaleString();
+    const actionCell = (!isCurrent && restorable)
+      ? `<button type="button" class="restore-btn" onclick="restoreHistoryRow(${i})">Restore</button>`
+      : (!restorable && isCurrent ? '' : (!restorable ? '<span class="grey" style="font-size:.7rem">not restorable</span>' : ''));
+    html += `<tr class="${isCurrent ? 'current-row' : ''}">
+      <td>${escapeHtml(when)}${isCurrent ? '<span class="current-tag">current</span>' : ''}</td>
+      <td>${escapeHtml(row.updated_by || '—')}</td>
+      <td>${escapeHtml(decoded.valueLabel)}</td>
+      <td>${actionCell}</td>
+    </tr>`;
+  });
+  html += `</tbody></table></div>`;
+  if (!restorable) {
+    html += `<div class="history-cascade-note">Team roster snapshots (\`team_assign\`) aren't restorable — restore team membership through individual player moves instead.</div>`;
+  } else if (d.cascadeWarning) {
+    html += `<div class="history-cascade-note">${escapeHtml(d.cascadeWarning)}</div>`;
+  }
+  resultsEl.innerHTML = html;
+}
+
+// insertUpdate()'s row-building treats an explicitly-passed null field_key
+// differently from an omitted one (an omitted key stays real SQL null; an
+// explicit null gets stringified to the text "null") -- buildRestoreRow()'s
+// coordinates always include all four keys (using null for the ones a
+// given update_type doesn't use), so this strips the inapplicable ones
+// back out before handing off to insertUpdate, keeping a restored row
+// byte-identical in shape to one entered normally.
+function toInsertFields(payload) {
+  const fields = { value: payload.value };
+  if (payload.match_idx !== null && payload.match_idx !== undefined) fields.match_idx = payload.match_idx;
+  if (payload.player_id !== null && payload.player_id !== undefined) fields.player_id = payload.player_id;
+  if (payload.field_key !== null && payload.field_key !== undefined) fields.field_key = payload.field_key;
+  return fields;
+}
+
+function restoreHistoryRow(index) {
+  if (currentUsername !== 'James McIntyre') return;
+  const row = _lastHistoryRows[index];
+  if (!row || !isRestorable(row.update_type)) return;
+  const restoreDecoded = describeUpdateRow(row, PLAYERS, historyTeamNames());
+  const currentDecoded = describeUpdateRow(_lastHistoryRows[0], PLAYERS, historyTeamNames());
+  const d = UPDATE_TYPE_DESCRIPTORS[row.update_type] || {};
+  let msg = `Restore ${restoreDecoded.fieldLabel} to "${restoreDecoded.valueLabel}"? Current value: "${currentDecoded.valueLabel}". This will sync to every device.`;
+  if (d.cascadeWarning) msg += `\n\n${d.cascadeWarning}`;
+  if (!confirm(msg)) return;
+
+  const payload = buildRestoreRow(row);
+  // Apply locally right away (same immediacy as any normal edit) via the
+  // same replay path every synced row goes through, so a restore also gets
+  // whatever defensive cascade its update_type carries (e.g. player_team's
+  // stale Day 1 slot cleanup) for free.
+  applyUpdateToState(state, payload);
+  saveState();
+  insertUpdate(payload.update_type, toInsertFields(payload));
+  refreshAllDays();
+  showSaveToast('✓ Restored', 'success');
+  loadFieldHistory();
+}
+
+/* ─────────────────────────────────────
    USERNAME & LOGIN
 ───────────────────────────────────── */
 var _pendingAction = null;
@@ -2398,6 +2608,7 @@ try {
   renderCourseCard(1);
   renderCourseCard(2);
   renderCourseCard(3);
+  initHistoryPicker();
   renderTeams();
   renderDay1();
   restoreDay2();

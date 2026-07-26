@@ -128,3 +128,37 @@ A group's net-to-par is only derived (and fed into the unchanged
 incomplete round falls back to the manual `day2_score` aggregate exactly like
 before, per the confirmed "manual fallback only" decision for an
 abandoned/unfinished round.
+
+## Admin: field history + restore (issues #129, #132)
+
+The Admin tab's "Field History" section is a read-only lookup of a field's
+full change history (who set what, when) plus a per-row Restore. Both are
+built on the transaction log's existing shape rather than anything new:
+
+- `UPDATE_TYPE_DESCRIPTORS` (`scoring.js`) is one small table describing, per
+  `update_type`: a human label, how it's addressed (which selector(s) the
+  Admin picker needs — a match, a player, a fixed field key, a match+hole, a
+  group+hole, or nothing), whether it's restorable, and an optional cascade
+  warning. A new `update_type` gets history + restore support by adding one
+  entry here, not new UI code.
+- `describeUpdateRow(row, players, teamNames)` decodes one raw row into
+  `{fieldLabel, valueLabel}` — player ids to names, `'A'`/`'B'`/`'T'` to team
+  names/"Tie", `null` to `"(cleared)"`. It's the read-side mirror of
+  `applyUpdateToState()` and must be kept in sync with it.
+- History is fetched directly (`GET .../tournament_updates?...&order=updated_at.desc&limit=200`),
+  entirely independent of `LAST_SYNC_KEY`/the sync cursor/local state, so
+  viewing it never disturbs live scoring. Rows already removed by a rollback
+  are gone from history too — that's inherent to the log-based design.
+- `buildRestoreRow(historicRow)` copies a historic row's coordinates and
+  value, dropping `id`/`updated_at`/`updated_by` so the restore gets a fresh
+  timestamp and is attributed to whoever restored it, not the original
+  author. The restore is inserted as a **new row** via the normal
+  `insertUpdate()` path (so it queues offline like any other write) and
+  applied locally right away via `applyUpdateToState()`, inheriting whatever
+  defensive cascade its `update_type` carries (e.g. `player_team`'s stale
+  Day 1 slot cleanup).
+- `team_assign` rows are the one deliberate exclusion (`isRestorable()`
+  returns `false`) — they're legacy whole-roster snapshots, and re-imposing
+  one over later per-player deltas is exactly the corruption pattern issue
+  #71 was about. Restoring team membership goes through individual
+  `player_team` rows instead.

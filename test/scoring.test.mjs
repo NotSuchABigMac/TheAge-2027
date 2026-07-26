@@ -15,7 +15,8 @@ const {
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
-  parseIntOrNull, applyUpdateToState
+  parseIntOrNull, applyUpdateToState,
+  UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow
 } = require('../scoring.js');
 
 /* ── HTML Escaping (issue #58 — stored XSS via team names) ── */
@@ -1104,4 +1105,96 @@ test('applyUpdateToState: day2_group rejects an out-of-range player_id and an in
   assert.deepEqual(state.day2.groups, { a4: [], a3: [], b4: [], b3: [] });
   applyUpdateToState(state, { update_type: 'day2_group', player_id: 2, value: 'c9' });
   assert.deepEqual(state.day2.groups, { a4: [], a3: [], b4: [], b3: [] });
+});
+
+/* ── ADMIN: FIELD HISTORY + RESTORE (issues #129, #132) ── */
+
+const TEST_PLAYERS = [
+  { id: 0, name: 'Alice Anderson', short: 'A. Anderson' },
+  { id: 1, name: 'Bob Baker', short: 'B. Baker' }
+];
+const TEST_TEAM_NAMES = { A: 'Team Beer', B: 'Team Golf' };
+
+test('describeUpdateRow: day1_match decodes pA/front9 into human labels, including cleared values', () => {
+  const pA = describeUpdateRow({ update_type: 'day1_match', match_idx: 2, field_key: 'pA', value: '0' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(pA.fieldLabel, 'Match 3 · Team A slot');
+  assert.equal(pA.valueLabel, 'A. Anderson');
+  const front9 = describeUpdateRow({ update_type: 'day1_match', match_idx: 0, field_key: 'front9', value: null }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(front9.fieldLabel, 'Match 1 · Front 9');
+  assert.equal(front9.valueLabel, '(cleared)');
+  const tie = describeUpdateRow({ update_type: 'day1_match', match_idx: 0, field_key: 'back9', value: 'T' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(tie.valueLabel, 'Tie');
+});
+
+test('describeUpdateRow: day1_hole decodes the hole/team from the field_key', () => {
+  const result = describeUpdateRow({ update_type: 'day1_hole', match_idx: 4, field_key: 'B7', value: '5' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(result.fieldLabel, 'Match 5 · Hole 7 (Team B slot)');
+  assert.equal(result.valueLabel, '5');
+});
+
+test('describeUpdateRow: day2_group and player_team decode the team name and player name', () => {
+  const group = describeUpdateRow({ update_type: 'day2_group', player_id: 1, value: 'a4' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(group.fieldLabel, 'Day 2 Group · B. Baker');
+  assert.equal(group.valueLabel, 'A4');
+  const move = describeUpdateRow({ update_type: 'player_team', player_id: 0, value: 'B' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(move.fieldLabel, 'Player Team · A. Anderson');
+  assert.equal(move.valueLabel, 'Team Golf');
+});
+
+test('describeUpdateRow: an unknown player_id renders a safe fallback instead of throwing', () => {
+  const result = describeUpdateRow({ update_type: 'day3_stableford', player_id: 99, value: '38' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(result.fieldLabel, 'Day 3 Stableford · Player #99');
+  assert.equal(result.valueLabel, '38');
+});
+
+test('describeUpdateRow: an unrecognized update_type renders raw info instead of crashing', () => {
+  assert.doesNotThrow(() => {
+    const result = describeUpdateRow({ update_type: 'some_future_type', value: 'x' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+    assert.match(result.fieldLabel, /some_future_type/);
+    assert.equal(result.valueLabel, 'x');
+  });
+});
+
+test('describeUpdateRow: covers every update_type in UPDATE_TYPE_DESCRIPTORS without throwing', () => {
+  Object.keys(UPDATE_TYPE_DESCRIPTORS).forEach(type => {
+    assert.doesNotThrow(() => {
+      describeUpdateRow({ update_type: type, match_idx: 0, player_id: 0, field_key: 'pA', value: '0' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+    });
+  });
+});
+
+test('isRestorable: every update_type is restorable except the legacy team_assign snapshot', () => {
+  Object.keys(UPDATE_TYPE_DESCRIPTORS).forEach(type => {
+    assert.equal(isRestorable(type), type !== 'team_assign');
+  });
+  assert.equal(isRestorable('not_a_real_type'), false);
+});
+
+test('buildRestoreRow: preserves field coordinates and value, dropping identity/authorship fields', () => {
+  const historic = { id: 'uuid-123', update_type: 'day1_match', match_idx: 2, field_key: 'front9', value: 'A', updated_by: 'Old Author', updated_at: '2020-01-01T00:00:00Z' };
+  const restored = buildRestoreRow(historic);
+  assert.deepEqual(restored, { update_type: 'day1_match', match_idx: 2, player_id: null, field_key: 'front9', value: 'A' });
+  assert.equal('id' in restored, false);
+  assert.equal('updated_by' in restored, false);
+  assert.equal('updated_at' in restored, false);
+});
+
+test('buildRestoreRow: preserves a null value (restoring to "cleared" is legitimate)', () => {
+  const historic = { update_type: 'day1_ntp', field_key: 'h8', value: null, updated_by: 'x', updated_at: 'y' };
+  const restored = buildRestoreRow(historic);
+  assert.equal(restored.value, null);
+});
+
+test('replay sequence: apply original, apply overwrite, apply restore -> state matches the original value', () => {
+  const state = makeState();
+  const original = { update_type: 'day1_match', match_idx: 1, field_key: 'front9', value: 'A' };
+  applyUpdateToState(state, original);
+  assert.equal(state.day1.matches[1].front9, 'A');
+
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'front9', value: 'B' });
+  assert.equal(state.day1.matches[1].front9, 'B');
+
+  const restoreRow = buildRestoreRow(original);
+  applyUpdateToState(state, restoreRow);
+  assert.equal(state.day1.matches[1].front9, 'A');
 });
