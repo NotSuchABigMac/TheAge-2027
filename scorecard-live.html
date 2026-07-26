@@ -210,7 +210,7 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .username-modal-card{background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:40px;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .username-modal-title{font-family:var(--font-d);font-size:2rem;letter-spacing:2px;color:var(--gold);margin-bottom:8px}
 .username-modal-desc{font-size:.95rem;color:var(--ink-mute);margin-bottom:24px}
-.username-input{width:100%;padding:12px 16px;font-family:var(--font-b);font-size:1rem;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--canvas-2);color:var(--ink);margin-bottom:16px;transition:var(--tr)}
+.username-input{width:100%;padding:12px 16px;font-family:var(--font-b);font-size:1rem;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--canvas-2);color:var(--ink);margin-bottom:16px;transition:var(--tr);cursor:pointer}
 .username-input:focus{outline:none;border-color:var(--gold);background:var(--canvas)}
 .username-input::placeholder{color:var(--ink-mute)}
 .username-btn{width:100%;padding:12px 20px;font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
@@ -289,8 +289,8 @@ body{padding-bottom:52px}
 <div id="username-modal" class="username-modal hidden" role="dialog" aria-modal="true" aria-labelledby="username-modal-title">
   <div class="username-modal-card">
     <div class="username-modal-title" id="username-modal-title">THE WONGA CUP</div>
-    <div class="username-modal-desc">Enter your name to start scoring</div>
-    <input type="text" id="username-input" class="username-input" placeholder="Your name" maxlength="30" autofocus>
+    <div class="username-modal-desc">Select your name to start scoring</div>
+    <select id="username-input" class="username-input" autofocus></select>
     <button class="username-btn" onclick="confirmUsername()">Enter Tournament</button>
     <div class="username-modal-desc" style="font-size:.75rem;margin-top:16px;color:var(--ink-mute)">Your scores will sync live across all devices</div>
   </div>
@@ -391,6 +391,7 @@ body{padding-bottom:52px}
     <button class="sc-tab" data-tab="day1" role="tab" id="tab-day1" aria-selected="false" aria-controls="sc-day1" tabindex="-1">Day 1</button>
     <button class="sc-tab" data-tab="day2" role="tab" id="tab-day2" aria-selected="false" aria-controls="sc-day2" tabindex="-1">Day 2</button>
     <button class="sc-tab" data-tab="day3" role="tab" id="tab-day3" aria-selected="false" aria-controls="sc-day3" tabindex="-1">Day 3</button>
+    <button class="sc-tab" data-tab="admin" role="tab" id="tab-admin" aria-selected="false" aria-controls="sc-admin" tabindex="-1" style="display:none">Admin</button>
   </div>
 
   <!-- ── TEAMS PANEL ── -->
@@ -562,6 +563,29 @@ body{padding-bottom:52px}
           <select id="ntp-day3-h14" onchange="setDay3Ntp('h14', this.value)"></select>
         </div>
       </div>
+    </div>
+
+    <div class="sc-panel" id="sc-admin" role="tabpanel" aria-labelledby="tab-admin" tabindex="0">
+      <div class="section-header" style="padding-top:28px">
+        <div class="section-label">Admin</div>
+        <div class="section-title">Rollback Scores</div>
+      </div>
+      <div class="info-box">Deletes every scoring update recorded in the chosen window, on every device. Use this to undo a batch of bad entries. This cannot be undone.</div>
+      <div class="ntp-grid">
+        <div class="sig">
+          <label for="admin-rollback-minutes">Rollback window</label>
+          <select id="admin-rollback-minutes">
+            <option value="5">Last 5 minutes</option>
+            <option value="15">Last 15 minutes</option>
+            <option value="30">Last 30 minutes</option>
+            <option value="60">Last hour</option>
+            <option value="180">Last 3 hours</option>
+            <option value="360">Last 6 hours</option>
+            <option value="1440">Last 24 hours</option>
+          </select>
+        </div>
+      </div>
+      <button class="username-btn" style="max-width:280px;margin-top:16px" onclick="rollbackScores()">Rollback Scores</button>
     </div>
 
   </div><!-- /page-content -->
@@ -763,7 +787,12 @@ function loadState() {
    NAVIGATION
 ───────────────────────────────────── */
 const scTabs = Array.from(document.querySelectorAll('.sc-tab'));
+// Tabs hidden via inline style (currently just #tab-admin, pre-login) must
+// stay unreachable by keyboard too — otherwise Home/End/Arrow cycling can
+// still activate a tab whose button never became visible or focusable.
+function visibleScTabs() { return scTabs.filter(x => x.style.display !== 'none'); }
 function activateTab(btn, { focus = false } = {}) {
+  if (btn.style.display === 'none') return;
   scTabs.forEach(x => {
     x.classList.remove('active');
     x.setAttribute('aria-selected', 'false');
@@ -776,14 +805,17 @@ function activateTab(btn, { focus = false } = {}) {
   document.getElementById('sc-' + btn.dataset.tab).classList.add('active');
   if (focus) btn.focus();
 }
-scTabs.forEach((btn, i) => {
+scTabs.forEach((btn) => {
   btn.addEventListener('click', () => activateTab(btn));
   btn.addEventListener('keydown', e => {
+    const visible = visibleScTabs();
+    const i = visible.indexOf(btn);
+    if (i === -1) return;
     let target = null;
-    if (e.key === 'ArrowRight') target = scTabs[(i + 1) % scTabs.length];
-    else if (e.key === 'ArrowLeft') target = scTabs[(i - 1 + scTabs.length) % scTabs.length];
-    else if (e.key === 'Home') target = scTabs[0];
-    else if (e.key === 'End') target = scTabs[scTabs.length - 1];
+    if (e.key === 'ArrowRight') target = visible[(i + 1) % visible.length];
+    else if (e.key === 'ArrowLeft') target = visible[(i - 1 + visible.length) % visible.length];
+    else if (e.key === 'Home') target = visible[0];
+    else if (e.key === 'End') target = visible[visible.length - 1];
     if (target) {
       e.preventDefault();
       activateTab(target, { focus: true });
@@ -1527,6 +1559,35 @@ async function loadFromSupabase() {
   }
 }
 
+// Admin-only: deletes every tournament_updates row newer than the chosen
+// cutoff, on the shared Supabase table, then wipes this device's local
+// cache and reloads so every client (including this one) rebuilds state
+// from only the rows that survived the delete.
+async function rollbackScores() {
+  if (currentUsername !== 'James McIntyre') return;
+  const select = document.getElementById('admin-rollback-minutes');
+  const minutes = parseInt(select.value, 10);
+  const cutoff = new Date(Date.now() - minutes * 60000);
+  const label = select.options[select.selectedIndex].textContent;
+  if (!confirm(`Delete every scoring update from the ${label.toLowerCase()} (since ${cutoff.toLocaleString()})? This affects every device and cannot be undone.`)) return;
+  showSaveToast('Rolling back...', 'saving');
+  try {
+    const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gt.${encodeURIComponent(cutoff.toISOString())}`;
+    const resp = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+    localStorage.removeItem('wongaCup2026');
+    localStorage.removeItem(LAST_SYNC_KEY);
+    showSaveToast('✓ Rolled back — reloading...', 'success');
+    setTimeout(() => location.reload(), 800);
+  } catch(err) {
+    console.error('Rollback failed:', err.message);
+    showSaveToast('✗ Rollback failed', 'error');
+  }
+}
+
 /* ─────────────────────────────────────
    USERNAME & LOGIN
 ───────────────────────────────────── */
@@ -1557,16 +1618,37 @@ function confirmUsername() {
   document.getElementById('username-modal').classList.add('hidden');
   document.getElementById('username-badge').textContent = `🎯 ${name}`;
   document.getElementById('username-badge').style.display = 'block';
+  updateAdminVisibility();
   if (_pendingAction) { _pendingAction(); _pendingAction = null; }
 }
 
+// Admin controls (currently: score rollback) are only ever meant to be
+// operated by the tournament organiser — gated on their exact player name
+// rather than any separate credential, since this is a single-tournament
+// tool with no real auth layer.
+function updateAdminVisibility() {
+  document.getElementById('tab-admin').style.display = currentUsername === 'James McIntyre' ? '' : 'none';
+}
+
+function populateUsernameSelect() {
+  const select = document.getElementById('username-input');
+  const names = PLAYERS.map(p => p.name).sort((a, b) => a.localeCompare(b));
+  let opts = `<option value="" disabled selected>— Select your name —</option>`;
+  names.forEach(name => { opts += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`; });
+  opts += `<option value="Spectator">Spectator</option>`;
+  select.innerHTML = opts;
+}
+
 function initUsername() {
+  populateUsernameSelect();
   const saved = sessionStorage.getItem('wongaCup_username');
   if (saved) {
     currentUsername = saved;
+    document.getElementById('username-input').value = saved;
     document.getElementById('username-badge').textContent = `🎯 ${saved}`;
     document.getElementById('username-badge').style.display = 'block';
   }
+  updateAdminVisibility();
   document.getElementById('username-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') confirmUsername();
   });
