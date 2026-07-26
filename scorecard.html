@@ -327,11 +327,13 @@ function startMusic() {
 }
 function dismissMusic() {
   document.getElementById('music-modal').classList.add('hidden');
-  sessionStorage.setItem('musicConsented', '0');
+  sessionStorage.setItem('musicConsented', 'dismissed');
 }
 (function () {
   if (!sessionStorage.getItem('musicConsented')) {
     document.getElementById('music-modal').classList.remove('hidden');
+  } else if (sessionStorage.getItem('musicConsented') === '1') {
+    document.getElementById('bg-audio').play();
   }
 })();
 
