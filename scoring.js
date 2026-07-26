@@ -219,6 +219,78 @@
     return { changed: true, stored: String(clamped), correction: clamped !== n ? String(clamped) : null };
   }
 
+  /* ── DAY 2 — AUTOMATIC HOLE-BY-HOLE SCRAMBLE SCORING (issue #128) ──
+     Pure and course-data-free, same spirit as #124's Day 1 functions --
+     stroke indexes and group handicaps are passed in, never imported. */
+  const DAY2_HOLE_GROSS_MIN = 1, DAY2_HOLE_GROSS_MAX = 15;
+
+  // Standard Australian Ambrose team handicap: sort the group's handicaps
+  // ascending and apply the percentage table for its size (confirmed by
+  // issue #136), then round to the nearest whole number so the derived
+  // net-to-par -- and therefore day2GroupPoints()'s stroke differential --
+  // stays an integer like every other Day 2 field (issue #128 rounding
+  // decision). A group size outside 2-4 has no defined divisor and returns
+  // null rather than guessing.
+  const SCRAMBLE_HANDICAP_PCT = {
+    2: [0.35, 0.15],
+    3: [0.30, 0.20, 0.10],
+    4: [0.25, 0.20, 0.15, 0.10]
+  };
+  function scrambleTeamHandicap(hcps) {
+    const pct = SCRAMBLE_HANDICAP_PCT[hcps.length];
+    if (!pct) return null;
+    const sorted = hcps.map(h => parseFloat(h)).sort((a, b) => a - b);
+    const total = sorted.reduce((sum, h, i) => sum + h * pct[i], 0);
+    return Math.round(total);
+  }
+
+  // Allocates one absolute team handicap across 18 holes via stroke index
+  // -- same difference-in-handicap wraparound formula matchStrokes() uses
+  // for a two-way difference, but here every hole gets the base allocation
+  // since there's a single side's handicap rather than a gap between two.
+  // Chosen (over applying the handicap only to the 18-hole total) so a
+  // partial round's net-to-par is meaningful thru N holes, not just at 18
+  // (issue #128 "allocated per hole" decision).
+  function groupStrokes(handicap, strokeIndexes) {
+    const base = Math.floor(handicap / 18);
+    const extra = handicap % 18;
+    return strokeIndexes.map(si => base + (si <= extra ? 1 : 0));
+  }
+
+  // Net score to par summed over only the holes actually played so far --
+  // lets the UI show meaningful progress ("thru 11: -6") without the full
+  // handicap distorting an incomplete round. `played` is how many of
+  // `grossHoles` are non-null; `netToPar` is null until at least one hole
+  // has a score.
+  function scrambleNetToParThru(grossHoles, strokes, pars) {
+    let net = 0, par = 0, played = 0;
+    for (let i = 0; i < grossHoles.length; i++) {
+      const g = grossHoles[i];
+      if (g === null || g === undefined) continue;
+      net += g - strokes[i];
+      par += pars[i];
+      played++;
+    }
+    return { netToPar: played > 0 ? net - par : null, played };
+  }
+
+  function scrambleRoundComplete(grossHoles) {
+    return grossHoles.every(g => g !== null && g !== undefined);
+  }
+
+  // Moves a player between the four Day 2 groups (or out of all of them,
+  // for groupCode null), returning a fresh object rather than mutating the
+  // input -- same reasoning as applyPlayerTeamMove: a delta-only history
+  // composes correctly across concurrent moves of different players.
+  function applyPlayerGroupMove(groups, playerId, groupCode) {
+    const next = {};
+    Object.keys(groups).forEach(key => {
+      next[key] = groups[key].filter(id => id !== playerId);
+    });
+    if (groupCode && next[groupCode]) next[groupCode] = [...next[groupCode], playerId];
+    return next;
+  }
+
   /* ── DAY 3 — INDIVIDUAL STABLEFORD ──
      1st = 14pts down to 14th = 1pt. Tied players share the averaged
      points across their tied position range. */
@@ -454,6 +526,28 @@
         state.day2[row.field_key] = n === null ? null : String(Math.max(DAY2_SCORE_MIN, Math.min(DAY2_SCORE_MAX, n)));
         break;
       }
+      case 'day2_hole': {
+        // field_key is `<group>_<hole>` (e.g. a4_7, b3_18) -- not a fixed
+        // whitelist, so it's validated here via pattern + range instead of
+        // UPDATE_FIELD_KEYS.
+        if (!row.field_key || !state.day2.holes) break;
+        const keyMatch = /^(a4|a3|b4|b3)_(\d{1,2})$/.exec(row.field_key);
+        if (!keyMatch) break;
+        const holeNum = parseInt(keyMatch[2], 10);
+        if (holeNum < 1 || holeNum > 18) break;
+        const arr = state.day2.holes[keyMatch[1]];
+        if (!Array.isArray(arr)) break;
+        const n = parseIntOrNull(v);
+        arr[holeNum - 1] = n === null ? null : Math.max(DAY2_HOLE_GROSS_MIN, Math.min(DAY2_HOLE_GROSS_MAX, n));
+        break;
+      }
+      case 'day2_group': {
+        if (typeof row.player_id !== 'number' || row.player_id < 0 || row.player_id >= 14) break;
+        if (!state.day2.groups) break;
+        const code = ['a4', 'a3', 'b4', 'b3'].includes(v) ? v : null;
+        state.day2.groups = applyPlayerGroupMove(state.day2.groups, row.player_id, code);
+        break;
+      }
       case 'day2_ntp':
         if (row.field_key) state.day2.ntp[row.field_key] = parseIntOrNull(v);
         break;
@@ -503,6 +597,9 @@
     matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
     ntpTeamPoints,
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
+    DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
+    SCRAMBLE_HANDICAP_PCT, scrambleTeamHandicap, groupStrokes,
+    scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
     POS_PTS, computeStableford, sumStablefordPoints,
     resolveOverallWinner,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
