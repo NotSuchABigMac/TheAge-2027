@@ -925,7 +925,7 @@ function resetTeams() {
     // to one.
     PLAYERS.forEach(p => {
       const newTeam = DEFAULT_A.has(p.id) ? 'A' : 'B';
-      const currentTeam = state.teamA.has(p.id) ? 'A' : 'B';
+      const currentTeam = teamOf(p.id);
       if (currentTeam === newTeam) return;
       const moved = applyPlayerTeamMove(state.teamA, state.teamB, p.id, newTeam);
       state.teamA = moved.teamA;
