@@ -9,6 +9,23 @@ Every "confirmed" behavior below was verified by executing `scoring.js` under No
 
 ---
 
+## Re-Review — 2026-07-26 (all findings resolved)
+
+Re-ran the audit against `origin/trunk` after PRs **#137, #138, #139** merged (~2,600 new lines: Day 1 & Day 2 hole-by-hole scoring, an Admin field-history/restore panel, and an RLS lock-down migration). Every original finding is fixed; each verified by re-executing the same probes that originally exposed it. Full suite is **152 tests, 0 failures** (was 46).
+
+| Finding | Status | Evidence on trunk |
+|---|---|---|
+| **F1** infinite loop on NaN score | ✅ Fixed ([#118](https://github.com/NotSuchABigMac/wonga-cup/issues/118), closed) | `computeStableford` now normalizes non-finite scores to `null` on copies before sorting; NaN entry terminates and sorts last (`pos:null, pts:0`). `computeDay3`/`isDay3Complete` route through `parseScoreToPar`. |
+| **F2** unvalidated sync rows | ✅ Fixed ([#120](https://github.com/NotSuchABigMac/wonga-cup/issues/120), closed) | `parseIntOrNull('garbage')`→`null`; `UPDATE_FIELD_KEYS` whitelist rejects forged `field_key` (`day2_score/'ntp'` leaves `ntp` object intact, `day1_match/'type'` no-ops); synced `a4:'-999'`→clamped `'-20'`; `front9:'Z'`→`null`; `tiebreak:'C'`→`null`. Also adds `match_idx`/`player_id` range guards. |
+| **F3** unpinned edge cases | ✅ Fixed ([#121](https://github.com/NotSuchABigMac/wonga-cup/issues/121), closed) | All nine behaviors now asserted, incl. stale-tiebreak `(21,18,'B')→A`, 14-way tie 7.5/52.5-52.5, `±20` boundaries, and the #63 `team_assign`+`processUpdateRows` integration. |
+| **F4** untestable inline logic | ↗ Materially improved | `normalizeState` now guards `holesA/holesB`/`day2.holes`; new pure functions (`matchStrokes`, `holeResult`, `nineFromHoles`, `nineStatus`, `effectiveNines`, `scrambleTeamHandicap`, `groupStrokes`, `describeUpdateRow`, `buildRestoreRow`, …) were extracted into `scoring.js` with tests rather than left inline. `theme.js` remains untested (unchanged). |
+
+**New code reviewed for fresh gaps.** I probed the added hole-scoring and admin functions. The only unguarded-input paths I found are not reachable from the app: `effectiveNines` throws on a match with no `holesA/holesB`, but `normalizeState` guarantees those arrays exist before any call; `matchStrokes`/`scrambleTeamHandicap` produce `NaN` on non-numeric handicaps, but handicaps come from the fixed `PLAYERS` table, never user input. Worth a defensive guard someday, not launch-blocking. One observation, not a defect: `nineFromHoles([])` returns `{result:'T', decided:true}` — correct for the real 9-element callers; only a zero-length nine (impossible here) would surprise.
+
+**Verdict: launch-ready with respect to this audit.** No open action items from F1–F3. Everything below is the original audit, retained as the record of what was found.
+
+---
+
 ## 1. Deficit Inventory
 
 ### F1 — CRITICAL: `computeStableford` infinite-loops on a NaN score; reachable from live sync
