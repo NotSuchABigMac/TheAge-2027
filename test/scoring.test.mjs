@@ -6,6 +6,8 @@ const require = createRequire(import.meta.url);
 const {
   escapeHtml,
   ninePoints, matchPoints, sumMatchPoints,
+  DAY1_GROSS_MIN, DAY1_GROSS_MAX,
+  matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
   ntpTeamPoints,
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   POS_PTS, computeStableford, sumStablefordPoints,
@@ -533,8 +535,8 @@ function makeState() {
     teamB: new Set([1, 3, 5]),
     day1: {
       matches: [
-        { type: 'singles', pA: [null], pB: [null], front9: null, back9: null },
-        { type: 'singles', pA: [null], pB: [null], front9: null, back9: null }
+        { type: 'singles', pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) },
+        { type: 'singles', pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) }
       ],
       ntp: { h8: null, h17: null }
     },
@@ -679,7 +681,7 @@ test('applyUpdateToState: day1_match rejects field_key "type" and "__proto__" (m
   applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'type', value: 'doubles' });
   assert.equal(state.day1.matches[0].type, 'singles');
   applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: '__proto__', value: '{}' });
-  assert.deepEqual(Object.keys(state.day1.matches[0]).sort(), ['back9', 'front9', 'pA', 'pB', 'type'].sort());
+  assert.deepEqual(Object.keys(state.day1.matches[0]).sort(), ['back9', 'front9', 'holesA', 'holesB', 'pA', 'pB', 'type'].sort());
 });
 
 test('applyUpdateToState: day2_score clamps synced values to +/-20 the same as local input', () => {
@@ -742,4 +744,240 @@ test('applyUpdateToState: day1_match rejects an out-of-range match_idx without t
 test('parseIntOrNull returns null for non-numeric text but keeps a deliberate partial parse', () => {
   assert.equal(parseIntOrNull('abc'), null);
   assert.equal(parseIntOrNull('12abc'), 12);
+});
+
+/* ── DAY 1 — AUTOMATIC HOLE-BY-HOLE SCORING (issue #124) ──
+   matchStrokes/holeResult/nineFromHoles/nineStatus/effectiveNines are pure
+   and course-data-free -- stroke indexes are passed in, never imported
+   from courses.js, so these tests use arbitrary SI arrays. ── */
+
+const SI_ASCENDING = Array.from({ length: 18 }, (_, i) => i + 1); // hole i -> SI i+1
+
+test('matchStrokes: equal handicaps receive no strokes', () => {
+  const result = matchStrokes('12.0', '12.0', SI_ASCENDING);
+  assert.equal(result.receiver, null);
+  assert.deepEqual(result.a, Array(18).fill(0));
+  assert.deepEqual(result.b, Array(18).fill(0));
+});
+
+test('matchStrokes: 8.0 v 19.0 gives the higher handicap 11 strokes on SI 1-11 only', () => {
+  const result = matchStrokes('8.0', '19.0', SI_ASCENDING);
+  assert.equal(result.receiver, 'B');
+  assert.deepEqual(result.a, Array(18).fill(0));
+  assert.deepEqual(result.b, SI_ASCENDING.map(si => (si <= 11 ? 1 : 0)));
+});
+
+test('matchStrokes: receiver flips when the handicaps are swapped', () => {
+  const result = matchStrokes('19.0', '8.0', SI_ASCENDING);
+  assert.equal(result.receiver, 'A');
+  assert.deepEqual(result.b, Array(18).fill(0));
+  assert.deepEqual(result.a, SI_ASCENDING.map(si => (si <= 11 ? 1 : 0)));
+});
+
+test('matchStrokes: a fractional difference rounds to the nearest whole stroke (0.5 rounds up)', () => {
+  const result = matchStrokes('8.0', '10.5', SI_ASCENDING);
+  assert.equal(result.receiver, 'B');
+  // |10.5 - 8| = 2.5 -> rounds to 3
+  assert.deepEqual(result.b, SI_ASCENDING.map(si => (si <= 3 ? 1 : 0)));
+});
+
+test('matchStrokes: a difference over 18 wraps around (8.0 v 39.0 -> diff 31 -> 2 strokes on SI 1-13, 1 on SI 14-18)', () => {
+  const result = matchStrokes('8.0', '39.0', SI_ASCENDING);
+  assert.equal(result.receiver, 'B');
+  assert.deepEqual(result.b, SI_ASCENDING.map(si => (si <= 13 ? 2 : 1)));
+  assert.equal(result.b.reduce((s, n) => s + n, 0), 31);
+});
+
+test('holeResult: lower gross wins when neither player receives a stroke', () => {
+  assert.equal(holeResult(4, 5, 0, 0), 'A');
+  assert.equal(holeResult(5, 4, 0, 0), 'B');
+});
+
+test('holeResult: a stroke received can flip a gross loss into a net win', () => {
+  assert.equal(holeResult(5, 5, 0, 1), 'B');
+  assert.equal(holeResult(6, 5, 1, 0), 'T');
+});
+
+test('holeResult: equal net scores halve the hole', () => {
+  assert.equal(holeResult(4, 4, 0, 0), 'T');
+});
+
+test('holeResult: a missing gross score on either side is null, not a guess', () => {
+  assert.equal(holeResult(null, 4, 0, 0), null);
+  assert.equal(holeResult(4, null, 0, 0), null);
+  assert.equal(holeResult(null, null, 0, 0), null);
+});
+
+test('nineFromHoles: a 9-0 sweep is decided with the sweeping side as the result', () => {
+  const nine = Array(9).fill('A');
+  const result = nineFromHoles(nine);
+  assert.deepEqual(result, { result: 'A', decided: true, wonA: 9, wonB: 0, played: 9 });
+});
+
+test('nineFromHoles: a 5-4 split over a full nine is decided in the leader\'s favour', () => {
+  const nine = ['A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'B'];
+  const result = nineFromHoles(nine);
+  assert.deepEqual(result, { result: 'A', decided: true, wonA: 5, wonB: 4, played: 9 });
+});
+
+test('nineFromHoles: a fully played 4-4 nine with one halved hole is a decided tie', () => {
+  const nine = ['A', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'T'];
+  const result = nineFromHoles(nine);
+  assert.deepEqual(result, { result: 'T', decided: true, wonA: 4, wonB: 4, played: 9 });
+});
+
+test('nineFromHoles: an incomplete nine with the lead still catchable is undecided (null result)', () => {
+  const nine = ['A', 'A', 'A', 'B', 'B', null, null, null, null];
+  const result = nineFromHoles(nine);
+  assert.equal(result.decided, false);
+  assert.equal(result.result, null);
+  assert.equal(result.played, 5);
+});
+
+test('nineFromHoles: a lead that mathematically can\'t be caught is decided early ("5UP thru 7")', () => {
+  const nine = ['A', 'A', 'A', 'A', 'A', 'A', 'B', null, null];
+  const result = nineFromHoles(nine);
+  assert.equal(result.decided, true);
+  assert.equal(result.result, 'A');
+  assert.equal(result.played, 7);
+});
+
+test('nineFromHoles: dormie (lead exactly equals holes remaining) is NOT decided -- trailing side can still halve', () => {
+  const nine = ['A', 'A', 'A', 'A', 'B', 'B', 'T', null, null];
+  const result = nineFromHoles(nine); // wonA=4, wonB=2, lead=2, remaining=2
+  assert.equal(result.decided, false);
+  assert.equal(result.result, null);
+});
+
+test('effectiveNines: hole data overrides a stale manual front9/back9 value', () => {
+  const match = {
+    front9: 'B', back9: null,
+    holesA: [4, 4, 4, 4, 4, 4, 4, 4, 4, ...Array(9).fill(null)],
+    holesB: [5, 5, 5, 5, 5, 5, 5, 5, 5, ...Array(9).fill(null)]
+  };
+  const strokes = { a: Array(18).fill(0), b: Array(18).fill(0) };
+  const result = effectiveNines(match, strokes);
+  assert.equal(result.front9, 'A'); // derived from holes, ignoring the stale 'B'
+  assert.equal(result.back9, null); // no back9 hole data -> falls back to manual (null)
+});
+
+test('effectiveNines: the manual value is honoured when a nine has no hole data at all', () => {
+  const match = { front9: 'A', back9: 'T', holesA: Array(18).fill(null), holesB: Array(18).fill(null) };
+  const strokes = { a: Array(18).fill(0), b: Array(18).fill(0) };
+  const result = effectiveNines(match, strokes);
+  assert.equal(result.front9, 'A');
+  assert.equal(result.back9, 'T');
+});
+
+test('effectiveNines: an undecided derived nine yields null even if a manual value is set underneath', () => {
+  const match = {
+    front9: 'A', back9: null, // stale manual value that must NOT leak through
+    holesA: [4, 4, 4, null, null, null, null, null, null, ...Array(9).fill(null)],
+    holesB: [5, 5, 5, null, null, null, null, null, null, ...Array(9).fill(null)]
+  };
+  const strokes = { a: Array(18).fill(0), b: Array(18).fill(0) };
+  const result = effectiveNines(match, strokes);
+  assert.equal(result.front9, null);
+});
+
+test('effectiveNines + matchPoints: a derived result produces identical points to the same result entered manually (Day 1 totals unaffected)', () => {
+  const derivedMatch = {
+    front9: 'B', back9: 'B', // stale manual values that must be fully overridden
+    holesA: [5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+    holesB: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+  };
+  const strokes = { a: Array(18).fill(0), b: Array(18).fill(0) };
+  const derived = effectiveNines(derivedMatch, strokes); // front9 all-B-win -> 'B', back9 all-halved -> 'T'
+  const manualMatch = { front9: derived.front9, back9: derived.back9 };
+  assert.deepEqual(matchPoints({ front9: derived.front9, back9: derived.back9 }), matchPoints(manualMatch));
+  assert.deepEqual(matchPoints({ front9: derived.front9, back9: derived.back9 }), { a: 0.5, b: 1.5 });
+});
+
+test('nineStatus: all square partway through reports lead 0, no leader, not dormie', () => {
+  const nine = ['A', 'B', 'A', 'B', null, null, null, null, null];
+  const status = nineStatus(nine);
+  assert.deepEqual(status, { lead: 0, leader: null, thru: 4, dormie: false, decided: false, margin: null });
+});
+
+test('nineStatus: an in-progress lead ("2UP thru 6") is not decided and not dormie', () => {
+  const nine = ['A', 'A', 'B', 'A', 'A', 'B', null, null, null];
+  const status = nineStatus(nine); // wonA=4, wonB=2, lead=2, thru=6, remaining=3
+  assert.deepEqual(status, { lead: 2, leader: 'A', thru: 6, dormie: false, decided: false, margin: null });
+});
+
+test('nineStatus: dormie when the lead exactly equals the holes remaining', () => {
+  const nine = ['A', 'A', 'A', 'A', 'B', 'B', 'T', null, null]; // wonA=4, wonB=2, lead=2, remaining=2
+  const status = nineStatus(nine);
+  assert.equal(status.dormie, true);
+  assert.equal(status.decided, false);
+});
+
+test('nineStatus: a lead that beats the holes remaining is decided early, with margin = holes remaining ("3&2")', () => {
+  const nine = ['A', 'A', 'A', 'A', 'A', 'B', 'B', null, null]; // wonA=5, wonB=2, lead=3, thru=7, remaining=2
+  const status = nineStatus(nine);
+  assert.deepEqual(status, { lead: 3, leader: 'A', thru: 7, dormie: false, decided: true, margin: 2 });
+});
+
+test('nineStatus: a fully played nine with a lead is decided with no margin ("2UP", not "&"-suffixed)', () => {
+  const nine = ['A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'T']; // wonA=5, wonB=3, lead=2, thru=9
+  const status = nineStatus(nine);
+  assert.deepEqual(status, { lead: 2, leader: 'A', thru: 9, dormie: false, decided: true, margin: null });
+});
+
+test('applyUpdateToState: day1_hole sets and clears one gross score cell', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: '5' });
+  assert.equal(state.day1.matches[0].holesA[0], 5);
+  applyUpdateToState(state, { update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: 'null' });
+  assert.equal(state.day1.matches[0].holesA[0], null);
+  applyUpdateToState(state, { update_type: 'day1_hole', match_idx: 0, field_key: 'B18', value: '4' });
+  assert.equal(state.day1.matches[0].holesB[17], 4);
+});
+
+test('applyUpdateToState: day1_hole clamps to DAY1_GROSS_MIN/MAX', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_hole', match_idx: 0, field_key: 'A5', value: '999' });
+  assert.equal(state.day1.matches[0].holesA[4], DAY1_GROSS_MAX);
+  applyUpdateToState(state, { update_type: 'day1_hole', match_idx: 0, field_key: 'A5', value: '-3' });
+  assert.equal(state.day1.matches[0].holesA[4], DAY1_GROSS_MIN);
+});
+
+test('applyUpdateToState: day1_hole rejects a malformed field_key without throwing or writing anything', () => {
+  const state = makeState();
+  const before = JSON.stringify(state.day1.matches[0]);
+  ['C1', 'A19', 'A0', 'AB1', 'A', 'front9'].forEach(key => {
+    assert.doesNotThrow(() => {
+      applyUpdateToState(state, { update_type: 'day1_hole', match_idx: 0, field_key: key, value: '5' });
+    });
+  });
+  assert.equal(JSON.stringify(state.day1.matches[0]), before);
+});
+
+test('applyUpdateToState: day1_hole rejects an out-of-range match_idx', () => {
+  const state = makeState();
+  assert.doesNotThrow(() => {
+    applyUpdateToState(state, { update_type: 'day1_hole', match_idx: 99, field_key: 'A1', value: '5' });
+  });
+});
+
+test('applyUpdateToState: player_team reassignment also clears any per-hole gross scores already entered', () => {
+  const state = makeState();
+  state.day1.matches[0].pA = [2];
+  state.day1.matches[0].holesA[0] = 5;
+  state.day1.matches[0].holesA[3] = 4;
+  applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'B' });
+  assert.deepEqual(state.day1.matches[0].holesA, Array(18).fill(null));
+});
+
+test('reconcileMatchesAfterTeamMove clears entered per-hole gross scores and reports each as a change', () => {
+  const matches = [{
+    type: 'singles', pA: [7], pB: [1], front9: null, back9: null,
+    holesA: [5, null, ...Array(16).fill(null)],
+    holesB: [4, null, ...Array(16).fill(null)]
+  }];
+  const result = reconcileMatchesAfterTeamMove(matches, 7, 'B');
+  assert.deepEqual(result.matches[0].holesA, Array(18).fill(null));
+  assert.deepEqual(result.matches[0].holesB, Array(18).fill(null));
+  assert.ok(result.changes.some(c => c.field === 'A1' && c.value === null));
+  assert.ok(result.changes.some(c => c.field === 'B1' && c.value === null));
 });
