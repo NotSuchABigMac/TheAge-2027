@@ -350,3 +350,51 @@ function setDay2HoleScore(code, holeNum, rawVal):
 // full renderDay1() still happens on blur/next poll.
 ```
 
+
+---
+
+## 4. Re-run Issue Log (v3 — 26 Jul 2026, evening)
+
+**Verified fixed on `trunk` (`eba9d09`, `3b27c9d`):** all four v2 findings — rollback marker-row propagation with cache clears (#140), `ok|auth|network` write classification with modal reopen and auth-halting flush (#141), unconditional `restoreDay2()` state mirroring (#142), patch-not-rebuild hole-grid commits (#143) plus the deferred-focus-check keyboard fix (#152). Also landed beyond the v2 scope: separate admin secret + pinned `search_path` on the RPC (migration 002, #145/#146), write-token column read-back closed via column grants + `SAFE_SELECT_COLUMNS` (#105 reopened), cross-device duplicate Day 1 assignment eviction in `applyUpdateToState` (#147), `<details>` open-state preservation across rebuilds (#148), and the Day 2 anthem house rule (#149) with apply-side validation, history descriptors, and normalization guards.
+
+**New findings in this round's code:**
+
+### V1. 🔴 `applyUpdate()` rollback handler — Infinite reload loop bricks every device after the first rollback
+- **Failure scenario:** The handler wipes `LAST_SYNC_KEY` and reloads whenever it encounters a `rollback` row — but the marker row survives in the log forever, and the wipe forces a from-epoch replay that re-fetches that same marker on the reloaded page's first poll → wipe → reload → … Every device (admin's included, after its own post-rollback reload) enters a permanent reload loop, re-downloading the entire log on each cycle.
+- **Prescriptive solution:** Track handled markers so each fires exactly once per device:
+
+```
+const HANDLED_ROLLBACKS_KEY = 'wongaCup2026_handledRollbacks'
+function applyUpdate(row) {
+  if (row.update_type === 'rollback') {
+    const handled = readJsonArray(HANDLED_ROLLBACKS_KEY)          // try/catch → []
+    if (handled.includes(row.id)) return                          // already actioned — skip
+    localStorage.setItem(HANDLED_ROLLBACKS_KEY, JSON.stringify([...handled, row.id]))
+    …existing four removeItem calls… ; location.reload()
+    return
+  }
+  applyUpdateToState(state, row)
+}
+// rollbackScores(): add row.id of the marker it just inserted to the handled
+// set BEFORE its own reload (fetch it back, or have sendUpdateRow return the
+// inserted id via Prefer: return=representation for this one call).
+```
+
+### V2. 🟠 `rollbackScores()` — Marker insert result is ignored; a failed insert silently reverts to the #140 divergence bug
+- **Failure scenario:** `await sendUpdateRow('rollback', …)` discards the result. If that insert fails (patchy wifi right after a successful delete), no marker exists, nothing is queued (this path bypasses `insertUpdate`'s retry queue), and every other device keeps the rolled-back scores forever — the exact bug #140 fixed, now silent.
+- **Prescriptive solution:** Check the result; on failure queue it through the normal retry path and tell the admin:
+
+```
+const r = await sendUpdateRow('rollback', { value: cutoff.toISOString() })
+if (r !== 'ok') {
+  pendingWrites.push({ updateType: 'rollback', fields: { value: cutoff.toISOString() } })
+  persistPending()   // NOTE: then do NOT remove PENDING_KEY below — clear only the pre-rollback entries
+  showSaveToast('⚠ Rolled back — sync signal pending, keep this page open', 'error')
+}
+```
+(Adjust the existing cache-clear block: wipe pre-rollback pending entries but preserve a queued marker.)
+
+### V3. 🟡 Minor state-consistency cleanups
+- `insertUpdate()`'s `'auth'` early-return never updates `isOffline`/`updateOfflineIndicator()` — a stale offline banner can persist through an auth rejection that proves connectivity is fine. Set `isOffline = false; updateOfflineIndicator();` before returning.
+- `requireAdminToken()` writes `wongaCup_adminToken` to sessionStorage but nothing ever reads it back — rehydrate it in `initUsername()` (or drop the write); as-is the admin re-prompts every reload for no benefit.
+
