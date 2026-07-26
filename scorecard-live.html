@@ -294,6 +294,7 @@ body{padding-bottom:52px}
     <div class="username-modal-title" id="username-modal-title">THE WONGA CUP</div>
     <div class="username-modal-desc">Select your name to start scoring</div>
     <select id="username-input" class="username-input" autofocus></select>
+    <div id="username-error" class="username-modal-desc" style="color:#ff6b6b;display:none" role="alert">Please enter your name to continue</div>
     <button class="username-btn" onclick="confirmUsername()">Enter Tournament</button>
     <div class="username-modal-desc" style="font-size:.75rem;margin-top:16px;color:var(--ink-mute)">Your scores will sync live across all devices</div>
   </div>
@@ -887,6 +888,10 @@ function renderTeams() {
     }
   });
   if (uBox) uBox.style.display = unassignedCount > 0 ? '' : 'none';
+  // An empty column (e.g. right after "Clear Teams") otherwise reads as a
+  // broken box rather than an intentional "nobody here yet" state.
+  if (aList.children.length === 0) aList.innerHTML = '<div class="grey">No players drafted yet</div>';
+  if (bList.children.length === 0) bList.innerHTML = '<div class="grey">No players drafted yet</div>';
   renderTeamBalanceWarning();
   saveState();
   updateScoreboard();
@@ -1016,6 +1021,15 @@ function playerOptions(team, matchIdx, slot, currentId) {
 function renderDay1() {
   const container = document.getElementById('day1-matches');
   container.innerHTML = '';
+  // Every match dropdown otherwise just offers "— pick player —" with
+  // nothing explaining why, and the uneven-split warning stays hidden at
+  // 0-vs-0 -- nothing points a scorer back to the Teams tab first.
+  if (fridayPlayers('A').length === 0 && fridayPlayers('B').length === 0) {
+    const notice = document.createElement('div');
+    notice.className = 'info-box';
+    notice.textContent = '⚠ No players assigned to teams yet — complete the Captain\'s Draft on the Teams tab first.';
+    container.appendChild(notice);
+  }
   const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Singles (1v1)', 'Match 3 — Singles (1v1)', 'Match 4 — Singles (1v1)', 'Match 5 — Singles (1v1)', 'Match 6 — Singles (1v1)'];
 
   state.day1.matches.forEach((match, mi) => {
@@ -1472,12 +1486,17 @@ function updateScoreboard() {
 /* ─────────────────────────────────────
    SUPABASE SYNC FUNCTIONS
 ───────────────────────────────────── */
+// Each call used to schedule its own hide timer without cancelling any
+// prior one -- rapid saves could let an old timer hide a brand-new toast
+// (including "✗ Offline") almost instantly.
+let toastTimer = null;
 function showSaveToast(message, type) {
   const toast = document.getElementById('save-toast');
+  clearTimeout(toastTimer);
   toast.textContent = message;
   toast.className = `save-toast show ${type}`;
   if (type !== 'saving') {
-    setTimeout(() => toast.classList.remove('show'), 2000);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
   }
 }
 
@@ -1679,12 +1698,17 @@ function closeUsernameModal() {
 
 function confirmUsername() {
   const input = document.getElementById('username-input');
+  const error = document.getElementById('username-error');
   const name = input.value.trim();
   if (!name) {
     input.style.borderColor = 'var(--gold)';
+    input.setAttribute('aria-invalid', 'true');
+    error.style.display = 'block';
     setTimeout(() => { input.style.borderColor = ''; }, 300);
     return;
   }
+  input.removeAttribute('aria-invalid');
+  error.style.display = 'none';
   currentUsername = name;
   sessionStorage.setItem('wongaCup_username', name);
   document.getElementById('username-modal').classList.add('hidden');
@@ -1733,7 +1757,7 @@ function initUsername() {
 function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   sessionStorage.setItem('musicConsented', '1');
-  document.getElementById('bg-audio').play();
+  document.getElementById('bg-audio').play().catch(() => {});
 }
 
 function dismissMusic() {
@@ -1747,7 +1771,12 @@ function dismissMusic() {
 if (!sessionStorage.getItem('musicConsented')) {
   document.getElementById('music-modal').classList.remove('hidden');
 } else if (sessionStorage.getItem('musicConsented') === '1') {
-  document.getElementById('bg-audio').play();
+  // Autoplay policy can reject a gesture-less play() on a revisit (or the
+  // file can 404) -- fall back to asking again rather than leaving an
+  // unhandled promise rejection in the console.
+  document.getElementById('bg-audio').play().catch(() => {
+    document.getElementById('music-modal').classList.remove('hidden');
+  });
 }
 
 /* ─────────────────────────────────────
@@ -1910,10 +1939,22 @@ if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
 /* ─────────────────────────────────────
    MINI SCOREBOARD
 ───────────────────────────────────── */
+// A blank field used to be silently ignored -- the next poll then
+// "mysteriously" restored the old name with zero feedback as to why.
+function flashFieldError(input) {
+  input.style.borderColor = '#ff6b6b';
+  setTimeout(() => { input.style.borderColor = ''; }, 1500);
+}
 function saveTeamNames() {
   requireUsername(() => {
-    const a = document.getElementById('tn-input-a').value.trim();
-    const b = document.getElementById('tn-input-b').value.trim();
+    const inputA = document.getElementById('tn-input-a');
+    const inputB = document.getElementById('tn-input-b');
+    const a = inputA.value.trim();
+    const b = inputB.value.trim();
+    let blocked = false;
+    if (!a) { flashFieldError(inputA); blocked = true; }
+    if (!b) { flashFieldError(inputB); blocked = true; }
+    if (blocked) showSaveToast("Team name can't be empty", 'error');
     if (a) { state.teamNameA = a; insertUpdate('team_name', { field_key: 'A', value: a }); }
     if (b) { state.teamNameB = b; insertUpdate('team_name', { field_key: 'B', value: b }); }
     saveState();
