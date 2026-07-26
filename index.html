@@ -398,15 +398,34 @@ if (!sessionStorage.getItem('musicConsented')) {
   document.getElementById('bg-audio').play();
 }
 
-// Masthead: transparent at top, solid once scrolled
+// Masthead: transparent while floating over the hero photo, solid once
+// scrolled past it. Previously driven by a raw `window.scrollY > 80`
+// check -- on mobile, the browser's collapsing/expanding address bar can
+// shift scrollY by more than 80px on load/render with no real user
+// scroll, tripping masthead--scrolled immediately and leaving the header
+// stuck solid even with the hero fully in view (issue #144). Driving this
+// off the hero section's own visibility via IntersectionObserver sidesteps
+// that entirely -- it only reacts to the hero actually leaving the area
+// under the fixed header, not to any particular scrollY number.
 (function () {
   const mast = document.querySelector('.masthead');
+  const hero = document.querySelector('.hero');
   if (!mast) return;
-  function update() {
-    mast.classList.toggle('masthead--scrolled', window.scrollY > 80);
+  if (!hero || typeof IntersectionObserver === 'undefined') {
+    // Fallback for browsers without IntersectionObserver: the original
+    // scrollY check, now also re-run on resize so an address-bar
+    // collapse/expand can't leave it stuck in a stale state.
+    function update() { mast.classList.toggle('masthead--scrolled', window.scrollY > 80); }
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update, { passive: true });
+    update();
+    return;
   }
-  window.addEventListener('scroll', update, { passive: true });
-  update();
+  const observer = new IntersectionObserver(
+    (entries) => { mast.classList.toggle('masthead--scrolled', !entries[0].isIntersecting); },
+    { rootMargin: '-80px 0px 0px 0px', threshold: 0 }
+  );
+  observer.observe(hero);
 })();
 
 // Hamburger menu
