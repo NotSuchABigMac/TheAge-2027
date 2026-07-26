@@ -22,25 +22,48 @@ in order via `applyUpdateToState()` (`scoring.js`).
 | write_token | text | Shared passphrase required by RLS on insert (see below) |
 | updated_at | timestamptz | When it was entered |
 
-## Security: RLS lockdown (issues #105, #106)
+## Security: RLS lockdown (issues #105, #106, #145, #146)
 
 The Supabase publishable key ships in `scorecard-live.html`'s page source
 by design — it is not a secret, so it cannot be the access control.
-`supabase/migrations/001_lock_down_tournament_updates.sql` locks the table
-down at the database level and **must be run manually** (Supabase
-dashboard → SQL Editor) against the project in `SUPABASE_CONFIG`; nothing
-client-side can apply it. After running it:
+`supabase/migrations/001_lock_down_tournament_updates.sql` and
+`002_restrict_write_token_column_and_admin_secret.sql` lock the table down
+at the database level and **must both be run manually, in order**
+(Supabase dashboard → SQL Editor) against the project in
+`SUPABASE_CONFIG`; nothing client-side can apply them. After running both:
 
-- `anon` can `SELECT` and `INSERT` (with a matching `write_token`) but not
-  `UPDATE` or `DELETE` — the log is append-only from the app's perspective.
+- `anon` can `SELECT` only the non-secret columns (see `SAFE_SELECT_COLUMNS`
+  in `scorecard-live.html`) and `INSERT` (with a matching `write_token`),
+  but not `UPDATE` or `DELETE` — the log is append-only from the app's
+  perspective. `write_token` itself is excluded from anon's column-level
+  `SELECT` grant (issue #105 reopened) — RLS only controls row visibility,
+  not columns, so the original migration's `anon_select` policy let anyone
+  read the shared secret straight back out via a plain GET and forge writes
+  with the real token instead of none at all. Every read in the app now
+  passes an explicit `select=` column list rather than the default `*`.
 - The admin "Rollback Scores" control (issue #103) goes through a
   `rollback_tournament_updates` RPC instead of a raw `DELETE`, since anon
-  `DELETE` is revoked; the RPC re-checks the token server-side.
+  `DELETE` is revoked; the RPC re-checks **two** tokens server-side (issue
+  #146): the shared scoring `write_token` (same one all ~14 scorers hold)
+  and a separate `p_admin_token` checked against `app.admin_secret` — a
+  second GUC handed only to the organiser, prompted for once client-side
+  and cached in `sessionStorage` (`requireAdminToken()`), so a destructive
+  tournament-wide rollback no longer succeeds on the strength of the same
+  token every scorer already has. The function also pins `search_path`
+  (issue #145) against the classic `SECURITY DEFINER` privilege-escalation
+  vector.
 - The app prompts once for a "Tournament PIN" (stored in
   `sessionStorage`) and sends it as `write_token` on every insert — set
   the real passphrase server-side with `ALTER DATABASE postgres SET
-  app.tournament_secret = '...'` and hand it out to scorers out-of-band;
-  it is never baked into the client bundle.
+  app.tournament_secret = '...'` (and `app.admin_secret = '...'` for the
+  rollback token above) and hand them out out-of-band; neither is ever
+  baked into the client bundle.
+- A wrong `write_token` is distinguished from a dropped connection
+  (issue #141): `sendUpdateRow()` classifies the result as `'ok'` / `'auth'`
+  / `'network'`, an `'auth'` result reopens the login modal instead of
+  silently queuing the write as if offline, and `flushPendingWrites()`
+  stops at the first `'auth'` rejection rather than re-failing the same
+  wrong PIN against every queued write forever.
 
 `update_type` values the app writes and reads, and what `field_key`/`value`
 mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
@@ -54,15 +77,17 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 | `day2_hole` | `a4_1`..`a4_18` / `a3_1`..`a3_18` / `b4_1`..`b4_18` / `b3_1`..`b3_18` (gross scramble score for that group on that hole) | integer gross score, 1-15 |
 | `day2_group` | — (uses `player_id`) | `'a4'` \| `'a3'` \| `'b4'` \| `'b3'` \| `null` — the scramble group that player was just moved to (or removed from all groups) |
 | `day2_ntp` | `h4` / `h16` | nearest-the-pin winner's player id |
+| `day2_anthem` | — (uses `player_id`) | `'true'` (sang) \| `'false'` (didn't sing) \| `null` (no adjustment) — national anthem house rule, issue #149 |
 | `day3_stableford` | — (uses `player_id`) | net stableford score |
 | `day3_ntp` | `h7` / `h14` | nearest-the-pin winner's player id |
 | `tiebreak` | — | `'A'` or `'B'` (sudden-death putt-off winner) |
 | `team_name` | `A` / `B` | team display name |
 | `team_assign` | `A` / `B` | JSON array of player ids on that team — only emitted by the "Clear Teams" reset; individual moves use `player_team` below so two concurrent moves of different players don't clobber each other |
 | `player_team` | — (uses `player_id`) | `'A'` or `'B'` — the team that player was just moved to |
+| `rollback` | — | ISO timestamp of the rollback cutoff — a synced marker (issue #140, page-layer-only, not in `applyUpdateToState`) telling every device to wipe its local cache and reload after an admin rollback, since a server-side `DELETE` alone produces no sync signal a normal replay could act on |
 
 - **Save:** insert one row per change (no PATCH/GET logic needed).
-- **Load:** `SELECT * WHERE tournament_id=X AND updated_at > last_sync_at`.
+- **Load:** `SELECT <safe columns> WHERE tournament_id=X AND updated_at > last_sync_at`.
 - **Apply:** replay each update onto local state in timestamp order.
 - **Conflicts:** last update per field wins, not per record — so two
   devices editing different fields never clobber each other.
@@ -162,3 +187,77 @@ built on the transaction log's existing shape rather than anything new:
   one over later per-player deltas is exactly the corruption pattern issue
   #71 was about. Restoring team membership goes through individual
   `player_team` rows instead.
+
+## Admin rollback: cross-device sync + separate secret (issues #140, #146)
+
+Rollback previously deleted rows server-side and only reset the admin
+device's own cache — every other device had no way to learn the deleted
+rows were gone, since a `DELETE` produces no row for a normal poll to
+replay. `rollbackScores()` now inserts a `rollback` marker row (see the
+`update_type` table above) after the delete succeeds; every device's
+`applyUpdate()` page-layer wrapper (not `applyUpdateToState()`, which needs
+to keep ignoring unknown types for older clients) treats that one type
+specially — wipe `wongaCup2026`/`LAST_SYNC_KEY`/`LAST_SYNC_IDS_KEY`/
+`PENDING_KEY` and reload, so every client rebuilds state from only the
+surviving rows. The admin device clears the same keys itself (plus resets
+`pendingWrites` in memory) so a write queued right before the rollback
+can't resurrect a just-deleted score after the reload. Rollback is also now
+gated on a second `p_admin_token` distinct from the shared scoring
+`write_token` (`requireAdminToken()`, prompted once and cached in
+`sessionStorage`) — see the RLS section above.
+
+## Day 1/Day 2 live-entry render fixes (issues #142, #143, #147, #148)
+
+A handful of correctness/UX bugs surfaced by re-review of the #124/#128
+hole-by-hole entry work, all in `scorecard-live.html`:
+
+- **`restoreDay2()` (#142):** used to only write `state.day2[id]` into its
+  input box when the value was non-null, so a remote clear (another device
+  sets a manual score to `null`) left the box showing stale text — which
+  `_doUpdateDay2()` then read straight back into state, undoing the clear
+  on the very poll that delivered it. Now mirrors state into the box
+  unconditionally (`state.day2[id] ?? ''`); `safeSetInput()`'s focus guard
+  still protects a box mid-typing.
+- **Hole-grid commits patch instead of rebuild (#143):** `setDay2HoleScore()`
+  only does a full `renderDay2GroupCard()` (which replaces `gridEl.innerHTML`
+  and would otherwise drop focus/close the keyboard every hole) when the
+  grid doesn't currently have focus; otherwise it calls the new
+  `renderDay2Derived()` — split out of `renderDay2GroupCard()` — which
+  updates only the net-to-par line, never touching the grid. Day 1's
+  `setHoleScore()` gained a `patchDay1HoleFeedback()` that updates the
+  clamped input value, match-header points, card win-class, and the
+  relevant nine-status-line span directly by id, regardless of focus,
+  falling back to a full `renderDay1()` only when this nine's status line
+  doesn't exist yet (i.e. it's still showing the manual toggle — a
+  structural swap a text patch can't express) or focus has moved on.
+- **`<details>` open state preserved across rebuilds (#148):** both
+  `renderDay1()` and `renderDay2GroupCard()` read the previous hole-grid
+  `<details>` element's `open` state before replacing it and carry it
+  forward onto the new one — a brand-new `<details>` always starts closed
+  otherwise, so any full rebuild (poll-triggered, or the no-focus fallback
+  above) would slam an in-progress scorer's open panel shut.
+- **Cross-match player double-booking (#147):** `playerOptions()` now adds
+  a `title` attribute to a disabled option naming which match the player is
+  already in. More substantively, `applyUpdateToState()`'s `day1_match`
+  case now evicts a player from any *other* match when a `pA`/`pB` row
+  assigns them somewhere new — the client-side disabled-option check alone
+  only prevents this on one device at a time; two devices independently
+  assigning the same not-yet-used player to different matches within a
+  poll cycle previously both succeeded. Since every device replays the
+  same ordered log through the same eviction logic, this is a pure
+  function of the update stream — whichever assignment is latest in log
+  order wins, with no extra sync write needed.
+
+## National anthem house rule (issue #149)
+
+Day 2 only (scope confirmed via issue comment — not Day 1 match play or
+Day 3 Stableford), and per-player rather than team-wide: each player gets
+an independent sang/not-sung toggle (`state.day2.anthem`, synced via
+`day2_anthem`, see the `update_type` table above) rendered in a plain list
+under the Day 2 tab (`renderDay2Anthem()`/`setDay2Anthem()`). The +2/-1
+adjustment (`ANTHEM_STROKE_ADJUSTMENT` in `scoring.js`) is applied to that
+player's own handicap via `anthemAdjustedHandicap(hcp, sang)` *before* it
+goes into `scrambleTeamHandicap()` in `day2GroupHandicap()` — so it rides
+the same lowest-handicap-first divisor logic unchanged, and reflects the
+confirmed "individual" scope rather than a flat adjustment to the team's
+final handicap number.

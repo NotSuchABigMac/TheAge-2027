@@ -12,6 +12,7 @@ const {
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
+  ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
@@ -546,7 +547,8 @@ function makeState() {
     day2: {
       a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null },
       groups: { a4: [], a3: [], b4: [], b3: [] },
-      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) }
+      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
+      anthem: {}
     },
     day3: { scores: {}, ntp: { h7: null, h14: null } },
     tiebreak: null
@@ -574,6 +576,29 @@ test('applyUpdateToState: day1_match on an out-of-range match_idx is a no-op, no
   });
 });
 
+test('applyUpdateToState: day1_match assigning a player already in another match evicts them there (issue #147)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA', value: '2' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'front9', value: 'A' });
+  state.day1.matches[0].holesA[0] = 4;
+  // Two devices race to slot the same not-yet-used player into different
+  // matches; the later row (in log order) wins and the earlier match's
+  // stale assignment + any result recorded against it is cleared.
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'pA', value: '2' });
+  assert.equal(state.day1.matches[1].pA[0], 2);
+  assert.equal(state.day1.matches[0].pA[0], null);
+  assert.equal(state.day1.matches[0].front9, null);
+  assert.equal(state.day1.matches[0].holesA[0], null);
+});
+
+test('applyUpdateToState: day1_match player eviction only touches the other match holding that exact id', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pB', value: '5' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'pA', value: '2' });
+  assert.equal(state.day1.matches[0].pB[0], 5);
+  assert.equal(state.day1.matches[1].pA[0], 2);
+});
+
 test('applyUpdateToState: day1_ntp sets the nearest-the-pin winner for a hole', () => {
   const state = makeState();
   applyUpdateToState(state, { update_type: 'day1_ntp', field_key: 'h8', value: '5' });
@@ -592,6 +617,24 @@ test('applyUpdateToState: day2_ntp sets the nearest-the-pin winner for a hole', 
   const state = makeState();
   applyUpdateToState(state, { update_type: 'day2_ntp', field_key: 'h4', value: '9' });
   assert.equal(state.day2.ntp.h4, 9);
+});
+
+test('applyUpdateToState: day2_anthem records and clears a player\'s sung/not-sung flag (issue #149)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_anthem', player_id: 3, value: 'true' });
+  assert.equal(state.day2.anthem[3], true);
+  applyUpdateToState(state, { update_type: 'day2_anthem', player_id: 3, value: 'false' });
+  assert.equal(state.day2.anthem[3], false);
+  applyUpdateToState(state, { update_type: 'day2_anthem', player_id: 3, value: null });
+  assert.equal(state.day2.anthem[3], undefined);
+});
+
+test('applyUpdateToState: day2_anthem rejects an out-of-range player_id without throwing', () => {
+  const state = makeState();
+  assert.doesNotThrow(() => {
+    applyUpdateToState(state, { update_type: 'day2_anthem', player_id: 99, value: 'true' });
+  });
+  assert.deepEqual(state.day2.anthem, {});
 });
 
 test('applyUpdateToState: day3_stableford sets and clears a player\'s net score', () => {
@@ -1017,6 +1060,27 @@ test('scrambleTeamHandicap: an unsupported group size (not 2, 3, or 4) returns n
   assert.equal(scrambleTeamHandicap(['8.0', '9.0', '10.0', '11.0', '12.0']), null);
 });
 
+test('anthemAdjustedHandicap: -1 for sang, +2 for not sung, unchanged when no adjustment recorded (issue #149)', () => {
+  assert.equal(anthemAdjustedHandicap('19.0', true), 18);
+  assert.equal(anthemAdjustedHandicap('19.0', false), 21);
+  assert.equal(anthemAdjustedHandicap('19.0', undefined), 19);
+  assert.equal(anthemAdjustedHandicap('19.0', null), 19);
+});
+
+test('anthemAdjustedHandicap: feeds into scrambleTeamHandicap per player, not as a flat team adjustment', () => {
+  // Same 4 hcps as the divisor test above (19, 8, 30, 16), but the 8.0
+  // player didn't sing (+2 -> 10.0) and the 30.0 player sang (-1 -> 29.0).
+  // Sorted ascending becomes 10, 16, 19, 29 -> 10*.25+16*.20+19*.15+29*.10
+  // = 2.5 + 3.2 + 2.85 + 2.9 = 11.45 -> rounds to 11.
+  const hcps = [
+    anthemAdjustedHandicap('19.0', undefined),
+    anthemAdjustedHandicap('8.0', false),
+    anthemAdjustedHandicap('30.0', true),
+    anthemAdjustedHandicap('16.0', undefined)
+  ];
+  assert.equal(scrambleTeamHandicap(hcps), 11);
+});
+
 test('groupStrokes: allocates the base stroke to every hole plus one extra on the lowest-SI holes', () => {
   // handicap 11 over 18 holes -> base 0, extra 11 -> 1 stroke on SI 1-11, 0 on SI 12-18
   const result = groupStrokes(11, SI_ASCENDING);
@@ -1139,6 +1203,16 @@ test('describeUpdateRow: day2_group and player_team decode the team name and pla
   const move = describeUpdateRow({ update_type: 'player_team', player_id: 0, value: 'B' }, TEST_PLAYERS, TEST_TEAM_NAMES);
   assert.equal(move.fieldLabel, 'Player Team · A. Anderson');
   assert.equal(move.valueLabel, 'Team Golf');
+});
+
+test('describeUpdateRow: day2_anthem decodes sang/didn\'t-sing/cleared for a player', () => {
+  const sang = describeUpdateRow({ update_type: 'day2_anthem', player_id: 1, value: 'true' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(sang.fieldLabel, 'Day 2 Anthem · B. Baker');
+  assert.equal(sang.valueLabel, 'Sang (-1)');
+  const notSung = describeUpdateRow({ update_type: 'day2_anthem', player_id: 1, value: 'false' }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(notSung.valueLabel, "Didn't sing (+2)");
+  const cleared = describeUpdateRow({ update_type: 'day2_anthem', player_id: 1, value: null }, TEST_PLAYERS, TEST_TEAM_NAMES);
+  assert.equal(cleared.valueLabel, '(cleared)');
 });
 
 test('describeUpdateRow: an unknown player_id renders a safe fallback instead of throwing', () => {

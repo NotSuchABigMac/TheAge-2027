@@ -244,6 +244,21 @@
     return Math.round(total);
   }
 
+  // National anthem house rule (issue #149, Day 2 only): +2 strokes to a
+  // player's handicap if they didn't sing, -1 if they did -- folded into
+  // that player's own handicap *before* it goes into scrambleTeamHandicap()
+  // above, so it's applied per-player (per the confirmed scope) rather
+  // than as a flat team-wide adjustment, and rides the same
+  // lowest-handicap-first divisor logic unchanged. `sang` is `true`
+  // (sang), `false` (didn't sing), or null/undefined (no adjustment).
+  const ANTHEM_STROKE_ADJUSTMENT = { sang: -1, notSung: 2 };
+  function anthemAdjustedHandicap(hcp, sang) {
+    const n = parseFloat(hcp);
+    if (sang === true) return n + ANTHEM_STROKE_ADJUSTMENT.sang;
+    if (sang === false) return n + ANTHEM_STROKE_ADJUSTMENT.notSung;
+    return n;
+  }
+
   // Allocates one absolute team handicap across 18 holes via stroke index
   // -- same difference-in-handicap wraparound formula matchStrokes() uses
   // for a two-way difference, but here every hole gets the base allocation
@@ -494,7 +509,34 @@
         const match = state.day1.matches[row.match_idx];
         if (!match || !row.field_key) break;
         if (row.field_key === 'pA' || row.field_key === 'pB') {
-          (row.field_key === 'pA' ? match.pA : match.pB)[0] = parseIntOrNull(v);
+          const id = parseIntOrNull(v);
+          // Issue #147: the app's own UI only disables a player already
+          // used in another match against *this device's* current state --
+          // two devices independently assigning the same not-yet-used
+          // player to two different matches at nearly the same time both
+          // succeed, since they write to different (match_idx, field_key)
+          // keys with nothing to conflict. Evicting the player from any
+          // other match here (rather than only in the UI) is a pure
+          // function of the ordered update stream, so every device
+          // converges on the same result without an extra write: whichever
+          // assignment is LATEST in log order wins, and the earlier one
+          // -- plus any result already recorded against it, same fields
+          // setMatchPlayer() clears on a manual reassignment -- is undone.
+          if (id !== null) {
+            state.day1.matches.forEach((other, oi) => {
+              if (oi === row.match_idx) return;
+              ['pA', 'pB'].forEach(side => {
+                if (other[side][0] === id) {
+                  other[side][0] = null;
+                  other.front9 = null;
+                  other.back9 = null;
+                  other.holesA = Array(18).fill(null);
+                  other.holesB = Array(18).fill(null);
+                }
+              });
+            });
+          }
+          (row.field_key === 'pA' ? match.pA : match.pB)[0] = id;
         } else {
           const val = (v === null || v === 'null') ? null : v;
           match[row.field_key] = (val === 'A' || val === 'B' || val === 'T') ? val : null;
@@ -551,6 +593,14 @@
       case 'day2_ntp':
         if (row.field_key) state.day2.ntp[row.field_key] = parseIntOrNull(v);
         break;
+      case 'day2_anthem': {
+        if (typeof row.player_id !== 'number' || row.player_id < 0 || row.player_id >= 14) break;
+        if (!state.day2.anthem) break;
+        if (v === 'true') state.day2.anthem[row.player_id] = true;
+        else if (v === 'false') state.day2.anthem[row.player_id] = false;
+        else delete state.day2.anthem[row.player_id];
+        break;
+      }
       case 'day3_stableford': {
         if (typeof row.player_id !== 'number' || row.player_id < 0 || row.player_id >= 14) break;
         const n = parseIntOrNull(v);
@@ -608,6 +658,7 @@
     day2_hole:       { label: 'Day 2 — Hole Score',              addressing: 'group+hole',  restorable: true },
     day2_group:      { label: 'Day 2 — Group Assignment',        addressing: 'player',      restorable: true },
     day2_ntp:        { label: 'Day 2 — Nearest the Pin',         addressing: 'field',       fieldKeys: ['h4', 'h16'], restorable: true },
+    day2_anthem:     { label: 'Day 2 — National Anthem',         addressing: 'player',      restorable: true },
     day3_stableford: { label: 'Day 3 — Stableford Score',        addressing: 'player',      restorable: true },
     day3_ntp:        { label: 'Day 3 — Nearest the Pin',         addressing: 'field',       fieldKeys: ['h7', 'h14'], restorable: true },
     tiebreak:        { label: 'Tiebreak',                        addressing: 'none',        restorable: true },
@@ -664,6 +715,8 @@
         return { fieldLabel: `Day 2 Group · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : String(v).toUpperCase() };
       case 'day2_ntp':
         return { fieldLabel: `Day 2 NTP · ${row.field_key || '?'}`, valueLabel: isCleared ? '(cleared)' : (playerName(v) || String(v)) };
+      case 'day2_anthem':
+        return { fieldLabel: `Day 2 Anthem · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : (v === 'true' ? 'Sang (-1)' : v === 'false' ? "Didn't sing (+2)" : String(v)) };
       case 'day3_stableford':
         return { fieldLabel: `Day 3 Stableford · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : String(v) };
       case 'day3_ntp':
@@ -718,6 +771,7 @@
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
     SCRAMBLE_HANDICAP_PCT, scrambleTeamHandicap, groupStrokes,
+    ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap,
     scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
     POS_PTS, computeStableford, sumStablefordPoints,
     resolveOverallWinner,
