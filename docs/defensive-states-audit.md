@@ -1,5 +1,11 @@
 # Defensive State Audit — Wonga Cup Live Scorecard
 
+> **Re-run (v2), 26 Jul 2026:** every finding in §1 below has since been fixed on `trunk`
+> (commits `96736dd`…`257279a`, issues #113–#117/#119 and the parallel security audit's
+> #105–#112). §1 and §2 are retained as the historical record. The re-run audited the
+> code added since — hole-by-hole scoring, Day 2 groups, admin rollback/history, the
+> write-token gate — and its findings are in **§3 (Re-run Issue Log)** at the bottom.
+
 **Scope:** `scorecard-live.html` (live scoring app), `scoring.js` (pure math + sync row application), `theme.js`, `index.html`.
 **Stack:** Vanilla JS multi-page site · Supabase REST (`tournament_updates` insert-only transaction log, anon publishable key) · `localStorage` persistence · 30-second polling sync.
 **Method:** Manual trace of every user interaction, sync path, and persisted-data shape against the API contract in `TODO.md`.
@@ -267,3 +273,80 @@ Copy-paste one brief per implementation task. Each targets one component cluster
 
 **Brief 8 — Course image fallbacks (index.html)**
 > Task: Implement defensive states for course photos in `index.html`. Using this target file: `[PASTE index.html HERE]`, add the following UI states: replace the three `background-image` photo divs with real `<img>` elements using the `.course-img`/`.course-ph` loaded-class pattern already defined in `scorecard-live.html`'s stylesheet (placeholder visible by default, image revealed `onload`), copying those CSS rules into `styles.css` so both pages share them. Ensure it matches the existing styling framework.
+
+---
+
+## 3. Re-run Issue Log (v2 — 26 Jul 2026)
+
+**Verified fixed on `trunk`:** init crash boundary + `normalizeState()` shape guards; persisted `pendingWrites`; `syncInFlight` single-flight `pollOnce()`; escaped Day 3 render; sync status machine + `manualRefresh()`; empty states for team columns and Day 1 pools; team-name/username form feedback; toast timer; `audio.play().catch()`; sync-apply whitelist + clamps; `gte` cursor with id de-dupe + pagination loop; `updateDay2(changedId)` single-field sync; focus-guarded re-renders. Prior §1/§2 content is historical.
+
+**New findings in the code added since:**
+
+### R1. 🔴 `rollbackScores()` — Rollback never reaches other devices; boards permanently diverge
+- **Failure scenario:** The RPC deletes rows server-side and resets only the admin device's local cache. Every other device already applied those rows and holds a cursor *past* them — a deletion produces no sync signal, so every other phone keeps the rolled-back scores in state and localStorage indefinitely; the admin sees the corrected board, everyone else the old one. The admin device's queued `pendingWrites` (and `LAST_SYNC_IDS_KEY`) also survive the reload and can re-insert pre-cutoff writes, resurrecting deleted scores.
+- **Prescriptive solution:** Make the rollback itself a synced event, and clear all sync-adjacent caches on the admin device.
+
+```
+// after the RPC succeeds, BEFORE reloading:
+insertUpdate('rollback', { value: cutoff.toISOString() })   // new marker row type
+localStorage.removeItem(PENDING_KEY); pendingWrites = []
+localStorage.removeItem(LAST_SYNC_IDS_KEY)                  // alongside the existing two removes
+
+// page-layer applyUpdate wrapper (NOT scoring.js — needs cache/reload access):
+function applyUpdate(row) {
+  if (row.update_type === 'rollback') {
+    localStorage.removeItem('wongaCup2026'); localStorage.removeItem(LAST_SYNC_KEY);
+    localStorage.removeItem(LAST_SYNC_IDS_KEY); location.reload();   // rebuild from surviving rows
+    return
+  }
+  applyUpdateToState(state, row)
+}
+// scoring.js applyUpdateToState ignores unknown types, so stale clients degrade safely.
+```
+- **Residual risk (accepted per #103, worth recording):** the admin gate is `currentUsername === 'James McIntyre'` and the name is freely selectable in the login dropdown, while the RPC validates only the *shared* scorer PIN — any scorer can execute a destructive tournament-wide rollback. A separate `p_admin_token` on the RPC closes this.
+
+### R2. 🟠 `sendUpdateRow()` — A wrong tournament PIN is indistinguishable from being offline
+- **Failure scenario:** An RLS-rejected insert (HTTP 401/403) takes the same path as a network failure: `false` → queued into `pendingWrites` → "⚠ Offline — Using Local Storage" banner → flush re-fails forever. A scorer who typos the PIN once silently never syncs anything all weekend, while being told it's a connectivity problem.
+- **Prescriptive solution:** Classify the failure at the fetch site and give auth rejection its own state.
+
+```
+// sendUpdateRow returns 'ok' | 'auth' | 'network' instead of boolean:
+if (resp.ok) return 'ok'
+if (resp.status === 401 || resp.status === 403) return 'auth'
+return 'network'          // and 'network' from the catch block
+
+// insertUpdate:
+if (r === 'auth'):
+  currentWriteToken = null; sessionStorage.removeItem('wongaCup_writeToken')
+  showSaveToast('✗ Wrong tournament PIN', 'error')
+  requireUsername(null)   // reopen the modal; do NOT queue the write
+else if (r === 'network'): …existing queue path…
+// flushPendingWrites: stop the loop on first 'auth' result (don’t burn the queue).
+```
+
+### R3. 🟠 `restoreDay2()` — A remotely-cleared Day 2 manual score resurrects from the stale input box
+- **Failure scenario:** `restoreDay2()` only writes `input.value` when the state value is non-null, so a synced clear leaves the old text in the box — and `_doUpdateDay2()` then reads the DOM and writes that stale text **back into state**. A cleared score can never actually clear on other devices.
+- **Prescriptive solution:** Mirror state into the box unconditionally (still focus-guarded) before `_doUpdateDay2()` re-reads it:
+
+```
+['a4','a3','b4','b3'].forEach(id => {
+  const el = document.getElementById(id + '-score')
+  if (el) safeSetInput(el, state.day2[id] ?? '')     // '' when null — box must match state
+})
+```
+
+### R4. 🟠 `setDay2HoleScore()` / `setHoleScore()` — Hole-grid commit re-renders destroy focus or skip feedback
+- **Failure scenario:** Day 2: each hole entry calls `renderDay2GroupCard(code)`, which rebuilds `gridEl.innerHTML` — the input the scorer just tabbed/tapped into is destroyed, focus and the mobile keyboard drop on **every hole** of an 18-hole round. Day 1 has the inverse problem: `renderDay1()`'s `grid-in` focus guard makes the post-commit render a no-op while the input keeps focus (Enter key), so the nine-status line, match points, and clamped value don't appear until blur.
+- **Prescriptive solution:** Commit paths must patch, not rebuild. Split each renderer into "grid" (rebuild only when no `grid-in` has focus) and "derived line / header" (always safe to patch):
+
+```
+// Day 2 commit path:
+function setDay2HoleScore(code, holeNum, rawVal):
+  …store + sync…
+  renderDay2Derived(code)         // patches derivedEl text + manual/derived visibility only
+  if (!gridHasFocus()) renderDay2GroupCard(code)   // full rebuild only when safe
+// Day 1 commit path: patch the affected card's status line + header pts via
+// element updates (textContent), leaving the focused grid table untouched;
+// full renderDay1() still happens on blur/next poll.
+```
+
