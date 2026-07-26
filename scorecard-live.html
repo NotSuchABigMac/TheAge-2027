@@ -51,6 +51,7 @@
 @media(max-width:600px){.photo-pair{grid-template-columns:1fr}}
 .refresh-btn{background:rgba(240,180,41,.15);color:var(--gold);border:1px solid var(--gold);padding:8px 14px;border-radius:var(--r);font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:var(--tr)}
 .refresh-btn:hover{background:rgba(240,180,41,.25)}
+.refresh-btn:disabled{opacity:.5;cursor:not-allowed}
 
 /* ── SC TABS ── */
 .sc-tabs{display:flex;gap:2px;border-bottom:2px solid var(--rule-strong);max-width:1200px;margin:0 auto;padding:20px 24px 0;background:var(--canvas)}
@@ -192,6 +193,8 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .sync-bar{max-width:1200px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--rule);background:var(--canvas-2)}
 .sync-label{font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--ink-mute);display:flex;align-items:center;gap:6px}
 .live-dot{width:8px;height:8px;border-radius:50%;background:#44dd88;animation:blink 1.5s ease-in-out infinite;display:inline-block}
+.live-dot.grey{background:#999;animation:none}
+.live-dot.offline{background:#ff5c5c;animation:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 .sync-btn{padding:7px 16px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
 .sync-btn:hover{background:var(--gold-light)}
@@ -380,8 +383,8 @@ body{padding-bottom:52px}
 
   <!-- Live sync bar -->
   <div class="sync-bar">
-    <span class="sync-label"><span class="live-dot"></span>Live Scores</span>
-    <button class="refresh-btn" onclick="pollOnce()">🔄 Refresh</button>
+    <span class="sync-label"><span class="live-dot"></span><span class="sync-text">Live Scores</span></span>
+    <button class="refresh-btn" onclick="manualRefresh(this)">🔄 Refresh</button>
     <span class="sync-spacer"></span>
   </div>
 
@@ -1098,24 +1101,26 @@ function fmt(n) {
 }
 
 function setMatchPlayer(matchIdx, team, slot, val) {
-  const id = val === '' ? null : parseInt(val, 10);
-  const match = state.day1.matches[matchIdx];
-  if (team === 'A') match.pA[slot] = id;
-  else              match.pB[slot] = id;
-  // Reassigning a player invalidates any result already recorded for this
-  // match — otherwise a stale front9/back9 result could end up attributed
-  // to whoever gets slotted in next.
-  const hadResult = match.front9 !== null || match.back9 !== null;
-  match.front9 = null;
-  match.back9 = null;
-  saveState();
-  insertUpdate('day1_match', { match_idx: matchIdx, field_key: team === 'A' ? 'pA' : 'pB', value: id });
-  if (hadResult) {
-    insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'front9', value: null });
-    insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'back9', value: null });
-  }
-  renderDay1();
-  updateScoreboard();
+  requireUsername(() => {
+    const id = val === '' ? null : parseInt(val, 10);
+    const match = state.day1.matches[matchIdx];
+    if (team === 'A') match.pA[slot] = id;
+    else              match.pB[slot] = id;
+    // Reassigning a player invalidates any result already recorded for this
+    // match — otherwise a stale front9/back9 result could end up attributed
+    // to whoever gets slotted in next.
+    const hadResult = match.front9 !== null || match.back9 !== null;
+    match.front9 = null;
+    match.back9 = null;
+    saveState();
+    insertUpdate('day1_match', { match_idx: matchIdx, field_key: team === 'A' ? 'pA' : 'pB', value: id });
+    if (hadResult) {
+      insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'front9', value: null });
+      insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'back9', value: null });
+    }
+    renderDay1();
+    updateScoreboard();
+  });
 }
 
 function setNineResult(matchIdx, half, result) {
@@ -1561,35 +1566,63 @@ function applyUpdate(row) {
   applyUpdateToState(state, row);
 }
 
+// Ids already applied at the exact LAST_SYNC_KEY timestamp -- needed
+// because the cursor query below is `gte` (inclusive), not `gt`. A `gt`
+// cursor permanently drops any row that happens to share a timestamp with
+// the last-applied row if it fell on the far side of a page/poll boundary
+// (issue #111); overlapping on `gte` and de-duping by id here is what
+// makes that safe instead of re-applying the boundary row forever.
+const LAST_SYNC_IDS_KEY = 'wongaCup2026_lastSyncIds';
+function getSyncedIdsAtCursor() {
+  try { return JSON.parse(localStorage.getItem(LAST_SYNC_IDS_KEY) || '[]'); } catch(e) { return []; }
+}
+
 async function loadFromSupabase() {
   if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey) {
     console.log('Supabase not configured');
     return false;
   }
-  const lastSync = localStorage.getItem(LAST_SYNC_KEY) || '1970-01-01T00:00:00.000Z';
+  let advanced = false;
   try {
-    const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gt.${encodeURIComponent(lastSync)}&order=updated_at.asc&limit=500`;
-    const resp = await fetch(url, {
-      headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' }
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const rows = await resp.json();
-    if (rows.length > 0) {
-      // processUpdateRows() (scoring.js) applies each row individually so
-      // one malformed row (bad JSON in a team_assign value, an
-      // unrecognized shape, etc.) can't stop the rest of the batch from
-      // applying. It always reports the last row's timestamp so the sync
-      // cursor advances regardless -- otherwise a bad row gets re-fetched
-      // and re-fails on every poll forever, wedging every client's live
-      // sync until someone manually finds and deletes it from the table.
-      const result = processUpdateRows(rows, applyUpdate);
-      result.failed.forEach(f => console.error('Skipping malformed update row:', f.row, f.error));
-      localStorage.setItem(LAST_SYNC_KEY, result.lastUpdatedAt);
+    // A device that's fallen far behind (e.g. joining partway through a
+    // 3-day log) must not stall showing a stale partial board for
+    // multiple 30s polls -- keep paging until a page comes back short of
+    // the limit, i.e. this device is fully caught up (issue #110).
+    while (true) {
+      const cursor = localStorage.getItem(LAST_SYNC_KEY) || '1970-01-01T00:00:00.000Z';
+      const seenAtCursor = new Set(getSyncedIdsAtCursor());
+      const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
+      const resp = await fetch(url, {
+        headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' }
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const page = await resp.json();
+      const rows = page.filter(r => !(r.updated_at === cursor && seenAtCursor.has(r.id)));
+      if (rows.length > 0) {
+        // processUpdateRows() (scoring.js) applies each row individually so
+        // one malformed row (bad JSON in a team_assign value, an
+        // unrecognized shape, etc.) can't stop the rest of the batch from
+        // applying. It always reports the last row's timestamp so the sync
+        // cursor advances regardless -- otherwise a bad row gets re-fetched
+        // and re-fails on every poll forever, wedging every client's live
+        // sync until someone manually finds and deletes it from the table.
+        const result = processUpdateRows(rows, applyUpdate);
+        result.failed.forEach(f => console.error('Skipping malformed update row:', f.row, f.error));
+        const lastTs = result.lastUpdatedAt;
+        const idsAtLastTs = rows.filter(r => r.updated_at === lastTs).map(r => r.id);
+        localStorage.setItem(LAST_SYNC_KEY, lastTs);
+        localStorage.setItem(LAST_SYNC_IDS_KEY, JSON.stringify(
+          lastTs === cursor ? [...seenAtCursor, ...idsAtLastTs] : idsAtLastTs
+        ));
+        advanced = true;
+      }
+      if (page.length < 500) break; // caught up
+      if (rows.length === 0) break; // this page was entirely already-applied boundary rows
     }
     isOffline = false;
     await flushPendingWrites();
     updateOfflineIndicator();
-    return rows.length > 0;
+    return advanced;
   } catch(err) {
     console.error('Supabase load failed:', err.message);
     isOffline = true;
@@ -1813,19 +1846,62 @@ function refreshAllDays() {
 // Protecting focus (safeSetInput, the renderDay3 guard above) is the
 // correct-grained fix, so the skip window is gone entirely here.
 let syncInFlight = false;
+
+// 'initial-loading' | 'live' | 'offline' -- a fresh page load used to show
+// the green pulsing "Live Scores" dot instantly, over default/localStorage
+// state, before the real sync had even started -- indistinguishable from
+// an up-to-date board (issue #117).
+let syncStatus = 'initial-loading';
+function renderSyncBar() {
+  const dot = document.querySelector('.sync-bar .live-dot');
+  const label = document.querySelector('.sync-bar .sync-text');
+  if (!dot || !label) return;
+  dot.classList.remove('grey', 'offline');
+  if (syncStatus === 'initial-loading') {
+    dot.classList.add('grey');
+    label.textContent = 'Syncing latest scores…';
+  } else if (syncStatus === 'offline') {
+    dot.classList.add('offline');
+    label.textContent = 'Offline — local only';
+  } else {
+    label.textContent = 'Live Scores';
+  }
+}
+
 async function pollOnce() {
   if (syncInFlight) return;
   syncInFlight = true;
   try {
     const ok = await loadFromSupabase();
     if (ok) refreshAllDays();
+    syncStatus = isOffline ? 'offline' : 'live';
   } catch(e) {
     console.error('Poll load error:', e);
+    syncStatus = 'offline';
   } finally {
     syncInFlight = false;
+    renderSyncBar();
   }
 }
 
+// Refresh button wrapper -- gives in-flight feedback and surfaces a
+// failed refresh instead of it being indistinguishable from "no new
+// scores" (both previously silent, issue #117).
+async function manualRefresh(btn) {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const prev = btn.textContent;
+  btn.textContent = '⏳ Refreshing…';
+  try {
+    await pollOnce();
+    if (isOffline) showSaveToast('✗ Could not reach server', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+}
+
+renderSyncBar();
 if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   console.log('Starting Supabase polling...');
   pollOnce();
