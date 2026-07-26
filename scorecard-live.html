@@ -1521,8 +1521,18 @@ function setHoleScore(matchIdx, team, holeNum, rawVal) {
     insertUpdate('day1_hole', { match_idx: matchIdx, field_key: `${team}${holeNum}`, value: clamped });
     updateScoreboard();
     const patched = patchDay1HoleFeedback(matchIdx, team, holeNum, clamped);
-    const gridHasFocus = document.activeElement && document.activeElement.classList.contains('grid-in');
-    if (!patched || !gridHasFocus) renderDay1();
+    // Issue: 'change' fires as part of the outgoing input's blur, before
+    // the browser has moved focus to whatever the scorer tapped/tabbed
+    // into next -- checking activeElement synchronously here therefore
+    // always sees no grid-in focused (even mid-tap into the next hole),
+    // forcing a full rebuild that destroys the field the scorer just
+    // moved into and slams the mobile keyboard shut. Deferring one tick
+    // lets the pending focus event land first, so the check reflects
+    // where focus actually ends up.
+    setTimeout(() => {
+      const gridHasFocus = document.activeElement && document.activeElement.classList.contains('grid-in');
+      if (!patched || !gridHasFocus) renderDay1();
+    }, 0);
   });
 }
 
@@ -1890,9 +1900,19 @@ function setDay2HoleScore(code, holeNum, rawVal) {
     // keyboard on every single hole. Only the derived aggregate line needs
     // to update while the grid still has focus; the full rebuild (which
     // also refreshes the stroke-dot row) runs once focus moves on.
-    const gridHasFocus = document.activeElement && document.activeElement.classList.contains('grid-in');
-    if (gridHasFocus) renderDay2Derived(code);
-    else renderDay2GroupCard(code);
+    //
+    // The activeElement check has to be deferred, though: 'change' fires
+    // as part of the outgoing input's blur, before the browser has moved
+    // focus onto whatever the scorer tapped/tabbed into next. Checking
+    // synchronously here always sees nothing grid-in focused -- even when
+    // the scorer just tapped straight into the next hole -- so it took the
+    // full-rebuild branch on every commit and closed the keyboard anyway.
+    // Deferring one tick lets the pending focus event land first.
+    setTimeout(() => {
+      const gridHasFocus = document.activeElement && document.activeElement.classList.contains('grid-in');
+      if (gridHasFocus) renderDay2Derived(code);
+      else renderDay2GroupCard(code);
+    }, 0);
     _doUpdateDay2();
   });
 }
