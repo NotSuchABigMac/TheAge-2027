@@ -381,7 +381,7 @@ body{padding-bottom:52px}
   <!-- Live sync bar -->
   <div class="sync-bar">
     <span class="sync-label"><span class="live-dot"></span>Live Scores</span>
-    <button class="refresh-btn" onclick="loadFromSupabase().then(() => refreshAllDays())">🔄 Refresh</button>
+    <button class="refresh-btn" onclick="pollOnce()">🔄 Refresh</button>
     <span class="sync-spacer"></span>
   </div>
 
@@ -628,7 +628,6 @@ const LAST_SYNC_KEY = 'wongaCup2026_lastSync';
 let currentUsername = null;
 let isOffline = false;
 let autoPollingInterval = null;
-let lastSaveTime = 0;
 
 /* ─────────────────────────────────────
    DATA
@@ -733,7 +732,6 @@ function saveState() {
     };
     localStorage.setItem('wongaCup2026', JSON.stringify(s));
   } catch(e) {}
-  lastSaveTime = Date.now();
 }
 
 // Fills in fields that may be missing from an older-shaped saved/synced
@@ -1255,11 +1253,18 @@ function _doUpdateDay2() {
   updateScoreboard();
 }
 
+// Removing the poll-skip window (issue #108) means a poll's re-render can
+// now land while the user is mid-keystroke in one of these boxes -- never
+// overwrite whichever element currently has focus.
+function safeSetInput(el, val) {
+  if (el && document.activeElement !== el) el.value = val;
+}
+
 function restoreDay2() {
   ['a4','a3','b4','b3'].forEach(id => {
     const el = document.getElementById(id + '-score');
     if (el && state.day2[id] !== null && state.day2[id] !== undefined) {
-      el.value = state.day2[id];
+      safeSetInput(el, state.day2[id]);
     }
   });
   renderDay2Ntp();
@@ -1286,6 +1291,12 @@ function computeDay3() {
 function renderDay3() {
   const tbody = document.getElementById('sf-tbody');
   if (!tbody) return;
+  // A poll-triggered re-render fully rebuilds every row (destroying and
+  // recreating each <input>) -- doing that while the user is mid-keystroke
+  // in one would drop focus and whatever they'd typed. setStableford()'s
+  // own DOM patch already keeps the edited row's badges in sync locally;
+  // the next poll (once focus moves elsewhere) picks up the full picture.
+  if (document.activeElement && document.activeElement.classList.contains('sf-in')) return;
   const { sorted } = computeDay3();
   tbody.innerHTML = '';
   const maxPts = POS_PTS[0];
@@ -1475,6 +1486,15 @@ function showSaveToast(message, type) {
 // a distributed database).
 let pendingWrites = [];
 
+// Writes queued while offline used to live only in memory -- a reload on
+// the patchy course wifi that most needed the queue discarded it entirely,
+// while localStorage still showed the score as if it had synced (issue
+// #114). Persisted alongside every mutation and rehydrated at init.
+const PENDING_KEY = 'wongaCup2026_pendingWrites';
+function persistPending() {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify(pendingWrites)); } catch(e) {}
+}
+
 // Single source of truth for whether the offline banner should be showing:
 // true connectivity loss (isOffline) OR any write still waiting to be
 // retried. Clearing the banner used to only depend on the last GET having
@@ -1518,7 +1538,7 @@ async function insertUpdate(updateType, fields) {
   showSaveToast('Saving...', 'saving');
   const ok = await sendUpdateRow(updateType, fields);
   isOffline = !ok;
-  if (!ok) pendingWrites.push({ updateType, fields });
+  if (!ok) { pendingWrites.push({ updateType, fields }); persistPending(); }
   updateOfflineIndicator();
   showSaveToast(ok ? '✓ Saved' : '✗ Offline', ok ? 'success' : 'error');
 }
@@ -1533,6 +1553,7 @@ async function flushPendingWrites() {
     if (!ok) stillPending.push(w);
   }
   pendingWrites = stillPending;
+  persistPending();
   updateOfflineIndicator();
 }
 
@@ -1742,6 +1763,9 @@ setupModalA11y('music-modal', dismissMusic);
 setupModalA11y('username-modal', closeUsernameModal);
 
 initUsername();
+try { pendingWrites = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch(e) { pendingWrites = []; }
+if (!Array.isArray(pendingWrites)) pendingWrites = [];
+updateOfflineIndicator();
 // Load from shared URL hash first; fall back to localStorage
 try {
   loadState();
@@ -1777,26 +1801,35 @@ function refreshAllDays() {
   }
 }
 
+// Serializes every poll trigger (auto-poll tick, Refresh button, initial
+// load) through one entry point. Without this, a slow request overlapping
+// the next 30s tick -- or a mashed Refresh button -- runs
+// flushPendingWrites() concurrently on the same pendingWrites array,
+// double-inserting every queued row (issue #115). The old 5s "skip if we
+// just saved" window used to also protect in-progress typing, but it did
+// so by suppressing the ENTIRE fetch (including flushPendingWrites and
+// clearing the offline banner) for as long as a scorer kept typing --
+// starving remote sync exactly when scoring is busiest (issue #108).
+// Protecting focus (safeSetInput, the renderDay3 guard above) is the
+// correct-grained fix, so the skip window is gone entirely here.
+let syncInFlight = false;
+async function pollOnce() {
+  if (syncInFlight) return;
+  syncInFlight = true;
+  try {
+    const ok = await loadFromSupabase();
+    if (ok) refreshAllDays();
+  } catch(e) {
+    console.error('Poll load error:', e);
+  } finally {
+    syncInFlight = false;
+  }
+}
+
 if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   console.log('Starting Supabase polling...');
-  loadFromSupabase().then((success) => {
-    console.log('Initial load success:', success);
-    if (success) refreshAllDays();
-  }).catch(e => console.error('Initial load error:', e));
-
-  // Auto-poll every 30s for everyone (live scores for all players)
-  setInterval(() => {
-    // Skip re-render if we saved within the last 5 seconds to avoid wiping in-progress input
-    if (Date.now() - lastSaveTime < 5000) {
-      console.log('Auto-poll skipped — recent save in progress');
-      return;
-    }
-    console.log('Auto-poll triggered');
-    loadFromSupabase().then((success) => {
-      console.log('Poll load success:', success);
-      if (success) refreshAllDays();
-    }).catch(e => console.error('Poll load error:', e));
-  }, 30000);
+  pollOnce();
+  setInterval(pollOnce, 30000);
 }
 /* ─────────────────────────────────────
    MINI SCOREBOARD
