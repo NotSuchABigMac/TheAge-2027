@@ -183,11 +183,23 @@ rounded to the nearest whole stroke — and stays course-data-free like
 `scorecard-live.html` is the glue that feeds it a given day's `COURSES`
 entry.
 
-This is a **display-only** addition — it does not change how strokes are
-allocated in Day 1 match play or the Day 2 scramble team handicap, both of
-which only ever cared about the relative handicap differential, not an
-absolute course handicap. The Teams tab's "Daily Handicaps" table shows
-every player's computed handicap for all three courses side by side (static
-for the tournament, rendered once at init like the course cards); the Day 3
-table's "Course HCP" column shows the Lake number specifically, since
-that's the one that directly determines a player's net Stableford score.
+This isn't just a display change — it corrects Day 1 and Day 2's stroke
+allocation too. Both `matchStrokesFor()` (Day 1) and `day2GroupHandicap()`
+(Day 2) used to feed the two players' **raw index** into
+`matchStrokes()`/`scrambleTeamHandicap()`, on the reasoning that match play
+and the Ambrose divisors only care about the relative difference between
+players, not an absolute number. That's true, but incomplete: since neither
+course's slope is 113, the gap between two players' *course* handicaps is
+the raw index gap scaled by `slope/113` (128/113, 134/113, 126/113) — a
+bigger gap than the raw index difference implies. Using the index
+difference under-allocated strokes to the higher-handicap player. Both call
+sites now pass each player's `dailyHandicap(hcp, day)` for that day's
+course instead of their raw index, and every player-facing "(HCP N)" label
+in the Day 1/Day 2 UI shows that same course-adjusted number so it matches
+what's actually being allocated.
+
+The Teams tab's "Daily Handicaps" table shows every player's computed
+handicap for all three courses side by side (static for the tournament,
+rendered once at init like the course cards); the Day 3 table's "Course
+HCP" column shows the Lake number specifically, since that's the one that
+directly determines a player's net Stableford score.

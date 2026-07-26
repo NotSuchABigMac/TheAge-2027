@@ -1248,7 +1248,7 @@ function playerOptions(team, matchIdx, slot, currentId) {
   pool.forEach(p => {
     const disabled = usedInOthers.has(p.id) || usedSameMatch.has(p.id) ? 'disabled' : '';
     const sel = p.id === currentId ? 'selected' : '';
-    opts += `<option value="${p.id}" ${disabled} ${sel}>${p.short} (${p.hcp})</option>`;
+    opts += `<option value="${p.id}" ${disabled} ${sel}>${p.short} (HCP ${dailyHandicap(p.hcp, 1)})</option>`;
   });
   return opts;
 }
@@ -1262,13 +1262,17 @@ function day1StrokeIndexes() {
   return course ? course.holes.map(h => h.si) : Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-// Handicap strokes for one match, from the two assigned players' hcp —
-// {receiver: null, a: 18 zeros, b: 18 zeros} until both are assigned.
+// Handicap strokes for one match, from the two assigned players' MURRAY
+// course handicap (not their raw index) -- {receiver: null, a: 18 zeros,
+// b: 18 zeros} until both are assigned. Murray's slope (128) isn't 113, so
+// the gap between two players' course handicaps runs wider than the gap
+// between their raw indexes (each scales by slope/113) -- using the index
+// difference would under-allocate strokes to the higher-handicap player.
 function matchStrokesFor(match) {
   const pA = PLAYERS.find(p => p.id === match.pA[0]);
   const pB = PLAYERS.find(p => p.id === match.pB[0]);
   if (!pA || !pB) return { receiver: null, a: Array(18).fill(0), b: Array(18).fill(0) };
-  return matchStrokes(pA.hcp, pB.hcp, day1StrokeIndexes());
+  return matchStrokes(dailyHandicap(pA.hcp, 1), dailyHandicap(pB.hcp, 1), day1StrokeIndexes());
 }
 
 // The front9/back9 that actually feed matchPoints() for this match: derived
@@ -1634,11 +1638,17 @@ function day2CourseHoles() {
   return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
 }
 
+// Feeds each player's BLACK BULL course handicap (not their raw index)
+// into the Ambrose divisors -- same reasoning as matchStrokesFor: Black
+// Bull's slope (134) scales every player's handicap up by a different
+// amount than a flat index would, so the group's relative makeup (and
+// therefore the team handicap the divisors produce) has to be computed
+// from course handicaps, not indexes.
 function day2GroupHandicap(code) {
   const ids = state.day2.groups[code];
   const hcps = ids.map(id => (PLAYERS.find(p => p.id === id) || {}).hcp).filter(h => h !== undefined);
   if (hcps.length !== ids.length) return null; // stale id no longer a real player
-  return scrambleTeamHandicap(hcps);
+  return scrambleTeamHandicap(hcps.map(h => dailyHandicap(h, 2)));
 }
 
 function renderDay2Groups() {
@@ -1656,7 +1666,7 @@ function renderDay2Groups() {
       const current = groupOf(p.id);
       const fourCode = team === 'A' ? 'a4' : 'b4';
       const threeCode = team === 'A' ? 'a3' : 'b3';
-      html += `<div class="day2-group-row"><span>${escapeHtml(p.short)} (${p.hcp})</span>
+      html += `<div class="day2-group-row"><span>${escapeHtml(p.short)} (HCP ${dailyHandicap(p.hcp, 2)})</span>
         <select onchange="setDay2Group(${p.id}, this.value)">
           <option value="" ${!current ? 'selected' : ''}>— unassigned —</option>
           <option value="${fourCode}" ${current === fourCode ? 'selected' : ''}>Group of 4</option>
