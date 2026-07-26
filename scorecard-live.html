@@ -1301,10 +1301,10 @@ function renderDay3() {
     const ptsText  = p.score !== null ? (p.pts % 1 === 0 ? p.pts : p.pts.toFixed(1)) : '—';
     row.innerHTML = `
       <td class="pos-cell ${posClass}">${posText}</td>
-      <td style="color:var(--ink)">${p.name}</td>
+      <td style="color:var(--ink)">${escapeHtml(p.name)}</td>
       <td>${teamBadgeHtml(p.team)}</td>
-      <td class="grey" style="font-size:.84rem">${p.hcp}</td>
-      <td><input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${state.day3.scores[p.id]||''}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
+      <td class="grey" style="font-size:.84rem">${escapeHtml(p.hcp)}</td>
+      <td><input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${escapeHtml(state.day3.scores[p.id]||'')}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
       <td class="pts-cell">${ptsText}</td>`;
     tbody.appendChild(row);
   });

@@ -258,8 +258,30 @@
   }
 
   function parseIntOrNull(v) {
-    return (v === null || v === undefined || v === 'null' || v === '') ? null : parseInt(v, 10);
+    if (v === null || v === undefined || v === 'null' || v === '') return null;
+    const n = parseInt(v, 10);
+    return isNaN(n) ? null : n;
   }
+
+  const DAY3_SCORE_MIN = 0, DAY3_SCORE_MAX = 60;
+
+  // Whitelists which field_key values each synced update_type may touch.
+  // The tournament_updates table is publicly writable, so a forged
+  // field_key (e.g. day2_score/'ntp', day1_match/'type' or '__proto__')
+  // must not be able to overwrite a differently-shaped part of state --
+  // without this, such a row replaces a whole object with a string or
+  // rewrites a match's shape instead of just one of its real fields
+  // (issue #120). update_types without a field_key (day3_stableford,
+  // player_team, tiebreak) have no entry here and are unaffected.
+  const UPDATE_FIELD_KEYS = {
+    day1_match: ['pA', 'pB', 'front9', 'back9'],
+    day1_ntp:   ['h8', 'h17'],
+    day2_score: ['a4', 'a3', 'b4', 'b3'],
+    day2_ntp:   ['h4', 'h16'],
+    day3_ntp:   ['h7', 'h14'],
+    team_name:  ['A', 'B'],
+    team_assign:['A', 'B']
+  };
 
   // Interprets one synced `tournament_updates` row and mutates `state`
   // in place accordingly -- the single place every device (regardless of
@@ -268,38 +290,51 @@
   // historical sync bugs (issues #58, #60-#63, #65, #66, #71). Takes
   // `state` as a parameter (rather than closing over a global) so it's
   // unit-testable the same way as the rest of this file.
+  //
+  // Every numeric field below is re-clamped here to the same range its
+  // input path enforces (Day 2 +/-20, Day 3 0-60) -- local clamping alone
+  // only protects the device that typed the value, not the shared state
+  // every device replays a forged row into (issue #109).
   function applyUpdateToState(state, row) {
     const v = row.value;
+    const allowed = UPDATE_FIELD_KEYS[row.update_type];
+    if (allowed && !allowed.includes(row.field_key)) return;
     switch (row.update_type) {
       case 'day1_match': {
+        if (!Number.isInteger(row.match_idx) || row.match_idx < 0 || row.match_idx > 5) break;
         const match = state.day1.matches[row.match_idx];
         if (!match || !row.field_key) break;
         if (row.field_key === 'pA' || row.field_key === 'pB') {
           (row.field_key === 'pA' ? match.pA : match.pB)[0] = parseIntOrNull(v);
         } else {
-          match[row.field_key] = (v === null || v === 'null') ? null : v;
+          const val = (v === null || v === 'null') ? null : v;
+          match[row.field_key] = (val === 'A' || val === 'B' || val === 'T') ? val : null;
         }
         break;
       }
       case 'day1_ntp':
         if (row.field_key) state.day1.ntp[row.field_key] = parseIntOrNull(v);
         break;
-      case 'day2_score':
-        if (row.field_key) state.day2[row.field_key] = v === null || v === 'null' ? null : v;
+      case 'day2_score': {
+        if (!row.field_key) break;
+        const n = parseScoreToPar(v);
+        state.day2[row.field_key] = n === null ? null : String(Math.max(DAY2_SCORE_MIN, Math.min(DAY2_SCORE_MAX, n)));
         break;
+      }
       case 'day2_ntp':
         if (row.field_key) state.day2.ntp[row.field_key] = parseIntOrNull(v);
         break;
-      case 'day3_stableford':
-        if (row.player_id !== null && row.player_id !== undefined) {
-          state.day3.scores[row.player_id] = v === null || v === 'null' ? null : v;
-        }
+      case 'day3_stableford': {
+        if (typeof row.player_id !== 'number' || row.player_id < 0 || row.player_id >= 14) break;
+        const n = parseIntOrNull(v);
+        state.day3.scores[row.player_id] = n === null ? null : String(Math.max(DAY3_SCORE_MIN, Math.min(DAY3_SCORE_MAX, n)));
         break;
+      }
       case 'day3_ntp':
         if (row.field_key) state.day3.ntp[row.field_key] = parseIntOrNull(v);
         break;
       case 'tiebreak':
-        state.tiebreak = (v === null || v === 'null') ? null : v;
+        state.tiebreak = (v === 'A' || v === 'B') ? v : null;
         break;
       case 'team_name':
         if (row.field_key === 'A') state.teamNameA = v;
