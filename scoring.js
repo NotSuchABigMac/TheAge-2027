@@ -590,6 +590,125 @@
     }
   }
 
+  /* ── ADMIN: FIELD HISTORY + RESTORE (issues #129, #132) ──
+     One descriptor per update_type drives both the Admin history picker's
+     addressing (which selector(s) a field needs: a match, a player, a
+     fixed field_key, or none) and whether a row of that type is
+     restorable -- a new update_type (like day1_hole/day2_hole/day2_group
+     above) gets history + restore support by adding one entry here, not
+     new picker UI. `team_assign` is deliberately excluded: it's a legacy
+     whole-roster snapshot, and re-imposing one over later per-player
+     deltas is exactly the corruption pattern issue #71 was about --
+     restoring team membership goes through individual player_team rows. */
+  const UPDATE_TYPE_DESCRIPTORS = {
+    day1_match:      { label: 'Day 1 — Match Result / Player',  addressing: 'match+field', fieldKeys: ['pA', 'pB', 'front9', 'back9'], restorable: true },
+    day1_hole:       { label: 'Day 1 — Hole Score',              addressing: 'match+hole',  restorable: true },
+    day1_ntp:        { label: 'Day 1 — Nearest the Pin',         addressing: 'field',       fieldKeys: ['h8', 'h17'], restorable: true },
+    day2_score:      { label: 'Day 2 — Group Net Score (manual)', addressing: 'field',      fieldKeys: ['a4', 'a3', 'b4', 'b3'], restorable: true },
+    day2_hole:       { label: 'Day 2 — Hole Score',              addressing: 'group+hole',  restorable: true },
+    day2_group:      { label: 'Day 2 — Group Assignment',        addressing: 'player',      restorable: true },
+    day2_ntp:        { label: 'Day 2 — Nearest the Pin',         addressing: 'field',       fieldKeys: ['h4', 'h16'], restorable: true },
+    day3_stableford: { label: 'Day 3 — Stableford Score',        addressing: 'player',      restorable: true },
+    day3_ntp:        { label: 'Day 3 — Nearest the Pin',         addressing: 'field',       fieldKeys: ['h7', 'h14'], restorable: true },
+    tiebreak:        { label: 'Tiebreak',                        addressing: 'none',        restorable: true },
+    team_name:       { label: 'Team Name',                       addressing: 'field',       fieldKeys: ['A', 'B'], restorable: true },
+    team_assign:     { label: 'Team Roster (legacy snapshot)',   addressing: 'field',       fieldKeys: ['A', 'B'], restorable: false },
+    player_team:     { label: 'Player Team Assignment',          addressing: 'player',      restorable: true, cascadeWarning: 'May also clear Day 1 match assignments for this player.' }
+  };
+
+  // Decodes one tournament_updates row into human-readable {fieldLabel,
+  // valueLabel} -- the read-side mirror of applyUpdateToState(), which is
+  // why it lives here rather than inline in the page (issue #129). Returns
+  // raw (unescaped) strings, same convention as the rest of this module --
+  // callers escape at render time, same as team names elsewhere.
+  function describeUpdateRow(row, players, teamNames) {
+    const v = row.value;
+    const isCleared = v === null || v === undefined || v === 'null';
+    const playerName = id => {
+      const n = parseIntOrNull(id);
+      if (n === null) return null;
+      const p = (players || []).find(pp => pp.id === n);
+      return p ? (p.short || p.name) : `Player #${n}`;
+    };
+    const teamName = code => {
+      if (code === 'A') return (teamNames && teamNames.A) || 'Team A';
+      if (code === 'B') return (teamNames && teamNames.B) || 'Team B';
+      if (code === 'T') return 'Tie';
+      return null;
+    };
+    switch (row.update_type) {
+      case 'day1_match': {
+        const matchLabel = Number.isInteger(row.match_idx) ? `Match ${row.match_idx + 1}` : 'Match ?';
+        if (row.field_key === 'pA' || row.field_key === 'pB') {
+          const side = row.field_key === 'pA' ? 'Team A slot' : 'Team B slot';
+          return { fieldLabel: `${matchLabel} · ${side}`, valueLabel: isCleared ? '(cleared)' : (playerName(v) || String(v)) };
+        }
+        const half = row.field_key === 'front9' ? 'Front 9' : row.field_key === 'back9' ? 'Back 9' : (row.field_key || '?');
+        return { fieldLabel: `${matchLabel} · ${half}`, valueLabel: isCleared ? '(cleared)' : (teamName(v) || String(v)) };
+      }
+      case 'day1_hole': {
+        const matchLabel = Number.isInteger(row.match_idx) ? `Match ${row.match_idx + 1}` : 'Match ?';
+        const m = /^([AB])(\d{1,2})$/.exec(row.field_key || '');
+        const holeLabel = m ? `Hole ${m[2]} (Team ${m[1]} slot)` : (row.field_key || '?');
+        return { fieldLabel: `${matchLabel} · ${holeLabel}`, valueLabel: isCleared ? '(cleared)' : String(v) };
+      }
+      case 'day1_ntp':
+        return { fieldLabel: `Day 1 NTP · ${row.field_key || '?'}`, valueLabel: isCleared ? '(cleared)' : (playerName(v) || String(v)) };
+      case 'day2_score':
+        return { fieldLabel: `Day 2 · ${(row.field_key || '?').toUpperCase()} net to par`, valueLabel: isCleared ? '(cleared)' : String(v) };
+      case 'day2_hole': {
+        const m = /^(a4|a3|b4|b3)_(\d{1,2})$/.exec(row.field_key || '');
+        return { fieldLabel: m ? `Day 2 · ${m[1].toUpperCase()} · Hole ${m[2]}` : `Day 2 hole · ${row.field_key || '?'}`, valueLabel: isCleared ? '(cleared)' : String(v) };
+      }
+      case 'day2_group':
+        return { fieldLabel: `Day 2 Group · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : String(v).toUpperCase() };
+      case 'day2_ntp':
+        return { fieldLabel: `Day 2 NTP · ${row.field_key || '?'}`, valueLabel: isCleared ? '(cleared)' : (playerName(v) || String(v)) };
+      case 'day3_stableford':
+        return { fieldLabel: `Day 3 Stableford · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : String(v) };
+      case 'day3_ntp':
+        return { fieldLabel: `Day 3 NTP · ${row.field_key || '?'}`, valueLabel: isCleared ? '(cleared)' : (playerName(v) || String(v)) };
+      case 'tiebreak':
+        return { fieldLabel: 'Tiebreak', valueLabel: isCleared ? '(cleared)' : (teamName(v) || String(v)) };
+      case 'team_name':
+        return { fieldLabel: `Team ${row.field_key || '?'} Name`, valueLabel: isCleared ? '(cleared)' : String(v) };
+      case 'team_assign':
+        return { fieldLabel: `Team ${row.field_key || '?'} Roster (legacy snapshot)`, valueLabel: isCleared ? '(cleared)' : String(v) };
+      case 'player_team':
+        return { fieldLabel: `Player Team · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : (teamName(v) || String(v)) };
+      default:
+        // An update_type this version of the app doesn't recognize (e.g. a
+        // future type, or a forged row) must render *something* rather than
+        // throw and break the whole history view -- same resilience
+        // philosophy as processUpdateRows (issue #63).
+        return { fieldLabel: `Unknown update type (${row.update_type})`, valueLabel: isCleared ? '(cleared)' : String(v) };
+    }
+  }
+
+  // Whether a historic row can be restored -- team_assign is the one
+  // deliberate exclusion (see UPDATE_TYPE_DESCRIPTORS comment above).
+  // Unknown update_types are also non-restorable, since there's no
+  // descriptor to trust.
+  function isRestorable(updateType) {
+    const d = UPDATE_TYPE_DESCRIPTORS[updateType];
+    return !!d && d.restorable === true;
+  }
+
+  // Produces the insert payload to restore a historic row as a NEW row
+  // (issue #132) -- copies the field's coordinates and value, but drops
+  // identity/authorship (id, updated_at, updated_by) so the caller's
+  // insertUpdate() gets a fresh timestamp and attributes the restore to
+  // whoever is doing the restoring, not the row's original author.
+  function buildRestoreRow(historicRow) {
+    return {
+      update_type: historicRow.update_type,
+      match_idx: historicRow.match_idx ?? null,
+      player_id: historicRow.player_id ?? null,
+      field_key: historicRow.field_key ?? null,
+      value: historicRow.value ?? null
+    };
+  }
+
   return {
     escapeHtml,
     ninePoints, matchPoints, sumMatchPoints,
@@ -603,6 +722,7 @@
     POS_PTS, computeStableford, sumStablefordPoints,
     resolveOverallWinner,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
-    parseIntOrNull, applyUpdateToState
+    parseIntOrNull, applyUpdateToState,
+    UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow
   };
 });
