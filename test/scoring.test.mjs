@@ -31,6 +31,13 @@ test('escapeHtml leaves ordinary team names untouched', () => {
   assert.equal(escapeHtml('Team Beer'), 'Team Beer');
 });
 
+test('escapeHtml defuses an attribute-breakout payload (issue #116)', () => {
+  const payload = '" autofocus onfocus="window.__pwned=1';
+  const escaped = escapeHtml(payload);
+  assert.ok(!escaped.includes('"'), 'no raw quote should survive escaping');
+  assert.equal(escaped, '&quot; autofocus onfocus=&quot;window.__pwned=1');
+});
+
 /* ── Day 1 — Match Play ── */
 
 test('ninePoints awards 1pt to the winning team, 0.5 each on a tie', () => {
@@ -560,4 +567,91 @@ test('applyUpdateToState: an unrecognized update_type is a no-op, not a throw', 
   assert.doesNotThrow(() => {
     applyUpdateToState(state, { update_type: 'something_new', value: 'x' });
   });
+});
+
+/* ── applyUpdateToState hardening (issues #109, #120) --
+   the tournament_updates table is publicly writable, so a forged row's
+   field_key, ids, and values must never be trusted verbatim. ── */
+
+test('applyUpdateToState: day1_match pA with a non-numeric value stores null, not NaN', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA', value: 'garbage' });
+  assert.equal(state.day1.matches[0].pA[0], null);
+  assert.equal(Number.isNaN(state.day1.matches[0].pA[0]), false);
+});
+
+test('applyUpdateToState: day2_score rejects an unlisted field_key (state.day2.ntp survives untouched)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_score', field_key: 'ntp', value: 'garbage' });
+  assert.deepEqual(state.day2.ntp, { h4: null, h16: null });
+});
+
+test('applyUpdateToState: day1_match rejects field_key "type" and "__proto__" (match shape untouched)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'type', value: 'doubles' });
+  assert.equal(state.day1.matches[0].type, 'singles');
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: '__proto__', value: '{}' });
+  assert.deepEqual(Object.keys(state.day1.matches[0]).sort(), ['back9', 'front9', 'pA', 'pB', 'type'].sort());
+});
+
+test('applyUpdateToState: day2_score clamps synced values to +/-20 the same as local input', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day2_score', field_key: 'a4', value: '999' });
+  assert.equal(state.day2.a4, '20');
+  applyUpdateToState(state, { update_type: 'day2_score', field_key: 'a4', value: '-999' });
+  assert.equal(state.day2.a4, '-20');
+  applyUpdateToState(state, { update_type: 'day2_score', field_key: 'a4', value: 'abc' });
+  assert.equal(state.day2.a4, null);
+  applyUpdateToState(state, { update_type: 'day2_score', field_key: 'a4', value: '-15' });
+  assert.equal(state.day2.a4, '-15');
+});
+
+test('applyUpdateToState: day1_match front9 rejects a non-A/B/T value', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'front9', value: 'Z' });
+  assert.equal(state.day1.matches[0].front9, null);
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'front9', value: 'A' });
+  assert.equal(state.day1.matches[0].front9, 'A');
+});
+
+test('applyUpdateToState: day1_ntp rejects an unlisted hole key (no new key added)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_ntp', field_key: 'h99', value: '3' });
+  assert.deepEqual(Object.keys(state.day1.ntp).sort(), ['h17', 'h8'].sort());
+});
+
+test('applyUpdateToState: tiebreak rejects any value other than A/B', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'tiebreak', value: 'C' });
+  assert.equal(state.tiebreak, null);
+  applyUpdateToState(state, { update_type: 'tiebreak', value: 'A' });
+  assert.equal(state.tiebreak, 'A');
+});
+
+test('applyUpdateToState: day3_stableford clamps synced values to 0-60', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day3_stableford', player_id: 6, value: '999' });
+  assert.equal(state.day3.scores[6], '60');
+  applyUpdateToState(state, { update_type: 'day3_stableford', player_id: 6, value: '-50' });
+  assert.equal(state.day3.scores[6], '0');
+});
+
+test('applyUpdateToState: day3_stableford rejects an out-of-range player_id', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day3_stableford', player_id: 14, value: '38' });
+  assert.deepEqual(state.day3.scores, {});
+  applyUpdateToState(state, { update_type: 'day3_stableford', player_id: -1, value: '38' });
+  assert.deepEqual(state.day3.scores, {});
+});
+
+test('applyUpdateToState: day1_match rejects an out-of-range match_idx without throwing', () => {
+  const state = makeState();
+  assert.doesNotThrow(() => {
+    applyUpdateToState(state, { update_type: 'day1_match', match_idx: -1, field_key: 'front9', value: 'A' });
+  });
+});
+
+test('parseIntOrNull returns null for non-numeric text but keeps a deliberate partial parse', () => {
+  assert.equal(parseIntOrNull('abc'), null);
+  assert.equal(parseIntOrNull('12abc'), 12);
 });
