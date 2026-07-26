@@ -127,7 +127,17 @@
   // entries: [{ id, score: number|null, team: 'A'|'B' }]
   // Returns entries sorted desc by score (nulls last) with pos/pts filled in.
   function computeStableford(entries) {
-    const sorted = [...entries].sort((a, b) => {
+    // A synced score can be NaN (e.g. a null value parsed with parseInt) --
+    // without this, the tie-grouping loop below advances with
+    // `while (sorted[j].score === sorted[i].score) j++`, and since
+    // NaN === NaN is false, j never advances past i and the loop never
+    // terminates. Normalizing on copies keeps every non-finite score
+    // grouped with the other not-entered (null) scores instead.
+    const safe = entries.map(e => ({
+      ...e,
+      score: (typeof e.score === 'number' && Number.isFinite(e.score)) ? e.score : null
+    }));
+    const sorted = safe.sort((a, b) => {
       if (a.score === null && b.score === null) return 0;
       if (a.score === null) return 1;
       if (b.score === null) return -1;

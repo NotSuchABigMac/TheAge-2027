@@ -478,14 +478,14 @@ body{padding-bottom:52px}
           <div class="sig">
             <label>Group of 4 — Net Score to Par</label>
             <div class="sig-row">
-              <input type="number" id="a4-score" min="-20" max="20" placeholder="0" oninput="updateDay2()">
+              <input type="number" id="a4-score" min="-20" max="20" placeholder="0" oninput="updateDay2('a4')">
               <div class="pts-badge" id="a4-pts">— pts</div>
             </div>
           </div>
           <div class="sig">
             <label>Group of 3 — Net Score to Par</label>
             <div class="sig-row">
-              <input type="number" id="a3-score" min="-20" max="20" placeholder="0" oninput="updateDay2()">
+              <input type="number" id="a3-score" min="-20" max="20" placeholder="0" oninput="updateDay2('a3')">
               <div class="pts-badge" id="a3-pts">— pts</div>
             </div>
           </div>
@@ -496,14 +496,14 @@ body{padding-bottom:52px}
           <div class="sig">
             <label>Group of 4 — Net Score to Par</label>
             <div class="sig-row">
-              <input type="number" id="b4-score" min="-20" max="20" placeholder="0" oninput="updateDay2()">
+              <input type="number" id="b4-score" min="-20" max="20" placeholder="0" oninput="updateDay2('b4')">
               <div class="pts-badge" id="b4-pts">— pts</div>
             </div>
           </div>
           <div class="sig">
             <label>Group of 3 — Net Score to Par</label>
             <div class="sig-row">
-              <input type="number" id="b3-score" min="-20" max="20" placeholder="0" oninput="updateDay2()">
+              <input type="number" id="b3-score" min="-20" max="20" placeholder="0" oninput="updateDay2('b3')">
               <div class="pts-badge" id="b3-pts">— pts</div>
             </div>
           </div>
@@ -740,6 +740,19 @@ function saveState() {
 // payload (e.g. from pre-format-overhaul testing) so a stale localStorage
 // blob or Supabase row can't crash the page.
 function normalizeState() {
+  // A saved/synced payload can have a day1/day2/day3 key present but shaped
+  // wrong (e.g. `matches` missing or not an array) — the map/access logic
+  // below assumes the current shape unconditionally, so guard it here
+  // before anything else runs rather than let it throw and kill init.
+  if (typeof state.day1 !== 'object' || state.day1 === null || !Array.isArray(state.day1.matches)) {
+    state.day1 = { matches: [], ntp: { h8: null, h17: null } };
+  }
+  if (typeof state.day2 !== 'object' || state.day2 === null) {
+    state.day2 = { a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null } };
+  }
+  if (typeof state.day3 !== 'object' || state.day3 === null) {
+    state.day3 = { scores: {}, ntp: { h7: null, h14: null } };
+  }
   // Coerce every existing match into the current singles shape — a match
   // saved during the short-lived doubles-era format (type:'doubles',
   // 2-slot pA/pB) can otherwise survive indefinitely in a browser's cached
@@ -1184,12 +1197,17 @@ function setDay3Ntp(hole, val) {
 /* ─────────────────────────────────────
    DAY 2 — SCRAMBLE
 ───────────────────────────────────── */
-function updateDay2() {
+// Only the box the user actually touched may be synced -- emitting all
+// four fields from this device's local state on every keystroke lets one
+// scorer's stale copy of the OTHER team's not-yet-polled-in score
+// overwrite it on the shared board (issue #107).
+function updateDay2(changedId) {
   requireUsername(() => {
+    const before = state.day2[changedId];
     _doUpdateDay2();
-    ['a4','a3','b4','b3'].forEach(id => {
-      insertUpdate('day2_score', { field_key: id, value: state.day2[id] });
-    });
+    if (state.day2[changedId] !== before) {
+      insertUpdate('day2_score', { field_key: changedId, value: state.day2[changedId] });
+    }
   });
 }
 function _doUpdateDay2() {
@@ -1259,7 +1277,7 @@ function computeDay3() {
     name:  p.name,
     hcp:   p.hcp,
     team:  teamOf(p.id),
-    score: state.day3.scores[p.id] !== undefined && state.day3.scores[p.id] !== '' ? parseInt(state.day3.scores[p.id], 10) : null
+    score: parseScoreToPar(state.day3.scores[p.id])
   }));
   const sorted = computeStableford(entries);
   return { sorted, entries };
@@ -1354,7 +1372,7 @@ function isDay2Complete() {
 }
 
 function isDay3Complete() {
-  return PLAYERS.every(p => state.day3.scores[p.id] !== undefined && state.day3.scores[p.id] !== '');
+  return PLAYERS.every(p => parseScoreToPar(state.day3.scores[p.id]) !== null);
 }
 
 /* ─────────────────────────────────────
@@ -1725,12 +1743,21 @@ setupModalA11y('username-modal', closeUsernameModal);
 
 initUsername();
 // Load from shared URL hash first; fall back to localStorage
-loadState();
-renderTeams();
-renderDay1();
-restoreDay2();
-renderDay3();
-updateScoreboard();
+try {
+  loadState();
+  renderTeams();
+  renderDay1();
+  restoreDay2();
+  renderDay3();
+  updateScoreboard();
+} catch (e) {
+  console.error('Init failed:', e);
+  document.getElementById('page-scorecard').innerHTML =
+    '<div class="info-box" style="margin:40px 24px">' +
+    '⚠ Saved data on this device is corrupted and the scorecard could not start.<br><br>' +
+    '<button class="tc sync-btn" onclick="localStorage.removeItem(\'wongaCup2026\'); location.reload();">Reset &amp; Reload</button>' +
+    '</div>';
+}
 // Load from Supabase on init if configured
 function refreshAllDays() {
   console.log('Refreshing all day tabs...');

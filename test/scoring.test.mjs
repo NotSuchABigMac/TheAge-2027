@@ -179,6 +179,43 @@ test('computeStableford puts unentered scores last with 0 points', () => {
   assert.equal(sorted[1].pos, null);
 });
 
+test('computeStableford treats a NaN score as not-entered instead of looping forever', () => {
+  const entries = [
+    { id: 1, score: 40, team: 'A' },
+    { id: 2, score: NaN, team: 'B' },
+    { id: 3, score: 35, team: 'B' }
+  ];
+  const sorted = computeStableford(entries); // must terminate
+  assert.deepEqual(sorted.map(p => p.id), [1, 3, 2]);
+  assert.equal(sorted[2].pos, null);
+  assert.equal(sorted[2].pts, 0);
+  assert.deepEqual(sumStablefordPoints(sorted), { a: 14, b: 13 });
+});
+
+test('computeStableford treats undefined and non-numeric scores as not-entered', () => {
+  const entries = [
+    { id: 1, score: 40, team: 'A' },
+    { id: 2, score: undefined, team: 'B' },
+    { id: 3, score: 'abc', team: 'B' }
+  ];
+  const sorted = computeStableford(entries);
+  const first = sorted.find(p => p.id === 1);
+  assert.equal(first.pos, 1);
+  assert.equal(first.pts, 14);
+  sorted.filter(p => p.id !== 1).forEach(p => {
+    assert.equal(p.pos, null);
+    assert.equal(p.pts, 0);
+  });
+});
+
+test('a synced day3_stableford null value yields a null score, never NaN', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day3_stableford', player_id: 6, value: null });
+  assert.equal(parseScoreToPar(state.day3.scores[6]), null);
+  applyUpdateToState(state, { update_type: 'day3_stableford', player_id: 6, value: 'null' });
+  assert.equal(parseScoreToPar(state.day3.scores[6]), null);
+});
+
 test('sumStablefordPoints totals points by team', () => {
   const sorted = computeStableford([
     { id: 1, score: 40, team: 'A' },
