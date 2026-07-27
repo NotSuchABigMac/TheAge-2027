@@ -326,11 +326,11 @@ hr.rule-ink { border-top-width: 1.5px; border-top-color: var(--ink); }
 [id] { scroll-margin-top: 64px; }
 
 @media (max-width: 820px) {
-  .masthead-inner { grid-template-columns: auto 1fr auto; padding: 12px 20px; gap: 0; }
+  .masthead-inner { grid-template-columns: auto 1fr auto; padding: 7px 20px; gap: 0; min-height: 49px; }
   .masthead-right nav { display: none; }
   .masthead-left .moto { display: none; }
   .hamburger { display: flex; }
-  .mobile-menu { top: 48px; }
+  .mobile-menu { top: 49px; }
 }
 @media (min-width: 821px) {
   .mobile-menu { display: none; }
