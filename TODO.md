@@ -22,15 +22,17 @@ in order via `applyUpdateToState()` (`scoring.js`).
 | write_token | text | Shared passphrase required by RLS on insert (see below) |
 | updated_at | timestamptz | When it was entered |
 
-## Security: RLS lockdown (issues #105, #106, #145, #146)
+## Security: RLS lockdown (issues #105, #106, #145, #146, #151)
 
 The Supabase publishable key ships in `scorecard-live.html`'s page source
 by design — it is not a secret, so it cannot be the access control.
-`supabase/migrations/001_lock_down_tournament_updates.sql` and
-`002_restrict_write_token_column_and_admin_secret.sql` lock the table down
-at the database level and **must both be run manually, in order**
+`supabase/migrations/001_lock_down_tournament_updates.sql`,
+`002_restrict_write_token_column_and_admin_secret.sql`, and
+`003_move_secrets_off_database_guc.sql` lock the table down at the
+database level and **must all be run manually, in order**
 (Supabase dashboard → SQL Editor) against the project in
-`SUPABASE_CONFIG`; nothing client-side can apply them. After running both:
+`SUPABASE_CONFIG`; nothing client-side can apply them. After running all
+three:
 
 - `anon` can `SELECT` only the non-secret columns (see `SAFE_SELECT_COLUMNS`
   in `scorecard-live.html`) and `INSERT` (with a matching `write_token`),
@@ -45,19 +47,31 @@ at the database level and **must both be run manually, in order**
   `rollback_tournament_updates` RPC instead of a raw `DELETE`, since anon
   `DELETE` is revoked; the RPC re-checks **two** tokens server-side (issue
   #146): the shared scoring `write_token` (same one all ~14 scorers hold)
-  and a separate `p_admin_token` checked against `app.admin_secret` — a
-  second GUC handed only to the organiser, prompted for once client-side
-  and cached in `sessionStorage` (`requireAdminToken()`), so a destructive
-  tournament-wide rollback no longer succeeds on the strength of the same
-  token every scorer already has. The function also pins `search_path`
-  (issue #145) against the classic `SECURITY DEFINER` privilege-escalation
-  vector.
-- The app prompts once for a "Tournament PIN" (stored in
-  `sessionStorage`) and sends it as `write_token` on every insert — set
-  the real passphrase server-side with `ALTER DATABASE postgres SET
-  app.tournament_secret = '...'` (and `app.admin_secret = '...'` for the
-  rollback token above) and hand them out out-of-band; neither is ever
-  baked into the client bundle.
+  and a separate `p_admin_token` — handed only to the organiser, prompted
+  for once client-side and cached in `sessionStorage`
+  (`requireAdminToken()`) — so a destructive tournament-wide rollback no
+  longer succeeds on the strength of the same token every scorer already
+  has. The function also pins `search_path` (issue #145) against the
+  classic `SECURITY DEFINER` privilege-escalation vector.
+- **The two secrets live in a locked-down `app_secrets` table, not
+  database GUCs (issue #151 / migration 003).** 001/002 originally set
+  them via `ALTER DATABASE postgres SET app.tournament_secret = '...'` —
+  this turned out to never actually work: Supabase's hosted `postgres`
+  role isn't a true superuser, so that statement fails outright with
+  `permission denied to set parameter`. Even where a platform did allow
+  it, a GUC is readable by anyone with catalog access (`SHOW
+  app.tournament_secret`) and some poolers echo GUC startup parameters to
+  other sessions — RLS/GRANT can't restrict a GUC's visibility the way
+  they can restrict a table. Migration 003 replaces both with a table
+  (`app_secrets`, RLS-locked, zero grants to `anon`/`authenticated`) read
+  only by two `SECURITY DEFINER` functions in a non-exposed `internal`
+  schema — `internal.check_tournament_token(token)` /
+  `internal.check_admin_token(token)` — that return a match boolean, never
+  the stored value, and live outside `public` specifically so PostgREST
+  never auto-publishes them as a standalone brute-force-able RPC. Set the
+  real passphrases via `UPDATE app_secrets SET value = '...' WHERE key =
+  'tournament_secret' | 'admin_secret'` and hand them out out-of-band;
+  neither is ever baked into the client bundle.
 - A wrong `write_token` is distinguished from a dropped connection
   (issue #141): `sendUpdateRow()` classifies the result as `'ok'` / `'auth'`
   / `'network'`, an `'auth'` result reopens the login modal instead of
