@@ -26,6 +26,30 @@ Re-ran the audit against `origin/trunk` after PRs **#137, #138, #139** merged (~
 
 ---
 
+## Test Plan — next round (post-re-review, 2026-07-27)
+
+Suite re-run on this branch: **152 pass, 0 fail** (`test/scoring.test.mjs` + `test/courses.test.mjs`).
+
+### P0 — CI ran only half the suite (fixed in this branch)
+
+`.github/workflows/test.yml` invoked `node --test test/scoring.test.mjs` by name, so **`test/courses.test.mjs` (7 tests) never ran in CI** — a transcription typo in the course data would have shipped green. Fixed here: bare `node --test` auto-discovers every `*.test.mjs` under `test/`, verified locally to run all 152. No future test file can silently drop out of CI.
+
+### P1 — new tests worth writing (plan)
+
+| # | Target | Test | Why |
+|---|--------|------|-----|
+| P1.1 | `applyUpdateToState` × `UPDATE_TYPE_DESCRIPTORS` | Consistency invariant: for every update_type with a `fieldKeys` descriptor, each listed key is **accepted** by `applyUpdateToState` (mutates state) and a fabricated key (`'zz'`) is **rejected** (state untouched). `UPDATE_FIELD_KEYS` isn't exported, so test behaviorally through `applyUpdateToState` — confirmed feasible. | The admin history picker (descriptors) and the apply whitelist are two hand-maintained lists that must agree; a new update_type added to one but not the other currently fails silently. |
+| P1.2 | `matchStrokes`, `scrambleTeamHandicap` | Guard + test: non-numeric handicap (`'abc'`) → today yields `NaN` stroke arrays / `NaN` team handicap (confirmed). Prescribe returning the no-strokes result (`receiver:null`, zeros) / `null` respectively, with tests. | Unreachable today (handicaps come from the static `PLAYERS` table) but one hand-edited `hcp` typo away from every hole silently halving (`holeResult` with NaN nets returns `'T'`). |
+| P1.3 | `effectiveNines` | Guard + test: a match object with no `holesA`/`holesB` arrays → today throws `TypeError` (confirmed). Prescribe falling back to the manual `front9`/`back9` values, with a test. | Currently shielded only by `normalizeState()` running first; a direct call from future code would crash render. |
+| P1.4 | `nineFromHoles` | Pin: `nineFromHoles([])` → `{result:'T', decided:true}` (confirmed). Assert current behavior with a comment that real callers always pass 9 entries. | Cheap; documents a surprising-looking edge before someone "fixes" it into a crash. |
+| P1.5 | `theme.js` | Characterization tests with a ~20-line hand-rolled DOM stub (`document.documentElement`/`getElementById` fakes, captured `postMessage` calls): default state application, theme/mode click persistence, `__activate_edit_mode`/`__deactivate_edit_mode` handling. No dependency added. | Last shipped JS file with zero coverage. |
+
+### P2 — still-deferred (unchanged from F4 backlog)
+
+Inline page logic (`normalizeState`, `pendingWrites`/`flushPendingWrites`, `isDay1/2/3Complete`, admin history fetch/render, PIN prompt flow) remains untestable without extraction; extract-then-test remains the recommendation before further feature work. The RLS migration's guarantees (insert-token gate, anon UPDATE/DELETE revoked, `rollback_tournament_updates` token check) are **only verifiable against a live Supabase project** — run the migration file's own four-step curl checklist manually after applying it; do not attempt to automate live-DB checks in CI.
+
+---
+
 ## 1. Deficit Inventory
 
 ### F1 — CRITICAL: `computeStableford` infinite-loops on a NaN score; reachable from live sync

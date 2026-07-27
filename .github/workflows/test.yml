@@ -17,4 +17,7 @@ jobs:
         with:
           node-version: 22
 
-      - run: node --test test/scoring.test.mjs
+      # Bare `node --test` auto-discovers every *.test.mjs under test/, so
+      # a new test file can never silently drop out of CI (courses.test.mjs
+      # was missed when only scoring.test.mjs was named here).
+      - run: node --test
