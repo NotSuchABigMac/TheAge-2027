@@ -466,21 +466,22 @@ body{padding-top:58px;padding-bottom:52px}
       </div>
       <div class="day-lock-row" id="day1-lock-row"></div>
       <div id="day1-lockable">
-      <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
-      <div id="course-card-day1"></div>
-      <div id="day1-matches"></div>
-      <div class="section-header" style="padding-top:8px">
-        <div class="section-label">Bonus</div>
-        <div class="section-title" style="font-size:1.3rem">Nearest the Pin</div>
-      </div>
-      <div class="ntp-grid">
-        <div class="sig">
-          <label>Hole 8 · Par 3 · 1pt</label>
-          <select id="ntp-day1-h8" onchange="setDay1Ntp('h8', this.value)"></select>
+        <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
+        <div id="course-card-day1"></div>
+        <div id="day1-matches"></div>
+        <div class="section-header" style="padding-top:8px">
+          <div class="section-label">Bonus</div>
+          <div class="section-title" style="font-size:1.3rem">Nearest the Pin</div>
         </div>
-        <div class="sig">
-          <label>Hole 17 · Par 3 · 1pt</label>
-          <select id="ntp-day1-h17" onchange="setDay1Ntp('h17', this.value)"></select>
+        <div class="ntp-grid">
+          <div class="sig">
+            <label>Hole 8 · Par 3 · 1pt</label>
+            <select id="ntp-day1-h8" onchange="setDay1Ntp('h8', this.value)"></select>
+          </div>
+          <div class="sig">
+            <label>Hole 17 · Par 3 · 1pt</label>
+            <select id="ntp-day1-h17" onchange="setDay1Ntp('h17', this.value)"></select>
+          </div>
         </div>
       </div>
     </div>
@@ -491,6 +492,8 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Saturday 8 August · Black Bull · 12:00pm</div>
         <div class="section-title">Team Scramble</div>
       </div>
+      <div class="day-lock-row" id="day2-lock-row"></div>
+      <div id="day2-lockable">
       <div class="info-box">Each team splits into a <strong>group of 4</strong> and a <strong>group of 3</strong>. Enter each group's net score <strong>to par</strong> (e.g. <strong>-15</strong> for 15 under). <strong>Scoring:</strong> in each grouping (4v4 and 3v3) the team with the better score wins points equal to the stroke differential — e.g. -15 beats -12 for 3pts. Whichever team's <strong>combined</strong> 4+3 score is better also takes a flat <strong>5pt bonus</strong>.</div>
       <div id="course-card-day2"></div>
       <div class="section-header" style="padding-top:4px">
@@ -566,6 +569,7 @@ body{padding-top:58px;padding-bottom:52px}
       </div>
       <div class="info-box">+2 strokes to a player's own handicap if they didn't sing the national anthem, -1 if they did — folded into that player's share of their scramble group's team handicap, individually rather than as a team-wide adjustment.</div>
       <div id="day2-anthem"></div>
+      </div>
     </div>
 
     <!-- ── DAY 3 PANEL ── -->
@@ -574,6 +578,8 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Sunday 9 August · Lake Course · 10:00am</div>
         <div class="section-title">Individual Stableford</div>
       </div>
+      <div class="day-lock-row" id="day3-lock-row"></div>
+      <div id="day3-lockable">
       <div class="info-box">Enter each player's <strong>net Stableford score</strong> (via The Grint). Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
       <div id="course-card-day3"></div>
       <div class="sf-table-wrap">
@@ -604,6 +610,7 @@ body{padding-top:58px;padding-bottom:52px}
           <label>Hole 14 · Par 3 · 1pt</label>
           <select id="ntp-day3-h14" onchange="setDay3Ntp('h14', this.value)"></select>
         </div>
+      </div>
       </div>
     </div>
 
@@ -784,15 +791,17 @@ const state = {
       type:'singles', pA:[null], pB:[null], front9:null, back9:null,
       holesA: Array(18).fill(null), holesB: Array(18).fill(null) // gross scores per hole (issue #124)
     })),
-    ntp: { h8:null, h17:null } // player id nearest the pin, or null
+    ntp: { h8:null, h17:null }, // player id nearest the pin, or null
+    locked: false // organiser-only "Lock Day" toggle -- blocks non-admin edits (issue #168)
   },
   day2: {
     a4:null, a3:null, b4:null, b3:null, ntp: { h4:null, h16:null },
     groups: { a4: [], a3: [], b4: [], b3: [] }, // player ids assigned to each scramble group (issue #128)
     holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
-    anthem: {} // player id -> true (sang, -1) | false (didn't sing, +2) (issue #149); absent = no adjustment
+    anthem: {}, // player id -> true (sang, -1) | false (didn't sing, +2) (issue #149); absent = no adjustment
+    locked: false
   },
-  day3: { scores:{}, ntp: { h7:null, h14:null } }, // scores: id -> stableford score string
+  day3: { scores:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string
   tiebreak: null // null | 'A' | 'B' — sudden-death putt-off winner
 };
 
@@ -923,17 +932,18 @@ function normalizeState() {
   // below assumes the current shape unconditionally, so guard it here
   // before anything else runs rather than let it throw and kill init.
   if (typeof state.day1 !== 'object' || state.day1 === null || !Array.isArray(state.day1.matches)) {
-    state.day1 = { matches: [], ntp: { h8: null, h17: null } };
+    state.day1 = { matches: [], ntp: { h8: null, h17: null }, locked: false };
   }
   if (typeof state.day2 !== 'object' || state.day2 === null) {
     state.day2 = {
       a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null },
       groups: { a4: [], a3: [], b4: [], b3: [] },
-      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) }
+      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
+      locked: false
     };
   }
   if (typeof state.day3 !== 'object' || state.day3 === null) {
-    state.day3 = { scores: {}, ntp: { h7: null, h14: null } };
+    state.day3 = { scores: {}, ntp: { h7: null, h14: null }, locked: false };
   }
   // Coerce every existing match into the current singles shape — a match
   // saved during the short-lived doubles-era format (type:'doubles',
@@ -1013,6 +1023,12 @@ function normalizeState() {
     state.day3 = { scores: old.scores || old || {}, ntp: old.ntp || { h7:null, h14:null } };
   }
   if (!state.day3.ntp) state.day3.ntp = { h7:null, h14:null };
+  // Lock flags (issue #168) -- only `true` survives a stale/forged saved or
+  // synced payload; anything else (missing, a string, etc.) normalizes to
+  // unlocked rather than accidentally locking a day out from under everyone.
+  state.day1.locked = state.day1.locked === true;
+  state.day2.locked = state.day2.locked === true;
+  state.day3.locked = state.day3.locked === true;
 }
 
 function loadState() {
@@ -2882,6 +2898,72 @@ function confirmUsername() {
 // tool with no real auth layer.
 function updateAdminVisibility() {
   document.getElementById('tab-admin').style.display = currentUsername === 'James McIntyre' ? '' : 'none';
+  updateTeamsLockUI();
+  renderAllDayLocks();
+}
+
+// Same single-organiser-name gate as the Admin tab above -- shared by the
+// Teams tab lock and the per-day lock buttons (issue #168). Not real auth,
+// same as the rest of this app's admin controls.
+function isAdmin() {
+  return currentUsername === 'James McIntyre';
+}
+
+// Teams tab (issue #168): unlike the per-day locks below, this one isn't a
+// toggle -- team setup is always organiser-only once the draft is entered,
+// so anyone else just sees the notice and a dimmed, click-through-disabled
+// panel.
+function updateTeamsLockUI() {
+  const editable = document.getElementById('teams-editable');
+  const notice = document.getElementById('teams-locked-notice');
+  if (!editable || !notice) return;
+  const admin = isAdmin();
+  editable.classList.toggle('locked-for-viewer', !admin);
+  notice.style.display = admin ? 'none' : '';
+}
+
+function isDayLocked(day) {
+  const d = state['day' + day];
+  return !!(d && d.locked);
+}
+
+// Admin-only toggle (issue #168) -- synced the same way every other field
+// in this app is, as a single-field delta so two admins toggling different
+// days at once can't clobber each other.
+function toggleDayLock(day) {
+  if (!isAdmin()) return;
+  const key = 'day' + day;
+  const next = !isDayLocked(day);
+  state[key].locked = next;
+  saveState();
+  insertUpdate('day_lock', { field_key: key, value: String(next) });
+  renderDayLockUI(day);
+}
+
+// Renders one day's lock row (badge + admin's lock/unlock button) and dims
+// the day's scoring content for anyone who isn't the admin while it's
+// locked -- the admin can always keep editing (per the requested behavior),
+// so `.locked-for-viewer` is only ever applied for a non-admin viewer.
+function renderDayLockUI(day) {
+  const row = document.getElementById('day' + day + '-lock-row');
+  const lockable = document.getElementById('day' + day + '-lockable');
+  if (!row || !lockable) return;
+  const locked = isDayLocked(day);
+  const admin = isAdmin();
+  lockable.classList.toggle('locked-for-viewer', locked && !admin);
+  if (admin) {
+    row.innerHTML = locked
+      ? `<span class="day-locked-badge">🔒 Locked</span><button class="day-lock-btn is-locked" onclick="toggleDayLock(${day})">Unlock Day</button>`
+      : `<button class="day-lock-btn" onclick="toggleDayLock(${day})">Lock Day</button>`;
+  } else {
+    row.innerHTML = locked ? `<span class="day-locked-badge">🔒 Locked by organiser</span>` : '';
+  }
+}
+
+function renderAllDayLocks() {
+  renderDayLockUI(1);
+  renderDayLockUI(2);
+  renderDayLockUI(3);
 }
 
 function populateUsernameSelect() {
@@ -3011,6 +3093,8 @@ try {
   restoreDay2();
   renderDay3();
   updateScoreboard();
+  renderAllDayLocks();
+  updateTeamsLockUI();
 } catch (e) {
   console.error('Init failed:', e);
   document.getElementById('page-scorecard').innerHTML =
@@ -3033,6 +3117,8 @@ function refreshAllDays() {
     console.log('Day 3 rendered');
     updateScoreboard();
     console.log('Scoreboard updated');
+    renderAllDayLocks();
+    updateTeamsLockUI();
   } catch(e) {
     console.error('Error rendering days:', e);
   }
@@ -3222,17 +3308,6 @@ updateCountdown();
 if (document.getElementById('countdown-bar').style.display !== 'none') {
   countdownInterval = setInterval(updateCountdown, 1000);
 }
-
-// Masthead scroll behaviour (mirrors index.html)
-(function () {
-  const mast = document.querySelector('.masthead');
-  if (!mast) return;
-  function update() {
-    mast.classList.toggle('masthead--scrolled', window.scrollY > 80);
-  }
-  window.addEventListener('scroll', update, { passive: true });
-  update();
-})();
 </script>
 
 </body>

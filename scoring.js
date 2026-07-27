@@ -484,7 +484,8 @@
     day2_ntp:   ['h4', 'h16'],
     day3_ntp:   ['h7', 'h14'],
     team_name:  ['A', 'B'],
-    team_assign:['A', 'B']
+    team_assign:['A', 'B'],
+    day_lock:   ['day1', 'day2', 'day3']
   };
 
   // Interprets one synced `tournament_updates` row and mutates `state`
@@ -637,6 +638,12 @@
           if (recon.changes.length > 0) state.day1.matches = recon.matches;
         }
         break;
+      case 'day_lock':
+        // field_key is the day itself ('day1'/'day2'/'day3', whitelisted
+        // above), so this indexes straight into state rather than a nested
+        // field the way every other update_type does.
+        if (row.field_key && state[row.field_key]) state[row.field_key].locked = v === 'true';
+        break;
     }
   }
 
@@ -664,7 +671,8 @@
     tiebreak:        { label: 'Tiebreak',                        addressing: 'none',        restorable: true },
     team_name:       { label: 'Team Name',                       addressing: 'field',       fieldKeys: ['A', 'B'], restorable: true },
     team_assign:     { label: 'Team Roster (legacy snapshot)',   addressing: 'field',       fieldKeys: ['A', 'B'], restorable: false },
-    player_team:     { label: 'Player Team Assignment',          addressing: 'player',      restorable: true, cascadeWarning: 'May also clear Day 1 match assignments for this player.' }
+    player_team:     { label: 'Player Team Assignment',          addressing: 'player',      restorable: true, cascadeWarning: 'May also clear Day 1 match assignments for this player.' },
+    day_lock:        { label: 'Day Lock',                        addressing: 'field',       fieldKeys: ['day1', 'day2', 'day3'], restorable: true }
   };
 
   // Decodes one tournament_updates row into human-readable {fieldLabel,
@@ -729,6 +737,10 @@
         return { fieldLabel: `Team ${row.field_key || '?'} Roster (legacy snapshot)`, valueLabel: isCleared ? '(cleared)' : String(v) };
       case 'player_team':
         return { fieldLabel: `Player Team · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : (teamName(v) || String(v)) };
+      case 'day_lock': {
+        const dayLabel = { day1: 'Day 1', day2: 'Day 2', day3: 'Day 3' }[row.field_key] || row.field_key || '?';
+        return { fieldLabel: `Day Lock · ${dayLabel}`, valueLabel: isCleared ? '(cleared)' : (v === 'true' ? 'Locked' : 'Unlocked') };
+      }
       default:
         // An update_type this version of the app doesn't recognize (e.g. a
         // future type, or a forged row) must render *something* rather than
