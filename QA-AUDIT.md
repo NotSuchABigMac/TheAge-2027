@@ -36,6 +36,8 @@ Suite re-run on this branch: **152 pass, 0 fail** (`test/scoring.test.mjs` + `te
 
 ### P1 — new tests worth writing (plan)
 
+Filed as execution-brief issues: P1.1 → [#163](https://github.com/NotSuchABigMac/wonga-cup/issues/163), P1.2–P1.4 → [#164](https://github.com/NotSuchABigMac/wonga-cup/issues/164), P1.5 → [#165](https://github.com/NotSuchABigMac/wonga-cup/issues/165), and the P2 `normalizeState`/flush-queue extraction → [#166](https://github.com/NotSuchABigMac/wonga-cup/issues/166).
+
 | # | Target | Test | Why |
 |---|--------|------|-----|
 | P1.1 | `applyUpdateToState` × `UPDATE_TYPE_DESCRIPTORS` | Consistency invariant: for every update_type with a `fieldKeys` descriptor, each listed key is **accepted** by `applyUpdateToState` (mutates state) and a fabricated key (`'zz'`) is **rejected** (state untouched). `UPDATE_FIELD_KEYS` isn't exported, so test behaviorally through `applyUpdateToState` — confirmed feasible. | The admin history picker (descriptors) and the apply whitelist are two hand-maintained lists that must agree; a new update_type added to one but not the other currently fails silently. |
