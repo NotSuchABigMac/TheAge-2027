@@ -296,7 +296,7 @@ hr.rule-ink { border-top-width: 1.5px; border-top-color: var(--ink); }
   display: flex;
   flex-direction: column;
   padding: 8px 0 24px;
-  transform: translateY(-110%);
+  transform: translateY(-100vh);
   transition: transform .3s ease;
   pointer-events: none;
 }
