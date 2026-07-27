@@ -108,10 +108,14 @@ $$;
 
 GRANT EXECUTE ON FUNCTION rollback_tournament_updates(text, timestamptz, text, text) TO anon;
 
--- ── Retire the old GUCs so the secret doesn't linger in database-level
--- config (harmless no-ops if they were never set) ───────────────────────
-ALTER DATABASE postgres RESET app.tournament_secret;
-ALTER DATABASE postgres RESET app.admin_secret;
+-- ── Old GUCs are NOT reset here ──────────────────────────────────────────
+-- `ALTER DATABASE postgres RESET app.*` requires superuser, which
+-- Supabase's hosted `postgres` role does not have ("permission denied to
+-- set parameter") -- the same restriction that likely kept 001/002's
+-- `ALTER DATABASE ... SET app.tournament_secret` from ever actually
+-- taking effect in the first place. That's harmless here: nothing below
+-- reads those GUCs anymore, so a leftover (or never-set) value is just
+-- inert dead config, not a functional or security issue.
 
 -- ── Set the real passphrases (skip if already set correctly by the
 -- ON CONFLICT DO NOTHING seed above; use this to change them) ───────────
