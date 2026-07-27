@@ -13,41 +13,6 @@
 }
 .back-link:hover { color: var(--ink); }
 
-/* ── editorial page header — light cream band bridging masthead → scoring ── */
-.sc-page-header {
-  background: var(--canvas);
-  border-bottom: 1px solid var(--rule-strong);
-  padding: 100px 32px 36px; /* top: masthead height + breathing room */
-  color: var(--ink);
-}
-.sc-page-header-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.sc-page-eyebrow {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-mute);
-  margin-bottom: 10px;
-}
-.sc-page-title {
-  font-family: var(--display);
-  font-style: italic;
-  font-weight: 500;
-  font-size: clamp(2.8rem, 6vw, 4.8rem);
-  line-height: 1;
-  letter-spacing: -0.01em;
-  margin: 0 0 10px;
-}
-.sc-page-sub {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--ink-mute);
-}
-
 /* ── live indicator dot (used in the sync bar next to "Live Scores") ── */
 .live-dot {
   width: 8px;

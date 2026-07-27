@@ -63,6 +63,17 @@
 .sc-panel{display:none}
 .sc-panel.active{display:block}
 
+/* ── ADMIN-ONLY LOCKS: Teams tab (always organiser-only) and the
+   per-day "Lock Day" button. Blocks interaction and dims the content for
+   anyone who isn't the organiser -- same soft, client-side gate as the
+   Admin tab itself (see updateAdminVisibility/isAdmin), not real auth. ── */
+.locked-for-viewer{pointer-events:none;opacity:.55;filter:grayscale(.35)}
+.day-lock-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-8px 0 20px}
+.day-lock-btn{padding:7px 16px;font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;border-radius:var(--r);cursor:pointer;transition:var(--tr);border:1px solid var(--rule-strong);background:transparent;color:var(--ink-mute)}
+.day-lock-btn:hover{color:var(--ink)}
+.day-lock-btn.is-locked{background:rgba(220,0,0,.1);border-color:rgba(220,0,0,.4);color:#c00}
+.day-locked-badge{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:1px;color:#c00}
+
 /* ── TEAM SETUP ── */
 .team-setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
 .team-col{background:var(--canvas);border:2px solid;border-radius:var(--rl);padding:20px}
@@ -304,7 +315,11 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .cd-sub{font-family:var(--font-h);font-size:.5rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--grey)}
 .cd-sep{font-family:var(--font-d);font-size:1.2rem;color:var(--gold);opacity:.4;align-self:flex-start;padding-top:2px}
 .cd-live{font-family:var(--font-d);font-size:1.1rem;letter-spacing:2px;color:var(--gold)}
-body{padding-bottom:52px}
+/* Masthead is fixed (scorecard.css's .sc-page-header used to reserve this
+   space); with the hero title block gone, the body itself has to clear it
+   so the mini-scoreboard (and the username badge/offline banner on mobile,
+   where they render in-flow) don't start out hidden underneath it. */
+body{padding-top:58px;padding-bottom:52px}
 @media(max-width:600px){.mini-sb-days{display:none}.cd-num{font-size:1.1rem}.cd-label{display:none}}
 
 .music-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(6px)}
@@ -369,20 +384,10 @@ body{padding-bottom:52px}
   </div>
 </header>
 
-<!-- Editorial page header (light, matches index.html brand) -->
-<div class="sc-page-header">
-  <div class="sc-page-header-inner">
-    <div class="sc-page-eyebrow">Live Scoring · A.G.E IV · 2026</div>
-    <h1 class="sc-page-title">The Wonga Cup</h1>
-    <div class="sc-page-sub">Yarrawonga &amp; Mulwala G.C. · 7–9 August</div>
-  </div>
-</div>
-
 <!-- Username Badge & Offline Alert — placed after the masthead's fixed
-     header AND the editorial header (which already carries top padding to
-     clear the fixed masthead), so that on mobile — where these render in
-     normal document flow instead of position:fixed — they land below the
-     page title instead of on top of it. -->
+     header (which already carries top padding to clear it), so that on
+     mobile — where these render in normal document flow instead of
+     position:fixed — they land below the masthead instead of on top of it. -->
 <div id="username-badge" class="username-badge" style="display:none"></div>
 <div id="offline-banner" class="offline-banner" style="display:none">⚠ Offline — Using Local Storage</div>
 
@@ -445,66 +450,22 @@ body{padding-bottom:52px}
 
   <!-- Sub-tabs -->
   <div class="sc-tabs" role="tablist" aria-label="Scorecard sections">
-    <button class="sc-tab active" data-tab="teams" role="tab" id="tab-teams" aria-selected="true" aria-controls="sc-teams" tabindex="0">Teams</button>
-    <button class="sc-tab" data-tab="day1" role="tab" id="tab-day1" aria-selected="false" aria-controls="sc-day1" tabindex="-1">Day 1</button>
+    <button class="sc-tab active" data-tab="day1" role="tab" id="tab-day1" aria-selected="true" aria-controls="sc-day1" tabindex="0">Day 1</button>
     <button class="sc-tab" data-tab="day2" role="tab" id="tab-day2" aria-selected="false" aria-controls="sc-day2" tabindex="-1">Day 2</button>
     <button class="sc-tab" data-tab="day3" role="tab" id="tab-day3" aria-selected="false" aria-controls="sc-day3" tabindex="-1">Day 3</button>
+    <button class="sc-tab" data-tab="teams" role="tab" id="tab-teams" aria-selected="false" aria-controls="sc-teams" tabindex="-1">Teams</button>
     <button class="sc-tab" data-tab="admin" role="tab" id="tab-admin" aria-selected="false" aria-controls="sc-admin" tabindex="-1" style="display:none">Admin</button>
   </div>
 
-  <!-- ── TEAMS PANEL ── -->
   <div class="page-content">
-    <div class="sc-panel active" id="sc-teams" role="tabpanel" aria-labelledby="tab-teams" tabindex="0">
-      <div class="section-header" style="padding-top:28px">
-        <div class="section-label">Setup</div>
-        <div class="section-title">Team Names</div>
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-end">
-        <div style="flex:1;min-width:140px">
-          <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:6px">Team A Name</label>
-          <input id="tn-input-a" type="text" value="Team Beer" maxlength="24"
-            style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-a) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
-        </div>
-        <div style="flex:1;min-width:140px">
-          <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:6px">Team B Name</label>
-          <input id="tn-input-b" type="text" value="Team Golf" maxlength="24"
-            style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-b) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
-        </div>
-        <button onclick="saveTeamNames()" style="background:var(--gold);color:#0b1a0d;font-family:var(--font-h);font-weight:700;font-size:.78rem;letter-spacing:1.5px;text-transform:uppercase;border:none;border-radius:var(--r);padding:10px 20px;cursor:pointer;white-space:nowrap">Save Names</button>
-      </div>
-
-      <div class="section-header" style="padding-top:4px">
-        <div class="section-label">Setup</div>
-        <div class="section-title">Team Assignment</div>
-      </div>
-      <div class="info-box">Enter the Captain's Draft result here — assign each player to their team using the arrows below. Teams are unknown until the morning of Day 1.</div>
-      <div id="team-balance-warning" class="info-box" style="display:none;border-color:rgba(220,0,0,.4);background:rgba(220,0,0,.08)"></div>
-      <div id="team-unassigned-box" style="display:none">
-        <div class="section-header" style="padding-top:4px">
-          <div class="section-label">Needs Assignment</div>
-          <div class="section-title" style="font-size:1.3rem">Not Yet On A Team</div>
-        </div>
-        <div id="team-unassigned-list" class="team-col team-unassigned-col" style="margin-bottom:24px"></div>
-      </div>
-      <div class="team-setup-grid">
-        <div class="team-col team-a-col">
-          <div class="team-col-h" id="team-col-h-a">Team Beer</div>
-          <div id="team-a-list"></div>
-        </div>
-        <div class="team-col team-b-col">
-          <div class="team-col-h" id="team-col-h-b">Team Golf</div>
-          <div id="team-b-list"></div>
-        </div>
-      </div>
-      <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:var(--r);cursor:pointer">Clear Teams</button>
-    </div>
-
     <!-- ── DAY 1 PANEL ── -->
-    <div class="sc-panel" id="sc-day1" role="tabpanel" aria-labelledby="tab-day1" tabindex="0">
+    <div class="sc-panel active" id="sc-day1" role="tabpanel" aria-labelledby="tab-day1" tabindex="0">
       <div class="section-header" style="padding-top:28px">
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
         <div class="section-title">Singles Match Play</div>
       </div>
+      <div class="day-lock-row" id="day1-lock-row"></div>
+      <div id="day1-lockable">
       <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
       <div id="course-card-day1"></div>
       <div id="day1-matches"></div>
@@ -643,6 +604,56 @@ body{padding-bottom:52px}
           <label>Hole 14 · Par 3 · 1pt</label>
           <select id="ntp-day3-h14" onchange="setDay3Ntp('h14', this.value)"></select>
         </div>
+      </div>
+    </div>
+
+    <!-- ── TEAMS PANEL — organiser-only (issue: was previously open to
+         anyone once the draft is done, moved last and locked down) ── -->
+    <div class="sc-panel" id="sc-teams" role="tabpanel" aria-labelledby="tab-teams" tabindex="0">
+      <div class="section-header" style="padding-top:28px">
+        <div class="section-label">Setup</div>
+        <div class="section-title">Team Names</div>
+      </div>
+      <div id="teams-locked-notice" class="info-box" style="display:none">🔒 Only the tournament organiser can edit teams from here.</div>
+      <div id="teams-editable">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-end">
+          <div style="flex:1;min-width:140px">
+            <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:6px">Team A Name</label>
+            <input id="tn-input-a" type="text" value="Team Beer" maxlength="24"
+              style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-a) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:6px">Team B Name</label>
+            <input id="tn-input-b" type="text" value="Team Golf" maxlength="24"
+              style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-b) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
+          </div>
+          <button onclick="saveTeamNames()" style="background:var(--gold);color:#0b1a0d;font-family:var(--font-h);font-weight:700;font-size:.78rem;letter-spacing:1.5px;text-transform:uppercase;border:none;border-radius:var(--r);padding:10px 20px;cursor:pointer;white-space:nowrap">Save Names</button>
+        </div>
+
+        <div class="section-header" style="padding-top:4px">
+          <div class="section-label">Setup</div>
+          <div class="section-title">Team Assignment</div>
+        </div>
+        <div class="info-box">Enter the Captain's Draft result here — assign each player to their team using the arrows below. Teams are unknown until the morning of Day 1.</div>
+        <div id="team-balance-warning" class="info-box" style="display:none;border-color:rgba(220,0,0,.4);background:rgba(220,0,0,.08)"></div>
+        <div id="team-unassigned-box" style="display:none">
+          <div class="section-header" style="padding-top:4px">
+            <div class="section-label">Needs Assignment</div>
+            <div class="section-title" style="font-size:1.3rem">Not Yet On A Team</div>
+          </div>
+          <div id="team-unassigned-list" class="team-col team-unassigned-col" style="margin-bottom:24px"></div>
+        </div>
+        <div class="team-setup-grid">
+          <div class="team-col team-a-col">
+            <div class="team-col-h" id="team-col-h-a">Team Beer</div>
+            <div id="team-a-list"></div>
+          </div>
+          <div class="team-col team-b-col">
+            <div class="team-col-h" id="team-col-h-b">Team Golf</div>
+            <div id="team-b-list"></div>
+          </div>
+        </div>
+        <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:var(--r);cursor:pointer">Clear Teams</button>
       </div>
     </div>
 
