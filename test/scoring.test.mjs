@@ -542,15 +542,17 @@ function makeState() {
         { type: 'singles', pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) },
         { type: 'singles', pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) }
       ],
-      ntp: { h8: null, h17: null }
+      ntp: { h8: null, h17: null },
+      locked: false
     },
     day2: {
       a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null },
       groups: { a4: [], a3: [], b4: [], b3: [] },
       holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
-      anthem: {}
+      anthem: {},
+      locked: false
     },
-    day3: { scores: {}, ntp: { h7: null, h14: null } },
+    day3: { scores: {}, ntp: { h7: null, h14: null }, locked: false },
     tiebreak: null
   };
 }
@@ -700,6 +702,21 @@ test('applyUpdateToState: player_team with an invalid value is a no-op', () => {
   applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'C' });
   assert.equal(state.teamA.has(2), true);
   assert.equal(state.teamB.has(2), false);
+});
+
+test('applyUpdateToState: day_lock locks and unlocks the named day', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day_lock', field_key: 'day2', value: 'true' });
+  assert.equal(state.day2.locked, true);
+  assert.equal(state.day1.locked, false);
+  applyUpdateToState(state, { update_type: 'day_lock', field_key: 'day2', value: 'false' });
+  assert.equal(state.day2.locked, false);
+});
+
+test('applyUpdateToState: day_lock with a forged field_key is a no-op (issue #120-style whitelist)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day_lock', field_key: 'tiebreak', value: 'true' });
+  assert.equal(state.tiebreak, null);
 });
 
 test('applyUpdateToState: an unrecognized update_type is a no-op, not a throw', () => {

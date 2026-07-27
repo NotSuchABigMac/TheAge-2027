@@ -63,6 +63,17 @@
 .sc-panel{display:none}
 .sc-panel.active{display:block}
 
+/* ── ADMIN-ONLY LOCKS: Teams tab (always organiser-only) and the
+   per-day "Lock Day" button. Blocks interaction and dims the content for
+   anyone who isn't the organiser -- same soft, client-side gate as the
+   Admin tab itself (see updateAdminVisibility/isAdmin), not real auth. ── */
+.locked-for-viewer{pointer-events:none;opacity:.55;filter:grayscale(.35)}
+.day-lock-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-8px 0 20px}
+.day-lock-btn{padding:7px 16px;font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;border-radius:var(--r);cursor:pointer;transition:var(--tr);border:1px solid var(--rule-strong);background:transparent;color:var(--ink-mute)}
+.day-lock-btn:hover{color:var(--ink)}
+.day-lock-btn.is-locked{background:rgba(220,0,0,.1);border-color:rgba(220,0,0,.4);color:#c00}
+.day-locked-badge{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:1px;color:#c00}
+
 /* ── TEAM SETUP ── */
 .team-setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
 .team-col{background:var(--canvas);border:2px solid;border-radius:var(--rl);padding:20px}
@@ -304,7 +315,11 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .cd-sub{font-family:var(--font-h);font-size:.5rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--grey)}
 .cd-sep{font-family:var(--font-d);font-size:1.2rem;color:var(--gold);opacity:.4;align-self:flex-start;padding-top:2px}
 .cd-live{font-family:var(--font-d);font-size:1.1rem;letter-spacing:2px;color:var(--gold)}
-body{padding-bottom:52px}
+/* Masthead is fixed (scorecard.css's .sc-page-header used to reserve this
+   space); with the hero title block gone, the body itself has to clear it
+   so the mini-scoreboard (and the username badge/offline banner on mobile,
+   where they render in-flow) don't start out hidden underneath it. */
+body{padding-top:58px;padding-bottom:52px}
 @media(max-width:600px){.mini-sb-days{display:none}.cd-num{font-size:1.1rem}.cd-label{display:none}}
 
 .music-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(6px)}
@@ -369,20 +384,10 @@ body{padding-bottom:52px}
   </div>
 </header>
 
-<!-- Editorial page header (light, matches index.html brand) -->
-<div class="sc-page-header">
-  <div class="sc-page-header-inner">
-    <div class="sc-page-eyebrow">Live Scoring · A.G.E IV · 2026</div>
-    <h1 class="sc-page-title">The Wonga Cup</h1>
-    <div class="sc-page-sub">Yarrawonga &amp; Mulwala G.C. · 7–9 August</div>
-  </div>
-</div>
-
 <!-- Username Badge & Offline Alert — placed after the masthead's fixed
-     header AND the editorial header (which already carries top padding to
-     clear the fixed masthead), so that on mobile — where these render in
-     normal document flow instead of position:fixed — they land below the
-     page title instead of on top of it. -->
+     header (which already carries top padding to clear it), so that on
+     mobile — where these render in normal document flow instead of
+     position:fixed — they land below the masthead instead of on top of it. -->
 <div id="username-badge" class="username-badge" style="display:none"></div>
 <div id="offline-banner" class="offline-banner" style="display:none">⚠ Offline — Using Local Storage</div>
 
@@ -445,81 +450,38 @@ body{padding-bottom:52px}
 
   <!-- Sub-tabs -->
   <div class="sc-tabs" role="tablist" aria-label="Scorecard sections">
-    <button class="sc-tab active" data-tab="teams" role="tab" id="tab-teams" aria-selected="true" aria-controls="sc-teams" tabindex="0">Teams</button>
-    <button class="sc-tab" data-tab="day1" role="tab" id="tab-day1" aria-selected="false" aria-controls="sc-day1" tabindex="-1">Day 1</button>
+    <button class="sc-tab active" data-tab="day1" role="tab" id="tab-day1" aria-selected="true" aria-controls="sc-day1" tabindex="0">Day 1</button>
     <button class="sc-tab" data-tab="day2" role="tab" id="tab-day2" aria-selected="false" aria-controls="sc-day2" tabindex="-1">Day 2</button>
     <button class="sc-tab" data-tab="day3" role="tab" id="tab-day3" aria-selected="false" aria-controls="sc-day3" tabindex="-1">Day 3</button>
+    <button class="sc-tab" data-tab="teams" role="tab" id="tab-teams" aria-selected="false" aria-controls="sc-teams" tabindex="-1">Teams</button>
     <button class="sc-tab" data-tab="admin" role="tab" id="tab-admin" aria-selected="false" aria-controls="sc-admin" tabindex="-1" style="display:none">Admin</button>
   </div>
 
-  <!-- ── TEAMS PANEL ── -->
   <div class="page-content">
-    <div class="sc-panel active" id="sc-teams" role="tabpanel" aria-labelledby="tab-teams" tabindex="0">
-      <div class="section-header" style="padding-top:28px">
-        <div class="section-label">Setup</div>
-        <div class="section-title">Team Names</div>
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-end">
-        <div style="flex:1;min-width:140px">
-          <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:6px">Team A Name</label>
-          <input id="tn-input-a" type="text" value="Team Beer" maxlength="24"
-            style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-a) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
-        </div>
-        <div style="flex:1;min-width:140px">
-          <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:6px">Team B Name</label>
-          <input id="tn-input-b" type="text" value="Team Golf" maxlength="24"
-            style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-b) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
-        </div>
-        <button onclick="saveTeamNames()" style="background:var(--gold);color:#0b1a0d;font-family:var(--font-h);font-weight:700;font-size:.78rem;letter-spacing:1.5px;text-transform:uppercase;border:none;border-radius:var(--r);padding:10px 20px;cursor:pointer;white-space:nowrap">Save Names</button>
-      </div>
-
-      <div class="section-header" style="padding-top:4px">
-        <div class="section-label">Setup</div>
-        <div class="section-title">Team Assignment</div>
-      </div>
-      <div class="info-box">Enter the Captain's Draft result here — assign each player to their team using the arrows below. Teams are unknown until the morning of Day 1.</div>
-      <div id="team-balance-warning" class="info-box" style="display:none;border-color:rgba(220,0,0,.4);background:rgba(220,0,0,.08)"></div>
-      <div id="team-unassigned-box" style="display:none">
-        <div class="section-header" style="padding-top:4px">
-          <div class="section-label">Needs Assignment</div>
-          <div class="section-title" style="font-size:1.3rem">Not Yet On A Team</div>
-        </div>
-        <div id="team-unassigned-list" class="team-col team-unassigned-col" style="margin-bottom:24px"></div>
-      </div>
-      <div class="team-setup-grid">
-        <div class="team-col team-a-col">
-          <div class="team-col-h" id="team-col-h-a">Team Beer</div>
-          <div id="team-a-list"></div>
-        </div>
-        <div class="team-col team-b-col">
-          <div class="team-col-h" id="team-col-h-b">Team Golf</div>
-          <div id="team-b-list"></div>
-        </div>
-      </div>
-      <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:var(--r);cursor:pointer">Clear Teams</button>
-    </div>
-
     <!-- ── DAY 1 PANEL ── -->
-    <div class="sc-panel" id="sc-day1" role="tabpanel" aria-labelledby="tab-day1" tabindex="0">
+    <div class="sc-panel active" id="sc-day1" role="tabpanel" aria-labelledby="tab-day1" tabindex="0">
       <div class="section-header" style="padding-top:28px">
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
         <div class="section-title">Singles Match Play</div>
       </div>
-      <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
-      <div id="course-card-day1"></div>
-      <div id="day1-matches"></div>
-      <div class="section-header" style="padding-top:8px">
-        <div class="section-label">Bonus</div>
-        <div class="section-title" style="font-size:1.3rem">Nearest the Pin</div>
-      </div>
-      <div class="ntp-grid">
-        <div class="sig">
-          <label>Hole 8 · Par 3 · 1pt</label>
-          <select id="ntp-day1-h8" onchange="setDay1Ntp('h8', this.value)"></select>
+      <div class="day-lock-row" id="day1-lock-row"></div>
+      <div id="day1-lockable">
+        <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
+        <div id="course-card-day1"></div>
+        <div id="day1-matches"></div>
+        <div class="section-header" style="padding-top:8px">
+          <div class="section-label">Bonus</div>
+          <div class="section-title" style="font-size:1.3rem">Nearest the Pin</div>
         </div>
-        <div class="sig">
-          <label>Hole 17 · Par 3 · 1pt</label>
-          <select id="ntp-day1-h17" onchange="setDay1Ntp('h17', this.value)"></select>
+        <div class="ntp-grid">
+          <div class="sig">
+            <label>Hole 8 · Par 3 · 1pt</label>
+            <select id="ntp-day1-h8" onchange="setDay1Ntp('h8', this.value)"></select>
+          </div>
+          <div class="sig">
+            <label>Hole 17 · Par 3 · 1pt</label>
+            <select id="ntp-day1-h17" onchange="setDay1Ntp('h17', this.value)"></select>
+          </div>
         </div>
       </div>
     </div>
@@ -530,6 +492,8 @@ body{padding-bottom:52px}
         <div class="section-label">Saturday 8 August · Black Bull · 12:00pm</div>
         <div class="section-title">Team Scramble</div>
       </div>
+      <div class="day-lock-row" id="day2-lock-row"></div>
+      <div id="day2-lockable">
       <div class="info-box">Each team splits into a <strong>group of 4</strong> and a <strong>group of 3</strong>. Enter each group's net score <strong>to par</strong> (e.g. <strong>-15</strong> for 15 under). <strong>Scoring:</strong> in each grouping (4v4 and 3v3) the team with the better score wins points equal to the stroke differential — e.g. -15 beats -12 for 3pts. Whichever team's <strong>combined</strong> 4+3 score is better also takes a flat <strong>5pt bonus</strong>.</div>
       <div id="course-card-day2"></div>
       <div class="section-header" style="padding-top:4px">
@@ -605,6 +569,7 @@ body{padding-bottom:52px}
       </div>
       <div class="info-box">+2 strokes to a player's own handicap if they didn't sing the national anthem, -1 if they did — folded into that player's share of their scramble group's team handicap, individually rather than as a team-wide adjustment.</div>
       <div id="day2-anthem"></div>
+      </div>
     </div>
 
     <!-- ── DAY 3 PANEL ── -->
@@ -613,6 +578,8 @@ body{padding-bottom:52px}
         <div class="section-label">Sunday 9 August · Lake Course · 10:00am</div>
         <div class="section-title">Individual Stableford</div>
       </div>
+      <div class="day-lock-row" id="day3-lock-row"></div>
+      <div id="day3-lockable">
       <div class="info-box">Enter each player's <strong>net Stableford score</strong> (via The Grint). Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
       <div id="course-card-day3"></div>
       <div class="sf-table-wrap">
@@ -643,6 +610,57 @@ body{padding-bottom:52px}
           <label>Hole 14 · Par 3 · 1pt</label>
           <select id="ntp-day3-h14" onchange="setDay3Ntp('h14', this.value)"></select>
         </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ── TEAMS PANEL — organiser-only (issue: was previously open to
+         anyone once the draft is done, moved last and locked down) ── -->
+    <div class="sc-panel" id="sc-teams" role="tabpanel" aria-labelledby="tab-teams" tabindex="0">
+      <div class="section-header" style="padding-top:28px">
+        <div class="section-label">Setup</div>
+        <div class="section-title">Team Names</div>
+      </div>
+      <div id="teams-locked-notice" class="info-box" style="display:none">🔒 Only the tournament organiser can edit teams from here.</div>
+      <div id="teams-editable">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-end">
+          <div style="flex:1;min-width:140px">
+            <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:6px">Team A Name</label>
+            <input id="tn-input-a" type="text" value="Team Beer" maxlength="24"
+              style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-a) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:6px">Team B Name</label>
+            <input id="tn-input-b" type="text" value="Team Golf" maxlength="24"
+              style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-b) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
+          </div>
+          <button onclick="saveTeamNames()" style="background:var(--gold);color:#0b1a0d;font-family:var(--font-h);font-weight:700;font-size:.78rem;letter-spacing:1.5px;text-transform:uppercase;border:none;border-radius:var(--r);padding:10px 20px;cursor:pointer;white-space:nowrap">Save Names</button>
+        </div>
+
+        <div class="section-header" style="padding-top:4px">
+          <div class="section-label">Setup</div>
+          <div class="section-title">Team Assignment</div>
+        </div>
+        <div class="info-box">Enter the Captain's Draft result here — assign each player to their team using the arrows below. Teams are unknown until the morning of Day 1.</div>
+        <div id="team-balance-warning" class="info-box" style="display:none;border-color:rgba(220,0,0,.4);background:rgba(220,0,0,.08)"></div>
+        <div id="team-unassigned-box" style="display:none">
+          <div class="section-header" style="padding-top:4px">
+            <div class="section-label">Needs Assignment</div>
+            <div class="section-title" style="font-size:1.3rem">Not Yet On A Team</div>
+          </div>
+          <div id="team-unassigned-list" class="team-col team-unassigned-col" style="margin-bottom:24px"></div>
+        </div>
+        <div class="team-setup-grid">
+          <div class="team-col team-a-col">
+            <div class="team-col-h" id="team-col-h-a">Team Beer</div>
+            <div id="team-a-list"></div>
+          </div>
+          <div class="team-col team-b-col">
+            <div class="team-col-h" id="team-col-h-b">Team Golf</div>
+            <div id="team-b-list"></div>
+          </div>
+        </div>
+        <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:var(--r);cursor:pointer">Clear Teams</button>
       </div>
     </div>
 
@@ -773,15 +791,17 @@ const state = {
       type:'singles', pA:[null], pB:[null], front9:null, back9:null,
       holesA: Array(18).fill(null), holesB: Array(18).fill(null) // gross scores per hole (issue #124)
     })),
-    ntp: { h8:null, h17:null } // player id nearest the pin, or null
+    ntp: { h8:null, h17:null }, // player id nearest the pin, or null
+    locked: false // organiser-only "Lock Day" toggle -- blocks non-admin edits (issue #168)
   },
   day2: {
     a4:null, a3:null, b4:null, b3:null, ntp: { h4:null, h16:null },
     groups: { a4: [], a3: [], b4: [], b3: [] }, // player ids assigned to each scramble group (issue #128)
     holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
-    anthem: {} // player id -> true (sang, -1) | false (didn't sing, +2) (issue #149); absent = no adjustment
+    anthem: {}, // player id -> true (sang, -1) | false (didn't sing, +2) (issue #149); absent = no adjustment
+    locked: false
   },
-  day3: { scores:{}, ntp: { h7:null, h14:null } }, // scores: id -> stableford score string
+  day3: { scores:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string
   tiebreak: null // null | 'A' | 'B' — sudden-death putt-off winner
 };
 
@@ -912,17 +932,18 @@ function normalizeState() {
   // below assumes the current shape unconditionally, so guard it here
   // before anything else runs rather than let it throw and kill init.
   if (typeof state.day1 !== 'object' || state.day1 === null || !Array.isArray(state.day1.matches)) {
-    state.day1 = { matches: [], ntp: { h8: null, h17: null } };
+    state.day1 = { matches: [], ntp: { h8: null, h17: null }, locked: false };
   }
   if (typeof state.day2 !== 'object' || state.day2 === null) {
     state.day2 = {
       a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null },
       groups: { a4: [], a3: [], b4: [], b3: [] },
-      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) }
+      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
+      locked: false
     };
   }
   if (typeof state.day3 !== 'object' || state.day3 === null) {
-    state.day3 = { scores: {}, ntp: { h7: null, h14: null } };
+    state.day3 = { scores: {}, ntp: { h7: null, h14: null }, locked: false };
   }
   // Coerce every existing match into the current singles shape — a match
   // saved during the short-lived doubles-era format (type:'doubles',
@@ -1002,6 +1023,12 @@ function normalizeState() {
     state.day3 = { scores: old.scores || old || {}, ntp: old.ntp || { h7:null, h14:null } };
   }
   if (!state.day3.ntp) state.day3.ntp = { h7:null, h14:null };
+  // Lock flags (issue #168) -- only `true` survives a stale/forged saved or
+  // synced payload; anything else (missing, a string, etc.) normalizes to
+  // unlocked rather than accidentally locking a day out from under everyone.
+  state.day1.locked = state.day1.locked === true;
+  state.day2.locked = state.day2.locked === true;
+  state.day3.locked = state.day3.locked === true;
 }
 
 function loadState() {
@@ -2871,6 +2898,72 @@ function confirmUsername() {
 // tool with no real auth layer.
 function updateAdminVisibility() {
   document.getElementById('tab-admin').style.display = currentUsername === 'James McIntyre' ? '' : 'none';
+  updateTeamsLockUI();
+  renderAllDayLocks();
+}
+
+// Same single-organiser-name gate as the Admin tab above -- shared by the
+// Teams tab lock and the per-day lock buttons (issue #168). Not real auth,
+// same as the rest of this app's admin controls.
+function isAdmin() {
+  return currentUsername === 'James McIntyre';
+}
+
+// Teams tab (issue #168): unlike the per-day locks below, this one isn't a
+// toggle -- team setup is always organiser-only once the draft is entered,
+// so anyone else just sees the notice and a dimmed, click-through-disabled
+// panel.
+function updateTeamsLockUI() {
+  const editable = document.getElementById('teams-editable');
+  const notice = document.getElementById('teams-locked-notice');
+  if (!editable || !notice) return;
+  const admin = isAdmin();
+  editable.classList.toggle('locked-for-viewer', !admin);
+  notice.style.display = admin ? 'none' : '';
+}
+
+function isDayLocked(day) {
+  const d = state['day' + day];
+  return !!(d && d.locked);
+}
+
+// Admin-only toggle (issue #168) -- synced the same way every other field
+// in this app is, as a single-field delta so two admins toggling different
+// days at once can't clobber each other.
+function toggleDayLock(day) {
+  if (!isAdmin()) return;
+  const key = 'day' + day;
+  const next = !isDayLocked(day);
+  state[key].locked = next;
+  saveState();
+  insertUpdate('day_lock', { field_key: key, value: String(next) });
+  renderDayLockUI(day);
+}
+
+// Renders one day's lock row (badge + admin's lock/unlock button) and dims
+// the day's scoring content for anyone who isn't the admin while it's
+// locked -- the admin can always keep editing (per the requested behavior),
+// so `.locked-for-viewer` is only ever applied for a non-admin viewer.
+function renderDayLockUI(day) {
+  const row = document.getElementById('day' + day + '-lock-row');
+  const lockable = document.getElementById('day' + day + '-lockable');
+  if (!row || !lockable) return;
+  const locked = isDayLocked(day);
+  const admin = isAdmin();
+  lockable.classList.toggle('locked-for-viewer', locked && !admin);
+  if (admin) {
+    row.innerHTML = locked
+      ? `<span class="day-locked-badge">🔒 Locked</span><button class="day-lock-btn is-locked" onclick="toggleDayLock(${day})">Unlock Day</button>`
+      : `<button class="day-lock-btn" onclick="toggleDayLock(${day})">Lock Day</button>`;
+  } else {
+    row.innerHTML = locked ? `<span class="day-locked-badge">🔒 Locked by organiser</span>` : '';
+  }
+}
+
+function renderAllDayLocks() {
+  renderDayLockUI(1);
+  renderDayLockUI(2);
+  renderDayLockUI(3);
 }
 
 function populateUsernameSelect() {
@@ -3000,6 +3093,8 @@ try {
   restoreDay2();
   renderDay3();
   updateScoreboard();
+  renderAllDayLocks();
+  updateTeamsLockUI();
 } catch (e) {
   console.error('Init failed:', e);
   document.getElementById('page-scorecard').innerHTML =
@@ -3022,6 +3117,8 @@ function refreshAllDays() {
     console.log('Day 3 rendered');
     updateScoreboard();
     console.log('Scoreboard updated');
+    renderAllDayLocks();
+    updateTeamsLockUI();
   } catch(e) {
     console.error('Error rendering days:', e);
   }
@@ -3211,17 +3308,6 @@ updateCountdown();
 if (document.getElementById('countdown-bar').style.display !== 'none') {
   countdownInterval = setInterval(updateCountdown, 1000);
 }
-
-// Masthead scroll behaviour (mirrors index.html)
-(function () {
-  const mast = document.querySelector('.masthead');
-  if (!mast) return;
-  function update() {
-    mast.classList.toggle('masthead--scrolled', window.scrollY > 80);
-  }
-  window.addEventListener('scroll', update, { passive: true });
-  update();
-})();
 </script>
 
 </body>
