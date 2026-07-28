@@ -409,9 +409,10 @@ html[data-mode="dark"] .hero-photo {
 
 .hero-bottom {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 32px;
+  gap: 32px 24px;
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -430,6 +431,13 @@ html[data-mode="dark"] .hero-photo {
   text-transform: none;
   display: block;
   margin-top: 6px;
+}
+/* issue #171: on a narrow phone, four flex:1 columns in one nowrap row
+   overflowed the hero silently (no page-level scrollbar, since only the
+   inner flex row itself overflowed) -- the "Prize" column was completely
+   unreachable. flex-wrap:wrap above lets it drop to a 2x2 grid instead. */
+@media (max-width: 640px) {
+  .hero-bottom .col { flex: 0 0 calc(50% - 12px); }
 }
 
 /* ── sub-hero ribbon ── */

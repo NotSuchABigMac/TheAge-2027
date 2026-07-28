@@ -152,6 +152,15 @@
   cursor: default;
   opacity: .65;
 }
+/* issue #171: aria-disabled is a screen-reader hint only -- it does
+   nothing to stop an actual mouse/touch click from following the href
+   (confirmed: clicking this exact element navigated straight through to
+   scorecard-live.html). pointer-events:none is what actually blocks it;
+   scoped to the aria-disabled state so removing that attribute once the
+   draft's done also re-enables real clicks with no other change needed. */
+.live-cta-btn[aria-disabled="true"] {
+  pointer-events: none;
+}
 </style>
 </head>
 <body>
