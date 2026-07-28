@@ -61,6 +61,11 @@
   function matchStrokes(hcpA, hcpB, strokeIndexes) {
     const zeros = strokeIndexes.map(() => 0);
     const a = parseFloat(hcpA), b = parseFloat(hcpB);
+    // A hand-edited PLAYERS.hcp typo is one keystroke away from a
+    // non-numeric value -- NaN handicaps used to flow straight through
+    // into NaN stroke arrays, which holeResult() then silently resolves
+    // every hole as a halve ('T') with no visible error (issue #164).
+    if (isNaN(a) || isNaN(b)) return { receiver: null, a: zeros, b: zeros };
     if (a === b) return { receiver: null, a: zeros, b: zeros };
     const receiver = a > b ? 'A' : 'B';
     const diff = Math.round(Math.abs(a - b));
@@ -128,6 +133,14 @@
   // ninePoints(), so Day 1 point totals are provably unaffected by this
   // feature (see the equivalence test in test/scoring.test.mjs).
   function effectiveNines(match, strokes) {
+    // normalizeState() guarantees holesA/holesB exist on every match today
+    // -- this guard is only for a future direct call that bypasses it,
+    // where .slice() of undefined would otherwise throw and crash render
+    // (issue #164). A pure manual fallback is the same behavior a match
+    // with no hole data at all already gets.
+    if (!Array.isArray(match.holesA) || !Array.isArray(match.holesB)) {
+      return { front9: match.front9, back9: match.back9 };
+    }
     function deriveNine(start) {
       const holesA = match.holesA.slice(start, start + 9);
       const holesB = match.holesB.slice(start, start + 9);
@@ -240,6 +253,12 @@
     const pct = SCRAMBLE_HANDICAP_PCT[hcps.length];
     if (!pct) return null;
     const sorted = hcps.map(h => parseFloat(h)).sort((a, b) => a - b);
+    // Same one-typo-away risk as matchStrokes() above -- a non-numeric
+    // handicap here would otherwise produce NaN, which flows into
+    // groupStrokes(NaN) as a NaN stroke array for the whole group (issue
+    // #164). Callers already treat a null handicap as "not yet computable"
+    // and fall back to zero strokes (see day2GroupHandicap() call sites).
+    if (sorted.some(h => isNaN(h))) return null;
     const total = sorted.reduce((sum, h, i) => sum + h * pct[i], 0);
     return Math.round(total);
   }
@@ -774,6 +793,145 @@
     };
   }
 
+  /* ── STATE HYGIENE (issue #166) ──
+     Extracted from scorecard-live.html's loadState() with no behavior
+     change -- runs on every page load against whatever's in localStorage,
+     repairing a wrong-shaped or stale-format payload before anything else
+     touches it. A crash here bricks the page at init, the exact failure
+     class it exists to prevent, so it's the highest-value slice of the app
+     to have under test. */
+  function normalizeState(state) {
+    // A saved/synced payload can have a day1/day2/day3 key present but shaped
+    // wrong (e.g. `matches` missing or not an array) — the map/access logic
+    // below assumes the current shape unconditionally, so guard it here
+    // before anything else runs rather than let it throw and kill init.
+    if (typeof state.day1 !== 'object' || state.day1 === null || !Array.isArray(state.day1.matches)) {
+      state.day1 = { matches: [], ntp: { h8: null, h17: null }, locked: false };
+    }
+    if (typeof state.day2 !== 'object' || state.day2 === null) {
+      state.day2 = {
+        a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null },
+        groups: { a4: [], a3: [], b4: [], b3: [] },
+        holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
+        locked: false
+      };
+    }
+    if (typeof state.day3 !== 'object' || state.day3 === null) {
+      state.day3 = { scores: {}, ntp: { h7: null, h14: null }, locked: false };
+    }
+    // Coerce every existing match into the current singles shape — a match
+    // saved during the short-lived doubles-era format (type:'doubles',
+    // 2-slot pA/pB) can otherwise survive indefinitely in a browser's cached
+    // state, since this used to only pad new matches onto the end rather
+    // than fixing up what was already there.
+    // Pads/repairs a hole-scores array to exactly 18 entries so a
+    // stale/malformed synced payload (missing holesA/holesB entirely, or an
+    // array of the wrong length) can't crash the per-hole grid.
+    function normalizedHoles(arr, min, max) {
+      const lo = min === undefined ? DAY1_GROSS_MIN : min;
+      const hi = max === undefined ? DAY1_GROSS_MAX : max;
+      const out = Array(18).fill(null);
+      if (Array.isArray(arr)) {
+        for (let i = 0; i < 18; i++) {
+          const n = parseIntOrNull(arr[i]);
+          out[i] = n === null ? null : Math.max(lo, Math.min(hi, n));
+        }
+      }
+      return out;
+    }
+    state.day1.matches = state.day1.matches.map(m => ({
+      type: 'singles',
+      pA: [ (m.pA && m.pA[0] !== undefined) ? m.pA[0] : null ],
+      pB: [ (m.pB && m.pB[0] !== undefined) ? m.pB[0] : null ],
+      front9: m.front9 ?? null,
+      back9: m.back9 ?? null,
+      holesA: normalizedHoles(m.holesA),
+      holesB: normalizedHoles(m.holesB)
+    }));
+    while (state.day1.matches.length < 6) {
+      state.day1.matches.push({ type:'singles', pA:[null], pB:[null], front9:null, back9:null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) });
+    }
+    if (!state.day1.ntp) state.day1.ntp = { h8:null, h17:null };
+    if (!state.day2.ntp) state.day2.ntp = { h4:null, h16:null };
+    if (state.day2.a2 !== undefined) { if (state.day2.a3 === undefined) state.day2.a3 = state.day2.a2; delete state.day2.a2; }
+    if (state.day2.b2 !== undefined) { if (state.day2.b3 === undefined) state.day2.b3 = state.day2.b2; delete state.day2.b2; }
+    // Group assignments/hole scores (issue #128) -- pad/repair the same way
+    // holesA/holesB is above, so a stale/pre-#128 saved payload can't crash
+    // the scramble grid.
+    const GROUP_CODES = ['a4', 'a3', 'b4', 'b3'];
+    if (typeof state.day2.groups !== 'object' || state.day2.groups === null) {
+      state.day2.groups = { a4: [], a3: [], b4: [], b3: [] };
+    } else {
+      const seen = new Set();
+      GROUP_CODES.forEach(code => {
+        const raw = Array.isArray(state.day2.groups[code]) ? state.day2.groups[code] : [];
+        // A player should never structurally belong to two groups at once --
+        // first group (in a4/a3/b4/b3 order) wins, same self-heal philosophy
+        // as dedupeTeams().
+        state.day2.groups[code] = raw.filter(id => {
+          const n = parseIntOrNull(id);
+          if (n === null || seen.has(n)) return false;
+          seen.add(n);
+          return true;
+        });
+      });
+    }
+    if (typeof state.day2.holes !== 'object' || state.day2.holes === null) {
+      state.day2.holes = { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) };
+    } else {
+      GROUP_CODES.forEach(code => { state.day2.holes[code] = normalizedHoles(state.day2.holes[code], DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX); });
+    }
+    // National anthem house rule (issue #149) -- a stale/malformed saved
+    // payload could hold anything under an id key, so only true/false
+    // survive; anything else is dropped rather than fed into the handicap
+    // calc as a truthy/falsy accident.
+    if (typeof state.day2.anthem !== 'object' || state.day2.anthem === null) {
+      state.day2.anthem = {};
+    } else {
+      Object.keys(state.day2.anthem).forEach(id => {
+        if (state.day2.anthem[id] !== true && state.day2.anthem[id] !== false) delete state.day2.anthem[id];
+      });
+    }
+    if (!state.day3.scores) {
+      const old = state.day3;
+      state.day3 = { scores: old.scores || old || {}, ntp: old.ntp || { h7:null, h14:null } };
+    }
+    if (!state.day3.ntp) state.day3.ntp = { h7:null, h14:null };
+    // Lock flags (issue #168) -- only `true` survives a stale/forged saved or
+    // synced payload; anything else (missing, a string, etc.) normalizes to
+    // unlocked rather than accidentally locking a day out from under everyone.
+    state.day1.locked = state.day1.locked === true;
+    state.day2.locked = state.day2.locked === true;
+    state.day3.locked = state.day3.locked === true;
+    return state;
+  }
+
+  /* ── OFFLINE RETRY QUEUE (issue #66, extracted for #166) ──
+     The queue-walking core of scorecard-live.html's flushPendingWrites():
+     send everything in `queue` via `sendFn`, oldest-first, keeping
+     whatever fails for the next pass. `sendFn` must resolve to
+     'ok' | 'auth' | 'network' -- the same three-way contract
+     sendUpdateRow() already has (issue #141), not a plain boolean: an
+     'auth' result stops the pass immediately and requeues every remaining
+     item unretried (re-trying a token the server just told us is wrong is
+     pointless), while a 'network' failure only requeues that one item and
+     the loop continues. `sendFn` must not throw -- sendUpdateRow() already
+     catches internally and resolves 'network' rather than rejecting; a
+     throwing sendFn would abort the loop and lose every item after it. */
+  async function flushQueue(queue, sendFn) {
+    const stillPending = [];
+    for (let i = 0; i < queue.length; i++) {
+      const w = queue[i];
+      const result = await sendFn(w);
+      if (result === 'auth') {
+        stillPending.push(...queue.slice(i));
+        break;
+      }
+      if (result === 'network') stillPending.push(w);
+    }
+    return stillPending;
+  }
+
   return {
     escapeHtml,
     ninePoints, matchPoints, sumMatchPoints,
@@ -789,6 +947,7 @@
     resolveOverallWinner,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
     parseIntOrNull, applyUpdateToState,
-    UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow
+    UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
+    normalizeState, flushQueue
   };
 });
