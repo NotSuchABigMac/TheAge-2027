@@ -17,7 +17,8 @@ const {
   resolveOverallWinner,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
-  UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow
+  UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
+  normalizeState, flushQueue
 } = require('../scoring.js');
 
 /* ── HTML Escaping (issue #58 — stored XSS via team names) ── */
@@ -855,6 +856,14 @@ test('matchStrokes: a difference over 18 wraps around (8.0 v 39.0 -> diff 31 -> 
   assert.equal(result.b.reduce((s, n) => s + n, 0), 31);
 });
 
+test('matchStrokes: a non-numeric handicap yields no strokes for anyone, never NaN (issue #164)', () => {
+  const r = matchStrokes('abc', '10.0', [1, 2, 3]);
+  assert.equal(r.receiver, null);
+  assert.deepEqual(r.a, [0, 0, 0]);
+  assert.deepEqual(r.b, [0, 0, 0]);
+  assert.equal(matchStrokes(undefined, '10.0', [1, 2, 3]).receiver, null);
+});
+
 test('holeResult: lower gross wins when neither player receives a stroke', () => {
   assert.equal(holeResult(4, 5, 0, 0), 'A');
   assert.equal(holeResult(5, 4, 0, 0), 'B');
@@ -916,6 +925,10 @@ test('nineFromHoles: dormie (lead exactly equals holes remaining) is NOT decided
   assert.equal(result.result, null);
 });
 
+test('nineFromHoles: an empty nine reports a decided tie (pin of current behavior -- real callers always pass 9 entries, issue #164)', () => {
+  assert.deepEqual(nineFromHoles([]), { result: 'T', decided: true, wonA: 0, wonB: 0, played: 0 });
+});
+
 test('effectiveNines: hole data overrides a stale manual front9/back9 value', () => {
   const match = {
     front9: 'B', back9: null,
@@ -934,6 +947,12 @@ test('effectiveNines: the manual value is honoured when a nine has no hole data 
   const result = effectiveNines(match, strokes);
   assert.equal(result.front9, 'A');
   assert.equal(result.back9, 'T');
+});
+
+test('effectiveNines: a match without hole arrays falls back to the manual nine values instead of throwing (issue #164)', () => {
+  const match = { pA: [1], pB: [2], front9: 'A', back9: null }; // no holesA/holesB
+  const strokes = { a: Array(18).fill(0), b: Array(18).fill(0) };
+  assert.deepEqual(effectiveNines(match, strokes), { front9: 'A', back9: null });
 });
 
 test('effectiveNines: an undecided derived nine yields null even if a manual value is set underneath', () => {
@@ -1075,6 +1094,12 @@ test('scrambleTeamHandicap: a 2-player group applies the 35/15 divisors', () => 
 test('scrambleTeamHandicap: an unsupported group size (not 2, 3, or 4) returns null rather than guessing', () => {
   assert.equal(scrambleTeamHandicap(['8.0']), null);
   assert.equal(scrambleTeamHandicap(['8.0', '9.0', '10.0', '11.0', '12.0']), null);
+});
+
+test('scrambleTeamHandicap: a non-numeric handicap in the group returns null, never NaN (issue #164)', () => {
+  assert.equal(scrambleTeamHandicap(['abc', '10']), null);
+  assert.equal(scrambleTeamHandicap(['8.0', undefined, '20.0']), null);
+  assert.equal(typeof scrambleTeamHandicap(['8.0', '16.0', '19.0', '23.0']), 'number');
 });
 
 test('anthemAdjustedHandicap: -1 for sang, +2 for not sung, unchanged when no adjustment recorded (issue #149)', () => {
@@ -1254,6 +1279,88 @@ test('describeUpdateRow: covers every update_type in UPDATE_TYPE_DESCRIPTORS wit
   });
 });
 
+// UPDATE_TYPE_DESCRIPTORS (exported, drives the Admin history picker) and
+// UPDATE_FIELD_KEYS (not exported, drives applyUpdateToState's field_key
+// whitelist) are two hand-maintained lists that must agree -- a future
+// update_type added to one and not the other fails silently (issue #163):
+// either the admin picker offers a field every apply call rejects, or the
+// whitelist accepts a field the picker can't address. Tested behaviorally
+// through applyUpdateToState since UPDATE_FIELD_KEYS isn't exported.
+function validValueFor(updateType, fieldKey) {
+  if (updateType === 'day1_match') return (fieldKey === 'pA' || fieldKey === 'pB') ? '3' : 'A';
+  if (updateType === 'day1_ntp' || updateType === 'day2_ntp' || updateType === 'day3_ntp') return '3';
+  if (updateType === 'day2_score') return '-5';
+  if (updateType === 'team_name') return 'Test Name';
+  if (updateType === 'day_lock') return 'true';
+  throw new Error(`validValueFor: no case for update_type "${updateType}" -- add one alongside its UPDATE_FIELD_KEYS entry`);
+}
+function assertFieldAccepted(state, updateType, fieldKey) {
+  if (updateType === 'day1_match') {
+    if (fieldKey === 'pA') { assert.equal(state.day1.matches[0].pA[0], 3, `${updateType}/${fieldKey} should be accepted`); return; }
+    if (fieldKey === 'pB') { assert.equal(state.day1.matches[0].pB[0], 3, `${updateType}/${fieldKey} should be accepted`); return; }
+    assert.equal(state.day1.matches[0][fieldKey], 'A', `${updateType}/${fieldKey} should be accepted`);
+    return;
+  }
+  if (updateType === 'day1_ntp' || updateType === 'day2_ntp' || updateType === 'day3_ntp') {
+    const dayKey = updateType.split('_')[0];
+    assert.equal(state[dayKey].ntp[fieldKey], 3, `${updateType}/${fieldKey} should be accepted`);
+    return;
+  }
+  if (updateType === 'day2_score') {
+    assert.equal(state.day2[fieldKey], '-5', `${updateType}/${fieldKey} should be accepted`);
+    return;
+  }
+  if (updateType === 'team_name') {
+    assert.equal(state[fieldKey === 'A' ? 'teamNameA' : 'teamNameB'], 'Test Name', `${updateType}/${fieldKey} should be accepted`);
+    return;
+  }
+  if (updateType === 'day_lock') {
+    assert.equal(state[fieldKey].locked, true, `${updateType}/${fieldKey} should be accepted`);
+    return;
+  }
+  throw new Error(`assertFieldAccepted: no case for update_type "${updateType}"`);
+}
+// Sets don't survive JSON.stringify, so teamA/teamB are sorted into arrays
+// first; everything else round-trips through JSON, same approach the
+// makeState()-based tests elsewhere in this file already use.
+function stateSnapshot(state) {
+  return JSON.stringify({
+    teamNameA: state.teamNameA, teamNameB: state.teamNameB,
+    teamA: [...state.teamA].sort((a, b) => a - b), teamB: [...state.teamB].sort((a, b) => a - b),
+    day1: state.day1, day2: state.day2, day3: state.day3, tiebreak: state.tiebreak
+  });
+}
+
+test('applyUpdateToState: every admin-descriptor fieldKey is accepted', () => {
+  Object.entries(UPDATE_TYPE_DESCRIPTORS).forEach(([updateType, desc]) => {
+    if (!desc.fieldKeys || updateType === 'team_assign') return;
+    desc.fieldKeys.forEach(fieldKey => {
+      const state = makeState();
+      applyUpdateToState(state, { update_type: updateType, match_idx: 0, field_key: fieldKey, value: validValueFor(updateType, fieldKey) });
+      assertFieldAccepted(state, updateType, fieldKey);
+    });
+  });
+
+  // team_assign is addressed differently (a JSON roster snapshot, not a
+  // scalar), so it gets its own explicit case rather than validValueFor.
+  const assigned = makeState();
+  applyUpdateToState(assigned, { update_type: 'team_assign', field_key: 'A', value: JSON.stringify([1, 2]) });
+  assert.deepEqual([...assigned.teamA].sort((a, b) => a - b), [1, 2]);
+  const rejectedAssign = makeState();
+  applyUpdateToState(rejectedAssign, { update_type: 'team_assign', field_key: 'zz', value: JSON.stringify([1, 2]) });
+  assert.deepEqual([...rejectedAssign.teamA].sort((a, b) => a - b), [...makeState().teamA].sort((a, b) => a - b));
+});
+
+test('applyUpdateToState: a field_key outside the descriptor list is rejected for every whitelisted update_type', () => {
+  const fresh = stateSnapshot(makeState());
+  Object.entries(UPDATE_TYPE_DESCRIPTORS).forEach(([updateType, desc]) => {
+    if (!desc.fieldKeys) return;
+    const state = makeState();
+    applyUpdateToState(state, { update_type: updateType, match_idx: 0, field_key: 'zz', value: 'x' });
+    assert.equal(stateSnapshot(state), fresh, `${updateType}: state changed on a bogus field_key`);
+  });
+});
+
 test('isRestorable: every update_type is restorable except the legacy team_assign snapshot', () => {
   Object.keys(UPDATE_TYPE_DESCRIPTORS).forEach(type => {
     assert.equal(isRestorable(type), type !== 'team_assign');
@@ -1288,4 +1395,141 @@ test('replay sequence: apply original, apply overwrite, apply restore -> state m
   const restoreRow = buildRestoreRow(original);
   applyUpdateToState(state, restoreRow);
   assert.equal(state.day1.matches[1].front9, 'A');
+});
+
+/* ── normalizeState + flushQueue (issue #166) ──
+   Extracted from scorecard-live.html with no behavior change --
+   normalizeState() runs on every page load against whatever's in
+   localStorage and repairs a wrong-shaped or stale-format payload before
+   anything else touches it; flushQueue() is the queue-walking core of the
+   offline retry queue (issue #66). Characterization tests: they encode
+   what the extracted code does today. */
+
+test('normalizeState: missing/malformed day1 is replaced and padded to 6 singles matches', () => {
+  const state = { day1: { matches: 'not-an-array' }, day2: {}, day3: {} };
+  normalizeState(state);
+  assert.equal(state.day1.matches.length, 6);
+  state.day1.matches.forEach(m => {
+    assert.deepEqual(m, { type: 'singles', pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) });
+  });
+  assert.deepEqual(state.day1.ntp, { h8: null, h17: null });
+  assert.equal(state.day1.locked, false);
+});
+
+test('normalizeState: a doubles-era match is coerced to singles, keeping only slot 0', () => {
+  const state = {
+    day1: { matches: [{ type: 'doubles', pA: [3, 5], pB: [2, 4], front9: 'A', back9: null }] },
+    day2: {}, day3: {}
+  };
+  normalizeState(state);
+  const m = state.day1.matches[0];
+  assert.equal(m.type, 'singles');
+  assert.deepEqual(m.pA, [3]);
+  assert.deepEqual(m.pB, [2]);
+  assert.equal(m.front9, 'A');
+  assert.equal(m.back9, null);
+  assert.equal(m.holesA.length, 18);
+  assert.equal(m.holesB.length, 18);
+});
+
+test('normalizeState: a wrong-length/garbage holesA array is repaired to 18 clamped entries', () => {
+  const state = {
+    day1: { matches: [{ type: 'singles', pA: [1], pB: [2], front9: null, back9: null, holesA: ['4', 99, 'x'], holesB: [] }] },
+    day2: {}, day3: {}
+  };
+  normalizeState(state);
+  const holesA = state.day1.matches[0].holesA;
+  assert.equal(holesA.length, 18);
+  assert.equal(holesA[0], 4);
+  assert.equal(holesA[1], DAY1_GROSS_MAX); // 99 clamped
+  assert.equal(holesA[2], null); // 'x' isn't a number
+  assert.deepEqual(holesA.slice(3), Array(15).fill(null));
+});
+
+test('normalizeState: a missing day2 gets the full default shape, including groups/holes for all four codes', () => {
+  const state = { day1: { matches: [] }, day3: {} };
+  normalizeState(state);
+  assert.deepEqual(state.day2.groups, { a4: [], a3: [], b4: [], b3: [] });
+  ['a4', 'a3', 'b4', 'b3'].forEach(code => {
+    assert.deepEqual(state.day2.holes[code], Array(18).fill(null));
+  });
+  assert.equal(state.day2.a4, null);
+  assert.deepEqual(state.day2.ntp, { h4: null, h16: null });
+  assert.equal(state.day2.locked, false);
+});
+
+test('normalizeState: legacy day2.a2/b2 keys are renamed to a3/b3 only when a3/b3 are absent', () => {
+  const renamed = { day1: { matches: [] }, day2: { a2: '-8', b2: '-4' }, day3: {} };
+  normalizeState(renamed);
+  assert.equal(renamed.day2.a3, '-8');
+  assert.equal(renamed.day2.b3, '-4');
+  assert.equal('a2' in renamed.day2, false);
+  assert.equal('b2' in renamed.day2, false);
+
+  const notClobbered = { day1: { matches: [] }, day2: { a2: '-8', a3: '-99' }, day3: {} };
+  normalizeState(notClobbered);
+  assert.equal(notClobbered.day2.a3, '-99');
+  assert.equal('a2' in notClobbered.day2, false);
+});
+
+test('normalizeState: a player in two day2 groups keeps only the first (a4/a3/b4/b3 order); non-numeric ids drop', () => {
+  const state = {
+    day1: { matches: [] },
+    day2: { groups: { a4: [1, 2], a3: [2, 3, 'x'], b4: [], b3: [] } },
+    day3: {}
+  };
+  normalizeState(state);
+  assert.deepEqual(state.day2.groups.a4, [1, 2]);
+  assert.deepEqual(state.day2.groups.a3, [3]);
+});
+
+test('normalizeState: a bare day3 scores map (pre-refactor shape) becomes {scores, ntp}', () => {
+  const state = { day1: { matches: [] }, day2: {}, day3: { '0': '38', '1': '40' } };
+  normalizeState(state);
+  assert.deepEqual(state.day3.scores, { '0': '38', '1': '40' });
+  assert.deepEqual(state.day3.ntp, { h7: null, h14: null });
+  assert.equal(state.day3.locked, false);
+});
+
+test('normalizeState: an already-normal state passes through unchanged', () => {
+  const normal = {
+    day1: {
+      matches: Array.from({ length: 6 }, () => ({ type: 'singles', pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) })),
+      ntp: { h8: null, h17: null }, locked: false
+    },
+    day2: {
+      a4: null, a3: null, b4: null, b3: null, ntp: { h4: null, h16: null },
+      groups: { a4: [], a3: [], b4: [], b3: [] },
+      holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
+      anthem: {}, locked: false
+    },
+    day3: { scores: {}, ntp: { h7: null, h14: null }, locked: false }
+  };
+  const before = JSON.stringify(normal);
+  normalizeState(normal);
+  assert.equal(JSON.stringify(normal), before);
+});
+
+test('flushQueue: every item sending "ok" empties the queue, calling sendFn once per item in order', async () => {
+  const calls = [];
+  const sendFn = async (w) => { calls.push(w); return 'ok'; };
+  const result = await flushQueue([{ id: 1 }, { id: 2 }, { id: 3 }], sendFn);
+  assert.deepEqual(result, []);
+  assert.deepEqual(calls, [{ id: 1 }, { id: 2 }, { id: 3 }]);
+});
+
+test('flushQueue: a "network" failure in the middle is requeued, later items are still attempted', async () => {
+  const calls = [];
+  const sendFn = async (w) => { calls.push(w.id); return w.id === 2 ? 'network' : 'ok'; };
+  const result = await flushQueue([{ id: 1 }, { id: 2 }, { id: 3 }], sendFn);
+  assert.deepEqual(result, [{ id: 2 }]);
+  assert.deepEqual(calls, [1, 2, 3]);
+});
+
+test('flushQueue: an "auth" result stops the pass immediately and requeues every remaining item, including itself (issue #141 semantics)', async () => {
+  const calls = [];
+  const sendFn = async (w) => { calls.push(w.id); return w.id === 2 ? 'auth' : 'ok'; };
+  const result = await flushQueue([{ id: 1 }, { id: 2 }, { id: 3 }], sendFn);
+  assert.deepEqual(result, [{ id: 2 }, { id: 3 }]);
+  assert.deepEqual(calls, [1, 2]); // item 3 was never even attempted this pass
 });
