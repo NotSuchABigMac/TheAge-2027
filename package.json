@@ -1,0 +1,15 @@
+{
+  "name": "wonga-cup",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Wonga Cup live scorecard — static site plus its test suites.",
+  "scripts": {
+    "test": "node --test test/scoring.test.mjs test/courses.test.mjs test/theme.test.mjs",
+    "test:stress:unit": "node --test test/stress/supamock.test.mjs test/stress/oracles.test.mjs test/stress/persona.test.mjs",
+    "stress:probe": "node test/stress/probe.mjs",
+    "stress:smoke": "node test/stress/smoke.mjs",
+    "stress": "node test/stress/run.mjs",
+    "stress:cranked": "node test/stress/run.mjs --slips 3 --faults 2",
+    "stress:repro-rollback": "node test/stress/repro-rollback.mjs"
+  }
+}
