@@ -277,3 +277,86 @@ there); expose as `npm run stress` locally and a manual
 4. `persona.mjs` slips + ledger; zero probabilities = S0.
 5. `scenario.mjs` Day 1 → S1 for Day 1 only; then Days 2–3; then the
    rollback finale last (it needs everything else working to be meaningful).
+
+---
+
+## 11. Implementation notes (added after building it — issue #176)
+
+The harness is built and lives in `test/stress/`. Things learned in the
+build that the plan above got wrong or didn't anticipate, recorded here
+because every one of them cost real time and would cost it again:
+
+### The harness must model the gesture, not the intent
+
+Four separate false failures all had the same root cause — the harness
+predicting what the app *should* do instead of modelling what a person
+actually does:
+
+- **`fill()` does not fire `change`.** The Day 1/Day 2 hole grids commit
+  on `change`, so a fill alone wrote nothing and 18 holes produced 17
+  writes, each one gesture late. `commitOnce()` fills and explicitly
+  blurs. `probe.mjs` measures this against the live page and should be
+  run before any full run — it is the tripwire for the app's commit
+  semantics changing under the test.
+- **One agent is one pair of thumbs.** Running an agent's own actions
+  concurrently (the obvious reading of `Promise.all` over a scenario
+  step) is impossible for a real person, and it manufactured
+  spectacular-looking sync bugs: one player's score written under
+  another player's id, and digits concatenated into a value that clamped
+  to 60. Per-agent gestures are serialised; concurrency *between*
+  devices is the thing under test and is untouched.
+- **The app clamps.** A fat-fingered `88` is stored as `15`. A ledger
+  keyed on what was typed matches no row and reads as a lost write.
+- **Re-entering a value a field already holds writes nothing**, so it
+  must not be recorded as a commit.
+
+### Quiescence is a property, not a duration
+
+"Agents stopped + N poll cycles" is not enough. The app flushed a queued
+write 37s after the last agent action, and two devices hadn't polled in
+the 29s that remained — the oracle reported a one-cell divergence that
+was only the clock running out. Quiescence is now: every device's sync
+cursor has reached the newest row, and no queue is non-empty. A device
+that genuinely cannot catch up is a reported finding rather than
+something silently waited out.
+
+### One action ≠ one row, and totals can't be made exact
+
+Clearing a nine writes one null per scored hole; "Save Names" rewrites
+both `team_name` rows; the nine-result control is a *toggle*, so a
+double-tap sets and then clears. Ledger lines therefore declare
+`expectedValueRows` (`null` = unpredictable) rather than being counted
+one-per-gesture.
+
+More fundamentally, **totals are timing-dependent and cannot be made
+exact**: a write whose response was dropped lands once if the client
+never retried within the run and twice if it did. The write oracle is
+therefore per-content-key, asking two separate questions — did every
+gesture produce a row, and did any content appear more often than the
+agent performed it beyond what a recorded ghost explains. This is also
+sharper than a total, which can be cancelled out by a loss and a
+duplicate in the same run.
+
+### A device that has never seen a row is not empty
+
+`scorecard-live.html` seeds `teamA`/`teamB` from `DEFAULT_A` and names
+the teams client-side, with no rows in the log behind it. From-epoch
+replay must start from that same seed. Worth knowing independently: with
+no `player_team` rows in the log, **team membership is whatever the
+shipped bundle says**, so two phones on different app versions would
+disagree with no log evidence explaining it.
+
+### Cross-device agreement is not sufficient on its own
+
+In the run that found #212, the convergence oracle **passed** — all 15
+devices agreed. They were uniformly wrong. The from-epoch replay oracle
+is what caught it. Keep both.
+
+## 12. Findings
+
+| # | Finding | Status |
+|---|---|---|
+| [#212](https://github.com/NotSuchABigMac/wonga-cup/issues/212) | Rollback does not clear other devices: `location.reload()` doesn't stop the JS that immediately restores every key just deleted, so every device except the organiser's keeps the rolled-back scores | open; `repro-rollback.mjs` exits non-zero while present |
+
+`--skip-rollback` exists so the rest of the suite stays useful while #212
+is open. It is not a suppression — without it, the run correctly fails.
