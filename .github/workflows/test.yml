@@ -17,4 +17,4 @@ jobs:
         with:
           node-version: 22
 
-      - run: node --test test/scoring.test.mjs
+      - run: node --test test/*.test.mjs
