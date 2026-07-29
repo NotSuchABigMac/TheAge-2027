@@ -105,12 +105,29 @@ async function main() {
 
     const ctx = {
       agents, byRole, ledger, log, rng, pace, mockCtl, mockUrl,
-      tournamentId, writeToken: WRITE_TOKEN, assertions: []
+      tournamentId, writeToken: WRITE_TOKEN, assertions: [],
+      // Issue #212 (rollback does not clear other devices) is a real,
+      // open app bug the harness found. This flag lets the rest of the
+      // suite stay useful while it is outstanding — it is NOT a
+      // suppression: without it, the run correctly fails.
+      skipRollback: process.argv.includes('--skip-rollback')
     };
 
-    await loginPhase(ctx);
-    if (days.includes(1)) await day1(ctx);
-    if (days.includes(2)) await day2(ctx);
+    /* A phase that throws must NOT cost us the oracles. The whole point
+       of a run is the evidence it produces; losing every artifact because
+       one selector moved is the worst possible failure mode. Record the
+       crash as a failed assertion and carry on to the measurement. */
+    const phase = async (name, fn) => {
+      try { await fn(); }
+      catch (e) {
+        log(`PHASE "${name}" THREW: ${e.message.split('\n')[0]}`);
+        ctx.assertions.push({ name: `phase ${name} completed`, ok: false, detail: e.message.split('\n')[0] });
+      }
+    };
+
+    await phase('login', () => loginPhase(ctx));
+    if (days.includes(1)) await phase('day1', () => day1(ctx));
+    if (days.includes(2)) await phase('day2', () => day2(ctx));
 
     /* ── T11: the late joiner ──
        Opened before Day 3's finale so it has the whole log to replay,
@@ -122,7 +139,7 @@ async function main() {
       const phone = await dom.newPhone(browser, { name: 'Late Joiner', url, errors });
       await dom.login(phone, { name: 'Spectator', token: WRITE_TOKEN, summonPlayerId: 0 });
       lateJoiner = { name: 'Late Joiner', phone };
-      await day3(ctx);
+      await phase('day3', () => day3(ctx));
     }
 
     /* ── quiescence ── */

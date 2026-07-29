@@ -120,7 +120,13 @@ export class Agent {
     this.ledger.record({
       agent: this.name, kind: intent.kind, intent, performed: m.performed,
       slipType: m.slipType, willCorrect: m.willCorrect, committed, cascade,
-      expectedValueRows, note
+      expectedValueRows,
+      // A write made while this device was offline sits in the pending
+      // queue, so it is NOT on the server when a rollback runs — it lands
+      // afterwards and legitimately survives. Discounting it as
+      // "deleted by the rollback" undercounts the expectation.
+      queuedWhileOffline: this.offline === true,
+      note
     });
 
     // A noticed slip becomes a scheduled future intent re-entering the

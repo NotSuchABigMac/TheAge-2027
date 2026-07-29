@@ -327,6 +327,10 @@ export async function day3(ctx) {
   });
 
   /* ── T6: rollback under fire ── */
+  if (ctx.skipRollback) {
+    log('  rollback finale SKIPPED (--skip-rollback) — see issue #212');
+    return;
+  }
   log('  rollback finale: one device offline holding queued writes');
   const offlineVictim = byRole.scorer[3];
   await offlineVictim.goOffline();
@@ -335,9 +339,14 @@ export async function day3(ctx) {
 
   const admin = byRole.admin[0];
   await dom.gotoTab(admin.phone, 'admin');
-  const cutoffIso = new Date(Date.now() - 10 * 60000).toISOString();
+  // 5 minutes is the smallest window the app offers. Against a run
+  // compressed into a few minutes that removes most of the log — which is
+  // the harsher and more interesting case: a near-total wipe, every
+  // device reloading at once, then re-entry on top.
+  const ROLLBACK_MINUTES = 5;
+  const cutoffIso = new Date(Date.now() - ROLLBACK_MINUTES * 60000).toISOString();
   ledger.recordRollback(cutoffIso);
-  await dom.rollback(admin.phone, 10);
+  await dom.rollback(admin.phone, ROLLBACK_MINUTES);
   log('  rollback issued — waiting for every device to wipe and reload');
   await sleep(20000);
 

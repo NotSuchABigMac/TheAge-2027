@@ -310,6 +310,7 @@ export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [], jo
 
   // Rows a rollback legitimately deleted must not count as lost.
   const surviving = committed.filter(l =>
+    l.queuedWhileOffline === true ||
     !rollbackCutoffs.some(cut => l.ts > Date.parse(cut.cutoff) && l.ts < cut.at)
   );
 
@@ -497,7 +498,8 @@ export function displayedTotalsOracle(scoreboards, c) {
       ['grand', 'grandA', 'grandB', expected.grand]
     ];
     checks.forEach(([label, keyA, keyB, exp]) => {
-      const gotA = numFromText(board[keyA]), gotB = numFromText(board[keyB]);
+      const gotA = typeof board[keyA] === 'number' ? board[keyA] : numFromText(board[keyA]);
+      const gotB = typeof board[keyB] === 'number' ? board[keyB] : numFromText(board[keyB]);
       if (gotA === null && gotB === null) return; // element absent on this view
       if (gotA !== exp.a || gotB !== exp.b) {
         fail(failures, 'displayed-total', {

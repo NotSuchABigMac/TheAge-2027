@@ -200,6 +200,7 @@ export class Ledger {
       // How many VALUE-bearing rows this gesture should produce (default 1,
       // 0 for a pure-clear cascade, null when genuinely unpredictable).
       expectedValueRows: entry.expectedValueRows === undefined ? 1 : entry.expectedValueRows,
+      queuedWhileOffline: entry.queuedWhileOffline === true,
       note: entry.note ?? null
     };
     this.lines.push(line);

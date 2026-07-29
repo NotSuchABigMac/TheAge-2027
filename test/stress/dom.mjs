@@ -327,8 +327,21 @@ export async function toggleDayLock(phone, day) {
   return true;
 }
 
+// The window <select> offers a fixed set (5/15/30/60/180/360/1440).
+// Asking for anything else makes Playwright retry for 30s and then throw
+// an opaque "did not find some options" — validate up front so a changed
+// option list fails with a sentence that says what to do about it.
+export const ROLLBACK_WINDOWS = [5, 15, 30, 60, 180, 360, 1440];
 export async function rollback(phone, minutes) {
   const { page } = phone;
+  const available = await page.locator('#admin-rollback-minutes option')
+    .evaluateAll(opts => opts.map(o => Number(o.value)));
+  if (!available.includes(minutes)) {
+    throw new Error(
+      `rollback window ${minutes} min is not offered by the app (available: ${available.join(', ')}). ` +
+      `Update the scenario to use one of those.`
+    );
+  }
   await page.selectOption('#admin-rollback-minutes', String(minutes));
   await page.locator('button', { hasText: 'Rollback Scores' }).first().click();
   return true;
@@ -404,13 +417,32 @@ export async function readLocalState(phone) {
 }
 
 export async function readScoreboard(phone) {
+  // The pinned scoreboard is the only element that shows the numbers the
+  // oracle recomputes. Read the real ids (#sb-total-a/b and the per-day
+  // chips written by updateScoreboard) — the earlier guess at
+  // "a-day1-total"-style ids matched nothing, so the comparison silently
+  // skipped every section, and the one id that DID exist
+  // (#a-day2-total) means something different: it is scramble points
+  // only, excluding NTP, whereas calcDay2() includes them.
   return phone.page.evaluate(() => {
-    const txt = id => document.getElementById(id)?.textContent?.trim() ?? null;
+    const num = t => {
+      if (t === null || t === undefined) return null;
+      const m = /-?\d+(\.\d+)?/.exec(String(t));
+      return m ? parseFloat(m[0]) : null;
+    };
+    const chips = id => {
+      const el = document.getElementById(id);
+      if (!el) return [null, null, null];
+      return Array.from(el.querySelectorAll('.sb-chip')).map(c => num(c.textContent));
+    };
+    const [d1a, d2a, d3a] = chips('sb-chips-a');
+    const [d1b, d2b, d3b] = chips('sb-chips-b');
     return {
-      day1A: txt('a-day1-total'), day1B: txt('b-day1-total'),
-      day2A: txt('a-day2-total'), day2B: txt('b-day2-total'),
-      day3A: txt('a-day3-total'), day3B: txt('b-day3-total'),
-      grandA: txt('a-grand-total'), grandB: txt('b-grand-total')
+      day1A: d1a, day1B: d1b,
+      day2A: d2a, day2B: d2b,
+      day3A: d3a, day3B: d3b,
+      grandA: num(document.getElementById('sb-total-a')?.textContent),
+      grandB: num(document.getElementById('sb-total-b')?.textContent)
     };
   });
 }
