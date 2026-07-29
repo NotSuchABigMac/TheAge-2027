@@ -201,6 +201,10 @@ export class Ledger {
       // 0 for a pure-clear cascade, null when genuinely unpredictable).
       expectedValueRows: entry.expectedValueRows === undefined ? 1 : entry.expectedValueRows,
       queuedWhileOffline: entry.queuedWhileOffline === true,
+      serverCoords: entry.serverCoords ?? null,
+      // The value the app will actually store (post-clamp), which is what
+      // a server row can be matched against.
+      storedValue: entry.storedValue === undefined ? (entry.performed?.value ?? null) : entry.storedValue,
       note: entry.note ?? null
     };
     this.lines.push(line);

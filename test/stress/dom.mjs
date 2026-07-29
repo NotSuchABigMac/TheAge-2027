@@ -433,7 +433,10 @@ export async function readScoreboard(phone) {
     const chips = id => {
       const el = document.getElementById(id);
       if (!el) return [null, null, null];
-      return Array.from(el.querySelectorAll('.sb-chip')).map(c => num(c.textContent));
+      // Chip text is "D1: 6" — a bare number match finds the 1 in the
+      // LABEL, not the score. Take what follows the colon.
+      return Array.from(el.querySelectorAll('.sb-chip'))
+        .map(c => num(String(c.textContent).split(':')[1]));
     };
     const [d1a, d2a, d3a] = chips('sb-chips-a');
     const [d1b, d2b, d3b] = chips('sb-chips-b');

@@ -211,29 +211,37 @@ test('ledgerOracle passes when server rows match committed gestures', () => {
   assert.ok(r.ok, JSON.stringify(r.failures));
 });
 
-test('ledgerOracle FAILS on a duplicated write and names the update_type', () => {
-  const rows = [row(1), row(2), row(3), row(4)];
+test('ledgerOracle FAILS on a duplicated write and names the content key', () => {
+  const dup = { update_type: 'day3_stableford', player_id: 0, value: '30', updated_by: 'a' };
+  const rows = [row(1, dup), row(2, dup)];
   const ledger = [
-    { ts: 1, agent: 'a', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
-    { ts: 2, agent: 'b', committed: true, performed: { updateType: 'day3_stableford', target: { player: 1 }, value: '31' } },
-    { ts: 3, agent: 'c', committed: true, performed: { updateType: 'day3_stableford', target: { player: 2 }, value: '32' } }
+    { ts: 1, agent: 'a', committed: true,
+      serverCoords: { match_idx: null, player_id: 0, field_key: null },
+      performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } }
   ];
   const r = ledgerOracle(rows, ledger);
   assert.equal(r.ok, false);
-  assert.equal(r.failures[0].kind, 'duplicated-writes');
-  assert.equal(r.failures[0].byType.day3_stableford.delta, 1);
+  const f = r.failures.find(x => x.kind === 'duplicate-content-rows');
+  assert.equal(f.samples[0].serverCopies, 2);
+  assert.equal(f.samples[0].agentPerformed, 1);
 });
 
-test('ledgerOracle FAILS on a lost write', () => {
-  const rows = [row(1)];
+test('ledgerOracle FAILS on a lost write and names the missing gesture', () => {
+  // Player 0's score landed; player 1's never reached the server.
+  const rows = [row(1, { update_type: 'day3_stableford', player_id: 0, value: '30', updated_by: 'a' })];
   const ledger = [
-    { ts: 1, agent: 'a', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
-    { ts: 2, agent: 'b', committed: true, performed: { updateType: 'day3_stableford', target: { player: 1 }, value: '31' } }
+    { ts: 1, agent: 'a', committed: true,
+      serverCoords: { match_idx: null, player_id: 0, field_key: null },
+      performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
+    { ts: 2, agent: 'b', committed: true,
+      serverCoords: { match_idx: null, player_id: 1, field_key: null },
+      performed: { updateType: 'day3_stableford', target: { player: 1 }, value: '31' } }
   ];
   const r = ledgerOracle(rows, ledger);
   assert.equal(r.ok, false);
-  assert.equal(r.failures[0].kind, 'lost-writes');
-  assert.equal(r.failures[0].byType.day3_stableford.delta, -1);
+  const f = r.failures.find(x => x.kind === 'lost-writes');
+  assert.equal(f.samples[0].serverCopies, 0);
+  assert.match(f.samples[0].key, /\|1\|\|31\|b$/);
 });
 
 test('ledgerOracle discounts writes a rollback legitimately deleted', () => {
@@ -363,7 +371,9 @@ test('ledgerOracle FAILS on the retry-duplicate signature (same content, twice)'
   const dup = { update_type: 'day3_stableford', player_id: 0, value: '30', updated_by: 'alice' };
   const rows = [row(1, dup), row(2, dup)];
   const ledger = [
-    { ts: 1, agent: 'alice', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } }
+    { ts: 1, agent: 'alice', committed: true,
+      serverCoords: { match_idx: null, player_id: 0, field_key: null },
+      performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } }
   ];
   const r = ledgerOracle(rows, ledger);
   assert.equal(r.ok, false);
@@ -376,9 +386,10 @@ test('ledgerOracle FAILS on the retry-duplicate signature (same content, twice)'
 test('ledgerOracle accepts a genuine double-tap (agent really did it twice)', () => {
   const dup = { update_type: 'day3_stableford', player_id: 0, value: '30', updated_by: 'alice' };
   const rows = [row(1, dup), row(2, dup)];
+  const coords = { match_idx: null, player_id: 0, field_key: null };
   const ledger = [
-    { ts: 1, agent: 'alice', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
-    { ts: 2, agent: 'alice', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } }
+    { ts: 1, agent: 'alice', committed: true, serverCoords: coords, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
+    { ts: 2, agent: 'alice', committed: true, serverCoords: coords, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } }
   ];
   assert.ok(ledgerOracle(rows, ledger).ok);
 });
@@ -443,25 +454,59 @@ test('ledgerOracle expects a retried duplicate when the mock dropped the respons
   // The write landed, the client never heard back, queued and retried it.
   // Two identical rows is the correct outcome — the app cannot tell
   // "stored, response lost" from "never arrived".
-  const content = { update_type: 'day1_hole', match_idx: 0, field_key: 'A5', value: '6', updated_by: 'alice' };
+  const content = { update_type: 'day1_hole', match_idx: 0, player_id: null, field_key: 'A5', value: '6', updated_by: 'alice' };
   const rows = [row(1, content), row(2, content)];
   const ledger = [
     { ts: 1, agent: 'alice', committed: true, expectedValueRows: 1,
+      serverCoords: { match_idx: 0, player_id: null, field_key: 'A5' },
       performed: { updateType: 'day1_hole', target: { card: 0, hole: 5 }, value: '6' } }
   ];
   const journal = [{ result: 'applied-then-dropped', type: 'day1_hole', id: rows[0].id }];
   const r = ledgerOracle(rows, ledger, { journal });
   assert.ok(r.ok, JSON.stringify(r.failures));
+  // And a THIRD copy is still a finding: one ghost explains one extra.
+  const three = ledgerOracle([...rows, row(3, content)], ledger, { journal });
+  assert.equal(three.ok, false);
 });
 
 test('ledgerOracle still catches a duplicate that no dropped response explains', () => {
-  const content = { update_type: 'day1_hole', match_idx: 0, field_key: 'A5', value: '6', updated_by: 'alice' };
+  const content = { update_type: 'day1_hole', match_idx: 0, player_id: null, field_key: 'A5', value: '6', updated_by: 'alice' };
   const rows = [row(1, content), row(2, content)];
   const ledger = [
     { ts: 1, agent: 'alice', committed: true, expectedValueRows: 1,
+      serverCoords: { match_idx: 0, player_id: null, field_key: 'A5' },
       performed: { updateType: 'day1_hole', target: { card: 0, hole: 5 }, value: '6' } }
   ];
   const r = ledgerOracle(rows, ledger, { journal: [] });
   assert.equal(r.ok, false);
-  assert.ok(r.failures.some(f => f.kind === 'duplicated-writes' || f.kind === 'duplicate-content-rows'));
+  assert.ok(r.failures.some(f => f.kind === 'duplicate-content-rows'));
+});
+
+test('serverCoordsFor builds the exact field_key the app writes', async () => {
+  const { serverCoordsFor } = await import('./agents.mjs');
+  assert.deepEqual(
+    serverCoordsFor({ updateType: 'day1_hole' }, { target: { card: 2, side: 'B', hole: 14 } }),
+    { match_idx: 2, player_id: null, field_key: 'B14' });
+  assert.deepEqual(
+    serverCoordsFor({ updateType: 'day2_hole' }, { target: { card: 'b3', hole: 7 } }),
+    { match_idx: null, player_id: null, field_key: 'b3_7' });
+  assert.deepEqual(
+    serverCoordsFor({ updateType: 'day1_match' }, { target: { card: 4, side: 'A' } }),
+    { match_idx: 4, player_id: null, field_key: 'pA' });
+  assert.deepEqual(
+    serverCoordsFor({ updateType: 'day1_match' }, { target: { card: 5, nine: 'back9' } }),
+    { match_idx: 5, player_id: null, field_key: 'back9' });
+  assert.deepEqual(
+    serverCoordsFor({ updateType: 'day3_stableford' }, { target: { player: 9 } }),
+    { match_idx: null, player_id: 9, field_key: null });
+});
+
+test('storedValueFor mirrors the app clamps so typed != stored still matches', async () => {
+  const { storedValueFor } = await import('./agents.mjs');
+  assert.equal(storedValueFor('day1_hole', 88), '15');   // fat-fingered doubled digit
+  assert.equal(storedValueFor('day1_hole', 6), '6');
+  assert.equal(storedValueFor('day3_stableford', 75), '60');
+  assert.equal(storedValueFor('day3_stableford', -3), '0');
+  assert.equal(storedValueFor('day2_score', -44), '-20');
+  assert.equal(storedValueFor('day1_hole', null), null);
 });

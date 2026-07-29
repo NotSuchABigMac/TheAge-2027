@@ -19,6 +19,59 @@ const DAY2_CODES = ['a4', 'a3', 'b4', 'b3'];
    count mismatch reports "unknown: -41" and tells you nothing about which
    path lost or duplicated a write. Actions that address a different
    update_type depending on context resolve it per call (see act()). */
+/* The exact (match_idx, player_id, field_key) triple the app writes for a
+   given intent. Without this the ledger's content key never matches a
+   server row's, and the duplicate-detection half of the write oracle
+   silently matches nothing — present, green, and inert. */
+export function serverCoordsFor(intent, performed) {
+  const t = performed.target || {};
+  const type = intent.updateType;
+  switch (type) {
+    case 'day1_hole':
+      return { match_idx: t.card, player_id: null, field_key: `${t.side}${t.hole}` };
+    case 'day2_hole':
+      return { match_idx: null, player_id: null, field_key: `${t.card}_${t.hole}` };
+    case 'day1_match':
+      return {
+        match_idx: t.card, player_id: null,
+        field_key: t.nine ? t.nine : (t.side === 'A' ? 'pA' : 'pB')
+      };
+    case 'day2_score':
+      return { match_idx: null, player_id: null, field_key: t.card };
+    case 'day3_stableford':
+    case 'day2_anthem':
+    case 'day2_group':
+    case 'player_team':
+      return { match_idx: null, player_id: t.player ?? null, field_key: null };
+    case 'day1_ntp':
+    case 'day2_ntp':
+    case 'day3_ntp':
+      return { match_idx: null, player_id: null, field_key: t.holeKey };
+    default:
+      return { match_idx: null, player_id: null, field_key: null };
+  }
+}
+
+/* The value the APP stores, which is not always the value the agent
+   typed: every numeric field is clamped on the way in (and re-clamped on
+   replay, issue #109). A fat-fingered "88" is stored as "15", so a ledger
+   keyed on what was typed matches no row and reads as a lost write. This
+   mirrors the app's clamps so the two sides can be compared at all. */
+const CLAMPS = {
+  day1_hole: [1, 15],
+  day2_hole: [1, 15],
+  day2_score: [-20, 20],
+  day3_stableford: [0, 60]
+};
+export function storedValueFor(updateType, value) {
+  if (value === null || value === undefined) return null;
+  const range = CLAMPS[updateType];
+  if (!range) return String(value);
+  const n = parseInt(value, 10);
+  if (isNaN(n)) return String(value);
+  return String(Math.max(range[0], Math.min(range[1], n)));
+}
+
 export const UPDATE_TYPE_BY_KIND = {
   day1Hole: 'day1_hole',
   day2Hole: 'day2_hole',
@@ -42,6 +95,29 @@ export class Agent {
     this.pendingCorrections = [];
     this.stopped = false;
     this.offline = false;
+    /* One agent is one pair of thumbs. Every gesture this agent makes is
+       serialised through this promise chain.
+
+       Letting an agent's own actions run concurrently (the obvious
+       reading of Promise.all over a scenario step) is not a harsher test,
+       it is an impossible one — and it produced convincing nonsense: two
+       fills racing on the same page against a re-sorting Day 3 table
+       wrote one player's score under another player's id, and a fill
+       landing on a box mid-rewrite concatenated digits into a value that
+       clamped to 60. Both looked exactly like app sync bugs.
+
+       Concurrency BETWEEN devices is the thing under test and is
+       untouched by this. */
+    this._chain = Promise.resolve();
+  }
+
+  // Serialises one agent's gestures without serialising the fleet.
+  _serial(fn) {
+    const run = this._chain.then(fn, fn);
+    // Keep the chain alive regardless of outcome, or one rejection would
+    // wedge every later action by this agent.
+    this._chain = run.then(() => {}, () => {});
+    return run;
   }
 
   /* ── login ──
@@ -74,7 +150,11 @@ export class Agent {
   }
 
   /* ── the single funnel every action passes through ── */
-  async act(intent, bounds, perform, { cascade = false, expectedValueRows = 1 } = {}) {
+  act(intent, bounds, perform, opts = {}) {
+    return this._serial(() => this._act(intent, bounds, perform, opts));
+  }
+
+  async _act(intent, bounds, perform, { cascade = false, expectedValueRows = 1 } = {}) {
     if (this.stopped) return { committed: false, skipped: 'stopped' };
     intent = { ...intent, updateType: intent.updateType || UPDATE_TYPE_BY_KIND[intent.kind] || null };
     const m = mutateAction(this.rng, intent, { scale: this.slipScale, bounds });
@@ -103,6 +183,8 @@ export class Agent {
             agent: this.name, kind: intent.kind, intent, performed: m.performed,
             slipType: 'doubleTap', committed: true,
             expectedValueRows: intent.kind === 'toggle' ? 0 : 1,
+            serverCoords: serverCoordsFor(intent, m.performed),
+            storedValue: storedValueFor(intent.updateType, m.performed.value),
             note: 'repeat-commit'
           });
         }
@@ -126,6 +208,8 @@ export class Agent {
       // afterwards and legitimately survives. Discounting it as
       // "deleted by the rollback" undercounts the expectation.
       queuedWhileOffline: this.offline === true,
+      serverCoords: serverCoordsFor(intent, m.performed),
+      storedValue: storedValueFor(intent.updateType, m.performed.value),
       note
     });
 
@@ -155,9 +239,14 @@ export class Agent {
       let committed = false;
       try { committed = (await c.perform(c.intent)) !== false; }
       catch { committed = false; }
+      // Without serverCoords a correction's row has no ledger match, and
+      // the duplicate detector reports every corrected value as an
+      // unexplained extra copy.
       this.ledger.record({
         agent: this.name, kind: c.intent.kind, intent: c.intent, performed: c.intent,
-        slipType: null, committed, note: 'correction'
+        slipType: null, committed, note: 'correction',
+        serverCoords: serverCoordsFor(c.intent, c.intent),
+        storedValue: storedValueFor(c.intent.updateType, c.intent.value)
       });
       // Clearing a slipped cell the agent wandered into: if the slip put
       // a score on the WRONG hole/row/card, correcting the right one
@@ -172,7 +261,9 @@ export class Agent {
         this.ledger.record({
           agent: this.name, kind: c.intent.kind, intent: { ...c.slipped, value: null },
           performed: { ...c.slipped, value: null }, slipType: null, committed: cleared,
-          note: 'correction-clear-stray'
+          note: 'correction-clear-stray',
+          serverCoords: serverCoordsFor(c.intent, c.slipped),
+          storedValue: null
         });
       }
     }
@@ -309,7 +400,10 @@ export class Agent {
         await dom.setTeamName(this.phone, 'b', nameB);
         return true;
       },
-      { cascade: true, expectedValueRows: 4 }
+      // The app rewrites BOTH team_name rows on every save, with values
+      // that depend on what the other box held at the time — declared
+      // unpredictable rather than modelled wrongly.
+      { cascade: true, expectedValueRows: null }
     );
   }
 
@@ -321,7 +415,7 @@ export class Agent {
         await dom.gotoTab(this.phone, `day${day}`);
         return dom.toggleDayLock(this.phone, day);
       },
-      { cascade: true, expectedValueRows: 1 }
+      { cascade: true, expectedValueRows: null }
     );
   }
 
@@ -341,7 +435,9 @@ export class Agent {
       Not decorative — tab switching and opening/closing <details> is
       exactly what exercises the #148 open-state and #143 focus paths
       against a live poll. */
-  async browse() {
+  browse() { return this._serial(() => this._browse()); }
+
+  async _browse() {
     if (this.stopped) return;
     const tab = this.rng.pick(['day1', 'day2', 'day3', 'day1', 'day2']);
     try {

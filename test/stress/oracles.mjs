@@ -291,15 +291,21 @@ function contentKey(r) {
   return [r.update_type, r.match_idx ?? '', r.player_id ?? '', r.field_key ?? '', r.value ?? '', r.updated_by ?? ''].join('|');
 }
 
+// Mirrors contentKey() above, built from the coordinates the agent
+// recorded at the time (serverCoords) rather than re-derived here — the
+// earlier version guessed at the shape and matched nothing, leaving the
+// duplicate check permanently inert.
 function ledgerContentKey(line) {
   const p = line.performed || {};
-  const t = p.target || {};
+  const c = line.serverCoords;
+  if (!c) return null;
   return [
     p.updateType ?? '',
-    t.card !== undefined && typeof t.card === 'number' ? t.card : '',
-    t.player ?? '',
-    t.hole ?? t.holeKey ?? '',
-    p.value ?? '',
+    c.match_idx ?? '',
+    c.player_id ?? '',
+    c.field_key ?? '',
+    // The stored (clamped) value, not the typed one — see storedValueFor.
+    line.storedValue ?? p.value ?? '',
     line.agent ?? ''
   ].join('|');
 }
@@ -363,26 +369,30 @@ export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [], jo
     byTypeLedger[t] = (byTypeLedger[t] || 0) + (n === null ? 0 : n);
   });
 
-  const mismatched = {}, informational = {};
-  new Set([...Object.keys(byTypeRows), ...Object.keys(byTypeLedger)]).forEach(t => {
-    const r = byTypeRows[t] || 0;
-    const l = (byTypeLedger[t] || 0) + (droppedByType[t] || 0);
-    if (unpredictableTypes.has(t)) { informational[t] = { serverRows: r, ledgerExpected: l }; return; }
-    if (r !== l) {
-      mismatched[t] = { serverRows: r, ledgerExpected: l, delta: r - l, retriedAfterDroppedResponse: droppedByType[t] || 0 };
-    }
+  /* Per-content, not per-total.
+
+     Totals are timing-dependent here and cannot be made exact: a write
+     whose response was dropped lands once if the client never retried
+     within the run, and twice if it did. Any arithmetic over counts
+     inherits that ambiguity and produces "lost writes" or "duplicated
+     writes" findings that are really just about when the socket died.
+
+     Asking the two questions separately, per exact content key, removes
+     the ambiguity entirely and is a sharper test besides — it catches a
+     duplicate even when a lost write elsewhere would have cancelled the
+     totals out:
+
+       1. every gesture the agent performed has AT LEAST one row  (nothing lost)
+       2. no content appears more often than the agent performed it,
+          plus one per ghost the mock created behind the client's back  (nothing duplicated)
+  */
+  const ghostKeyCounts = new Map();
+  const droppedIds = new Set(journal.filter(j => j.result === 'applied-then-dropped').map(j => j.id));
+  rows.filter(r => droppedIds.has(r.id)).forEach(r => {
+    const k = contentKey(r);
+    ghostKeyCounts.set(k, (ghostKeyCounts.get(k) || 0) + 1);
   });
 
-  if (Object.keys(mismatched).length > 0) {
-    const totalDelta = Object.values(mismatched).reduce((s, m) => s + m.delta, 0);
-    fail(failures, totalDelta > 0 ? 'duplicated-writes' : 'lost-writes', {
-      detail: `value-bearing rows: server ${valueRows.length}, ledger ${countable.length} (cascade lines excluded)`,
-      byType: mismatched
-    });
-  }
-
-  // The retry-duplicate signature: the same content written more times
-  // than the agent performed it.
   const rowCounts = new Map();
   valueRows.forEach(r => {
     const k = contentKey(r);
@@ -391,30 +401,47 @@ export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [], jo
   const ledgerCounts = new Map();
   countable.forEach(l => {
     const k = ledgerContentKey(l);
-    ledgerCounts.set(k, (ledgerCounts.get(k) || 0) + 1);
+    if (k === null) return;
+    const n = l.expectedValueRows === undefined ? 1 : l.expectedValueRows;
+    if (n === null || n === 0) return;
+    ledgerCounts.set(k, (ledgerCounts.get(k) || 0) + n);
   });
-  const suspectDuplicates = [];
-  const droppedIds = new Set(journal.filter(j => j.result === 'applied-then-dropped').map(j => j.id));
-  const droppedKeys = new Set(rows.filter(r => droppedIds.has(r.id)).map(contentKey));
-  rowCounts.forEach((count, key) => {
-    if (count < 2) return;
+
+  const lost = [], duplicated = [];
+  ledgerCounts.forEach((expected, key) => {
     if (unpredictableTypes.has(key.split('|')[0])) return;
-    // A write the client never got an answer for is expected to appear
-    // twice; that is the fault doing its job, not the app duplicating.
-    if (droppedKeys.has(key)) return;
-    const expected = ledgerCounts.get(key);
-    // `undefined` means the harness can't reconstruct this key (cascade
-    // or admin-issued row) — not evidence of a duplicate.
-    if (expected !== undefined && count > expected) {
-      suspectDuplicates.push({ key, serverCopies: count, agentPerformed: expected });
-    }
+    const got = rowCounts.get(key) || 0;
+    if (got === 0) lost.push({ key, agentPerformed: expected, serverCopies: 0 });
   });
-  if (suspectDuplicates.length > 0) {
-    fail(failures, 'duplicate-content-rows', {
-      detail: 'identical content written more often than the agent performed it — the retry-after-dropped-response signature',
-      samples: suspectDuplicates.slice(0, 8)
+  rowCounts.forEach((got, key) => {
+    if (unpredictableTypes.has(key.split('|')[0])) return;
+    const expected = ledgerCounts.get(key);
+    // No ledger entry at all — a cascade or admin-issued row the harness
+    // cannot attribute. Not evidence of anything.
+    if (expected === undefined) return;
+    const allowed = expected + (ghostKeyCounts.get(key) || 0);
+    if (got > allowed) duplicated.push({ key, serverCopies: got, agentPerformed: expected, ghostCopies: ghostKeyCounts.get(key) || 0 });
+  });
+
+  if (lost.length > 0) {
+    fail(failures, 'lost-writes', {
+      detail: `${lost.length} gesture(s) the agent committed produced no row on the server`,
+      samples: lost.slice(0, 8)
     });
   }
+  if (duplicated.length > 0) {
+    fail(failures, 'duplicate-content-rows', {
+      detail: 'content written more often than the agent performed it, beyond what a dropped response explains',
+      samples: duplicated.slice(0, 8)
+    });
+  }
+
+  // Per-type totals are reported for context only — see the note above on
+  // why they cannot be an assertion.
+  const informational = {};
+  new Set([...Object.keys(byTypeRows), ...Object.keys(byTypeLedger)]).forEach(t => {
+    informational[t] = { serverRows: byTypeRows[t] || 0, ledgerExpected: byTypeLedger[t] || 0 };
+  });
 
   return {
     ok: failures.length === 0, failures,
@@ -448,17 +475,22 @@ export function computeTotals(c) {
   // Day 2 — derived where a group's 18 holes are complete, manual otherwise.
   const course2 = COURSES[2].holes;
   const pars2 = course2.map(h => h.par), sis2 = course2.map(h => h.si);
+  // Mirrors effectiveDay2Field() exactly. The subtle part, and the one
+  // this oracle originally got wrong: once a group has ANY hole data the
+  // manual aggregate stops being used, and an INCOMPLETE round yields
+  // null rather than falling back to the manual score. Falling back
+  // (the obvious-looking reading) credits points the app never awards.
   const day2Effective = {};
   ['a4', 'a3', 'b4', 'b3'].forEach(code => {
     const holes = c.day2.holes[code];
-    if (scrambleRoundComplete(holes)) {
-      const hcps = c.day2.groups[code].map(id => anthemAdjustedHandicap(hcpOf(id), c.day2.anthem[String(id)]));
-      const teamHcp = scrambleTeamHandicap(hcps);
-      const strokes = teamHcp === null ? Array(18).fill(0) : groupStrokes(teamHcp, sis2);
-      day2Effective[code] = String(scrambleNetToParThru(holes, strokes, pars2).netToPar);
-    } else {
-      day2Effective[code] = c.day2[code];
-    }
+    if (!holes.some(h => h !== null)) { day2Effective[code] = c.day2[code]; return; }
+    if (!scrambleRoundComplete(holes)) { day2Effective[code] = null; return; }
+    const hcps = c.day2.groups[code].map(id => anthemAdjustedHandicap(hcpOf(id), c.day2.anthem[String(id)]));
+    const teamHcp = scrambleTeamHandicap(hcps);
+    if (teamHcp === null) { day2Effective[code] = null; return; }
+    const strokes = groupStrokes(teamHcp, sis2);
+    const { netToPar } = scrambleNetToParThru(holes, strokes, pars2);
+    day2Effective[code] = netToPar === null ? null : String(netToPar);
   });
   const d2 = calcDay2(day2Effective);
   const d2ntp = ntpTeamPoints([c.day2.ntp.h4, c.day2.ntp.h16].map(id => id === null ? null : teamOf(id)));

@@ -315,7 +315,15 @@ export async function day3(ctx) {
         match_idx: null, player_id: null, field_key: null, value: null, ...f
       })
     }).catch(() => {});
-    ledger.record({ agent: 'forged', kind: 'forged', committed: false, note: JSON.stringify(f) });
+    // These land on the server, so the write-count oracle must expect
+    // them; recording them as uncommitted made every forged row read as
+    // an unexplained duplicate.
+    ledger.record({
+      agent: 'forged', kind: 'forged', committed: true, expectedValueRows: 1,
+      performed: { updateType: f.update_type, value: f.value },
+      serverCoords: { match_idx: f.match_idx ?? null, player_id: f.player_id ?? null, field_key: f.field_key ?? null },
+      note: JSON.stringify(f)
+    });
   }
   // Two full polls so every device has certainly ingested them.
   await tick(agents, 65000);
