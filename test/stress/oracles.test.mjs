@@ -510,3 +510,34 @@ test('storedValueFor mirrors the app clamps so typed != stored still matches', a
   assert.equal(storedValueFor('day2_score', -44), '-20');
   assert.equal(storedValueFor('day1_hole', null), null);
 });
+
+test('ledgerOracle allows a duplicate caused by losing signal as the write landed', () => {
+  // The write reached the server; the response did not reach the phone,
+  // because the radio dropped in between. The client queues and retries.
+  const content = { update_type: 'day1_hole', match_idx: 2, player_id: null, field_key: 'A7', value: '5', updated_by: 'alice' };
+  const rows = [row(1, content), row(2, content)];
+  const ledger = [
+    { ts: 1000, agent: 'alice', committed: true, expectedValueRows: 1,
+      serverCoords: { match_idx: 2, player_id: null, field_key: 'A7' },
+      performed: { updateType: 'day1_hole', target: { card: 2, hole: 7 }, value: '5' } },
+    { ts: 2000, agent: 'alice', kind: 'connectivity', note: 'offline', committed: false },
+    { ts: 9000, agent: 'alice', kind: 'connectivity', note: 'online', committed: false }
+  ];
+  // The insert was applied while alice's connection was going down.
+  const journal = [{ method: 'POST', result: 'ok', id: rows[0].id, ts: 1500 }];
+  const r = ledgerOracle(rows, ledger, { journal });
+  assert.ok(r.ok, JSON.stringify(r.failures));
+});
+
+test('ledgerOracle still catches a duplicate from an agent that never went offline', () => {
+  const content = { update_type: 'day1_hole', match_idx: 2, player_id: null, field_key: 'A7', value: '5', updated_by: 'bob' };
+  const rows = [row(1, content), row(2, content)];
+  const ledger = [
+    { ts: 1000, agent: 'bob', committed: true, expectedValueRows: 1,
+      serverCoords: { match_idx: 2, player_id: null, field_key: 'A7' },
+      performed: { updateType: 'day1_hole', target: { card: 2, hole: 7 }, value: '5' } }
+  ];
+  const r = ledgerOracle(rows, ledger, { journal: [{ method: 'POST', result: 'ok', id: rows[0].id, ts: 1500 }] });
+  assert.equal(r.ok, false);
+  assert.ok(r.failures.some(f => f.kind === 'duplicate-content-rows'));
+});

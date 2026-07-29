@@ -387,11 +387,52 @@ export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [], jo
           plus one per ghost the mock created behind the client's back  (nothing duplicated)
   */
   const ghostKeyCounts = new Map();
-  const droppedIds = new Set(journal.filter(j => j.result === 'applied-then-dropped').map(j => j.id));
-  rows.filter(r => droppedIds.has(r.id)).forEach(r => {
+  const addGhost = r => {
     const k = contentKey(r);
     ghostKeyCounts.set(k, (ghostKeyCounts.get(k) || 0) + 1);
+  };
+
+  // Ghost 1: the mock deliberately withheld the response.
+  const droppedIds = new Set(journal.filter(j => j.result === 'applied-then-dropped').map(j => j.id));
+  rows.filter(r => droppedIds.has(r.id)).forEach(addGhost);
+
+  /* Ghost 2: the device lost its connection at the exact moment a write
+     landed. A request dispatched microseconds before the radio drops
+     still reaches the server and is applied, but the response never gets
+     back — so the client queues it and retries on reconnect, and the log
+     legitimately holds it twice.
+
+     This is not the mock being clever; it is the single most ordinary
+     thing that happens to a phone on a golf course, and the app has no
+     way to distinguish it from a write that never arrived. Recognising
+     it needs both halves of the picture: the mock's journal knows when a
+     row was applied and by whom, the ledger knows when that agent's
+     connection went down. */
+  const offlineWindows = new Map();
+  const pendingOffline = new Map();
+  (ledgerLines || []).forEach(l => {
+    if (l.kind !== 'connectivity') return;
+    if (l.note === 'offline') pendingOffline.set(l.agent, l.ts);
+    else if (l.note === 'online' && pendingOffline.has(l.agent)) {
+      const list = offlineWindows.get(l.agent) || [];
+      // Widened at both ends: a write dispatched just BEFORE the drop is
+      // the case in question, and the retry lands just after reconnect.
+      list.push([pendingOffline.get(l.agent) - 5000, l.ts + 15000]);
+      offlineWindows.set(l.agent, list);
+      pendingOffline.delete(l.agent);
+    }
   });
+  if (offlineWindows.size > 0) {
+    const rowById = new Map(rows.map(r => [r.id, r]));
+    journal.forEach(j => {
+      if (!j.id || j.method !== 'POST') return;
+      const r = rowById.get(j.id);
+      if (!r) return;
+      const windows = offlineWindows.get(r.updated_by);
+      if (!windows) return;
+      if (windows.some(([from, to]) => j.ts >= from && j.ts <= to)) addGhost(r);
+    });
+  }
 
   const rowCounts = new Map();
   valueRows.forEach(r => {
