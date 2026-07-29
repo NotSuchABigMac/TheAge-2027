@@ -22,6 +22,23 @@
     return String(str).replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
   }
 
+  /* ── TAB NAVIGATION (issue #193) ──
+     Pure so it can be tested without a DOM: given a Date (any instant, e.g.
+     from Date.now()), returns which tab a fresh visitor with no hash and no
+     saved position should land on, based on the *Melbourne-local* calendar
+     date -- the tournament runs on Melbourne time, and a server or device
+     reporting UTC must never round to the wrong side of midnight and pick
+     the wrong day. Returns null outside the three tournament dates, so the
+     caller can fall back to the last-viewed tab (or 'day1' as the ultimate
+     default). */
+  const TOURNAMENT_DAY_DATES = { '2026-08-07': 'day1', '2026-08-08': 'day2', '2026-08-09': 'day3' };
+  function defaultDay(date) {
+    const melbourneDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Australia/Melbourne', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(date);
+    return TOURNAMENT_DAY_DATES[melbourneDate] || null;
+  }
+
   /* ── DAY 1 — MATCH PLAY ── */
   function ninePoints(result) {
     if (result === 'A') return { a: 1, b: 0 };
@@ -934,6 +951,7 @@
 
   return {
     escapeHtml,
+    defaultDay,
     ninePoints, matchPoints, sumMatchPoints,
     DAY1_GROSS_MIN, DAY1_GROSS_MAX,
     matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,

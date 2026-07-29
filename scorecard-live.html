@@ -821,6 +821,7 @@ const state = {
 // Pure scoring math lives in scoring.js (shared with the Node test suite)
 const {
   escapeHtml,
+  defaultDay,
   matchPoints, sumMatchPoints,
   DAY1_GROSS_MIN, DAY1_GROSS_MAX,
   matchStrokes, holeResult, nineStatus, effectiveNines,
@@ -971,7 +972,12 @@ const scTabs = Array.from(document.querySelectorAll('.sc-tab'));
 // stay unreachable by keyboard too — otherwise Home/End/Arrow cycling can
 // still activate a tab whose button never became visible or focusable.
 function visibleScTabs() { return scTabs.filter(x => x.style.display !== 'none'); }
-function activateTab(btn, { focus = false } = {}) {
+
+// Issue #193: reflect the active tab into location.hash (deep-linkable
+// group-chat links) and remember it across reloads, without spamming
+// browser history on every tab click -- replaceState only.
+const ACTIVE_TAB_KEY = 'wongaCup2026_activeTab';
+function activateTab(btn, { focus = false, updateHash = true } = {}) {
   if (btn.style.display === 'none') return;
   scTabs.forEach(x => {
     x.classList.remove('active');
@@ -984,6 +990,10 @@ function activateTab(btn, { focus = false } = {}) {
   btn.tabIndex = 0;
   document.getElementById('sc-' + btn.dataset.tab).classList.add('active');
   if (focus) btn.focus();
+  try { localStorage.setItem(ACTIVE_TAB_KEY, btn.dataset.tab); } catch(e) {}
+  if (updateHash) {
+    try { history.replaceState(null, '', '#' + btn.dataset.tab); } catch(e) {}
+  }
 }
 scTabs.forEach((btn) => {
   btn.addEventListener('click', () => activateTab(btn));
@@ -1001,6 +1011,43 @@ scTabs.forEach((btn) => {
       activateTab(target, { focus: true });
     }
   });
+});
+
+// Precedence, most specific wins: an explicit #hash in the URL (a
+// group-chat link) beats the last tab this device had open, which in turn
+// beats the tournament-date default -- a week-old saved tab should NOT
+// survive into tournament morning, but a saved tab from earlier the same
+// day should. Falls through to the next candidate whenever a tab is
+// invalid or currently hidden (e.g. #admin pre-login) rather than jamming
+// on it, so Teams/Admin gating is never bypassed by a stale or forged hash.
+function pickInitialTab() {
+  function tabButton(name) {
+    const btn = document.getElementById('tab-' + name);
+    return btn && btn.style.display !== 'none' ? btn : null;
+  }
+  const hashName = location.hash.replace('#', '');
+  const fromHash = hashName && tabButton(hashName);
+  if (fromHash) return fromHash;
+  let savedName = null;
+  try { savedName = localStorage.getItem(ACTIVE_TAB_KEY); } catch(e) {}
+  const fromSaved = savedName && tabButton(savedName);
+  if (fromSaved) return fromSaved;
+  const dateName = defaultDay(new Date());
+  const fromDate = dateName && tabButton(dateName);
+  if (fromDate) return fromDate;
+  return tabButton('day1');
+}
+(function () {
+  const initial = pickInitialTab();
+  // updateHash: false on the initial pick so a saved/date-derived tab
+  // doesn't overwrite an already-correct hash (or write one where there
+  // was deliberately none) before the user has actually navigated.
+  if (initial) activateTab(initial, { updateHash: false });
+})();
+window.addEventListener('hashchange', () => {
+  const name = location.hash.replace('#', '');
+  const btn = name && document.getElementById('tab-' + name);
+  if (btn && btn.style.display !== 'none') activateTab(btn, { updateHash: false });
 });
 
 /* ─────────────────────────────────────
