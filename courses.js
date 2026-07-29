@@ -4,7 +4,7 @@
    cards for issue #122. Static data only — no DOM, no Supabase. Same
    UMD pattern as scoring.js, loaded the same way.
 
-   Day → course mapping (see index.html / TODO.md):
+   Day → course mapping (see index.html / ARCHITECTURE.md):
      Day 1 (Fri) → Murray      (key 1) — Singles Match Play
      Day 2 (Sat) → Black Bull  (key 2) — Team Scramble
      Day 3 (Sun) → Lake        (key 3) — Individual Net Stableford

@@ -1,4 +1,8 @@
-# Wonga Cup — Data Model Notes
+# Wonga Cup — Architecture Notes
+
+See `README.md` for what this is, how to run tests, and how deploys work.
+This file covers the data model, the Supabase/RLS setup, and the
+provenance of each scoring rule.
 
 ## Supabase Schema: `tournament_updates` (transaction log)
 
