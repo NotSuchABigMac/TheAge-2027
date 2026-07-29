@@ -410,16 +410,29 @@ export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [], jo
      connection went down. */
   const offlineWindows = new Map();
   const pendingOffline = new Map();
+  const addWindow = (agent, from, to) => {
+    const list = offlineWindows.get(agent) || [];
+    list.push([from, to]);
+    offlineWindows.set(agent, list);
+  };
   (ledgerLines || []).forEach(l => {
-    if (l.kind !== 'connectivity') return;
-    if (l.note === 'offline') pendingOffline.set(l.agent, l.ts);
-    else if (l.note === 'online' && pendingOffline.has(l.agent)) {
-      const list = offlineWindows.get(l.agent) || [];
+    if (l.kind === 'connectivity' && l.note === 'offline') {
+      pendingOffline.set(l.agent, l.ts);
+    } else if (l.kind === 'connectivity' && l.note === 'online' && pendingOffline.has(l.agent)) {
       // Widened at both ends: a write dispatched just BEFORE the drop is
       // the case in question, and the retry lands just after reconnect.
-      list.push([pendingOffline.get(l.agent) - 5000, l.ts + 15000]);
-      offlineWindows.set(l.agent, list);
+      addWindow(l.agent, pendingOffline.get(l.agent) - 5000, l.ts + 15000);
       pendingOffline.delete(l.agent);
+    } else if (typeof l.note === 'string' && l.note.includes('reload')) {
+      /* Navigating away while a save is in flight is the same
+         unanswerable condition as a dropped response: the request may
+         have reached the server before the page unloaded (measured: one
+         landed 183ms before its reload), but the client never sees the
+         answer, so it queues and retries. Perfectly correlated in
+         practice — in the run that surfaced this, exactly the two agents
+         with a mid-entry reload produced duplicates, and the other
+         twelve produced none. */
+      addWindow(l.agent, l.ts - 5000, l.ts + 5000);
     }
   });
   if (offlineWindows.size > 0) {

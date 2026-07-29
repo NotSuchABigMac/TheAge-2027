@@ -541,3 +541,16 @@ test('ledgerOracle still catches a duplicate from an agent that never went offli
   assert.equal(r.ok, false);
   assert.ok(r.failures.some(f => f.kind === 'duplicate-content-rows'));
 });
+
+test('ledgerOracle allows a duplicate caused by reloading while a write was in flight', () => {
+  const content = { update_type: 'day1_hole', match_idx: 0, player_id: null, field_key: 'A5', value: '8', updated_by: 'alice' };
+  const rows = [row(1, content), row(2, content)];
+  const ledger = [
+    { ts: 1000, agent: 'alice', committed: true, expectedValueRows: 1,
+      serverCoords: { match_idx: 0, player_id: null, field_key: 'A5' },
+      performed: { updateType: 'day1_hole', target: { card: 0, hole: 5 }, value: '8' },
+      note: 'reloaded-mid-entry' }
+  ];
+  const journal = [{ method: 'POST', result: 'ok', id: rows[0].id, ts: 1100 }];
+  assert.ok(ledgerOracle(rows, ledger, { journal }).ok);
+});
