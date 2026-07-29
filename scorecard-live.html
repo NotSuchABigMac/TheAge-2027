@@ -3120,10 +3120,41 @@ async function manualRefresh(btn) {
 }
 
 renderSyncBar();
+// Issue #191: nobody watches the scorecard between holes -- they pocket the
+// phone and glance on the next tee. A plain 30s setInterval meant that
+// glance could be up to 30s stale, and kept polling (burning battery/data)
+// while the tab was hidden and nobody could see the result anyway. This
+// clears the interval while hidden and syncs immediately -- via the same
+// syncInFlight-guarded pollOnce() the interval itself uses, so a visibility
+// flap can never overlap an in-flight sync -- the moment the tab becomes
+// visible again, restarting the interval so the next tick is a full 30s
+// from that resync rather than from whenever the tab happened to go hidden.
+let pollingIntervalId = null;
+function startPolling() {
+  if (pollingIntervalId !== null) return;
+  pollingIntervalId = setInterval(pollOnce, 30000);
+}
+function stopPolling() {
+  if (pollingIntervalId === null) return;
+  clearInterval(pollingIntervalId);
+  pollingIntervalId = null;
+}
 if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   console.log('Starting Supabase polling...');
   pollOnce();
-  setInterval(pollOnce, 30000);
+  startPolling();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopPolling();
+    } else {
+      pollOnce();
+      startPolling();
+    }
+  });
+  // bfcache restores (common on iOS Safari) resurrect the page without a
+  // reload or a visibilitychange event -- resync explicitly on those too.
+  window.addEventListener('pageshow', () => { if (!document.hidden) pollOnce(); });
+  window.addEventListener('online', () => { if (!document.hidden) pollOnce(); });
 }
 /* ─────────────────────────────────────
    MINI SCOREBOARD
