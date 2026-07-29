@@ -304,7 +304,7 @@ function ledgerContentKey(line) {
   ].join('|');
 }
 
-export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [] } = {}) {
+export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [], journal = [] } = {}) {
   const failures = [];
   const committed = ledgerLines.filter(l => l.committed === true);
 
@@ -317,25 +317,59 @@ export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [] } =
   const valueRows = rows.filter(r => r.value !== null && r.value !== undefined);
   const clearRows = rows.filter(r => r.value === null || r.value === undefined);
 
-  // Strict, per-type totals over value-bearing rows only. Lines the
-  // harness marked `cascade` are excluded on both sides: a single
-  // "clear this nine" gesture emits one row per scored hole, a count
-  // only the app's own state knows, so predicting it would be guessing.
+  /* A write whose response the mock deliberately withheld DID land, and
+     the client — having heard nothing — correctly queues and retries it,
+     so the log legitimately ends up holding it twice. The app cannot do
+     better: it has no way to distinguish "stored, response lost" from
+     "never arrived", which is precisely why that fault is injected.
+
+     These are therefore expected extra rows, not duplicates, and the
+     count is exact rather than estimated: the mock journals the type of
+     every insert it applied-then-dropped. */
+  const droppedByType = {};
+  journal.filter(j => j.result === 'applied-then-dropped').forEach(j => {
+    droppedByType[j.type] = (droppedByType[j.type] || 0) + 1;
+  });
+
+  /* Strict, per-type totals over value-bearing rows.
+
+     Counting ledger LINES is wrong, because one gesture does not always
+     write one row: "Save Names" writes both team_name rows every time,
+     clearing a nine writes one null per scored hole. Excluding those
+     lines instead (the first attempt) is wrong in the other direction —
+     it drops the ledger side while the server side still counts, which
+     reports the app duplicating writes the harness simply forgot to
+     predict.
+
+     So each line declares `expectedValueRows`: how many VALUE-bearing
+     rows that gesture should produce. Default 1. Zero for a pure-clear
+     cascade. `null` means genuinely unpredictable, and excludes that
+     update_type from strict counting rather than guessing at it. */
   const countable = surviving.filter(l =>
-    l.cascade !== true && l.performed?.value !== null && l.performed?.value !== undefined
+    l.performed?.value !== null && l.performed?.value !== undefined
   );
+  const unpredictableTypes = new Set(
+    countable.filter(l => l.expectedValueRows === null)
+      .map(l => l.performed?.updateType || l.intent?.updateType)
+      .filter(Boolean)
+  );
+
   const byTypeRows = {}, byTypeLedger = {};
   valueRows.forEach(r => { byTypeRows[r.update_type] = (byTypeRows[r.update_type] || 0) + 1; });
-  countable
-    .forEach(l => {
-      const t = l.performed?.updateType || l.intent?.updateType || 'unknown';
-      byTypeLedger[t] = (byTypeLedger[t] || 0) + 1;
-    });
+  countable.forEach(l => {
+    const t = l.performed?.updateType || l.intent?.updateType || 'unknown';
+    const n = l.expectedValueRows === undefined ? 1 : l.expectedValueRows;
+    byTypeLedger[t] = (byTypeLedger[t] || 0) + (n === null ? 0 : n);
+  });
 
-  const mismatched = {};
+  const mismatched = {}, informational = {};
   new Set([...Object.keys(byTypeRows), ...Object.keys(byTypeLedger)]).forEach(t => {
-    const r = byTypeRows[t] || 0, l = byTypeLedger[t] || 0;
-    if (r !== l) mismatched[t] = { serverRows: r, ledgerCommitted: l, delta: r - l };
+    const r = byTypeRows[t] || 0;
+    const l = (byTypeLedger[t] || 0) + (droppedByType[t] || 0);
+    if (unpredictableTypes.has(t)) { informational[t] = { serverRows: r, ledgerExpected: l }; return; }
+    if (r !== l) {
+      mismatched[t] = { serverRows: r, ledgerExpected: l, delta: r - l, retriedAfterDroppedResponse: droppedByType[t] || 0 };
+    }
   });
 
   if (Object.keys(mismatched).length > 0) {
@@ -359,8 +393,14 @@ export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [] } =
     ledgerCounts.set(k, (ledgerCounts.get(k) || 0) + 1);
   });
   const suspectDuplicates = [];
+  const droppedIds = new Set(journal.filter(j => j.result === 'applied-then-dropped').map(j => j.id));
+  const droppedKeys = new Set(rows.filter(r => droppedIds.has(r.id)).map(contentKey));
   rowCounts.forEach((count, key) => {
     if (count < 2) return;
+    if (unpredictableTypes.has(key.split('|')[0])) return;
+    // A write the client never got an answer for is expected to appear
+    // twice; that is the fault doing its job, not the app duplicating.
+    if (droppedKeys.has(key)) return;
     const expected = ledgerCounts.get(key);
     // `undefined` means the harness can't reconstruct this key (cascade
     // or admin-issued row) — not evidence of a duplicate.
@@ -379,7 +419,8 @@ export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [] } =
     ok: failures.length === 0, failures,
     serverRowCount: rows.length, valueRowCount: valueRows.length,
     clearRowCount: clearRows.length,
-    ledgerCommitted: surviving.length
+    ledgerCommitted: surviving.length,
+    informational
   };
 }
 
@@ -486,7 +527,12 @@ const EXPECTED_CONSOLE_ERRORS = [
   /net::ERR_/
 ];
 
-export function clientHealthOracle(devices, { maxReloadsPerDevice = 2 } = {}) {
+/* `deliberateReloads` is a per-agent count of reloads the harness itself
+   caused (the midEntryReload slip, and the scenario's explicit
+   force-reload). Without it the detector flags the test's own behaviour
+   as an app reload loop — which is exactly what the first Day 1 run
+   did, on the two agents whose slip stream happened to fire. */
+export function clientHealthOracle(devices, { maxReloadsPerDevice = 2, deliberateReloads = {} } = {}) {
   const failures = [];
   devices.forEach(d => {
     (d.errors || []).forEach(e => {
@@ -498,10 +544,14 @@ export function clientHealthOracle(devices, { maxReloadsPerDevice = 2 } = {}) {
     });
     // Reload-loop detector (issue #153): a rollback marker must fire its
     // wipe-and-reload exactly once per device, ever.
-    if (d.navigations > maxReloadsPerDevice) {
+    // 1 for the initial load, plus whatever the harness deliberately did,
+    // plus one permitted wipe-and-reload per rollback marker.
+    const allowed = 1 + (deliberateReloads[d.agent] || 0) + maxReloadsPerDevice;
+    if (d.navigations > allowed) {
       fail(failures, 'reload-loop', {
-        agent: d.agent, navigations: d.navigations, allowed: maxReloadsPerDevice,
-        detail: 'a device reloaded more often than the rollback count allows — suspect the #153 handled-markers logic'
+        agent: d.agent, navigations: d.navigations, allowed,
+        deliberate: deliberateReloads[d.agent] || 0,
+        detail: 'a device reloaded more often than its initial load + deliberate reloads + one per rollback — suspect the #153 handled-markers logic'
       });
     }
   });
@@ -524,16 +574,28 @@ export function pendingQueueOracle(devices) {
   return { ok: failures.length === 0, failures };
 }
 
-export function runAll({ devices, serverRows, ledgerLines, scoreboards, rollbackCutoffs }) {
+export function runAll({ devices, serverRows, ledgerLines, scoreboards, rollbackCutoffs, journal }) {
   const report = {};
   report.pending = pendingQueueOracle(devices);
   report.convergence = convergenceOracle(devices.map(d => ({ agent: d.agent, raw: d.raw })));
   const ref = report.convergence.reference;
   report.replay = ref ? replayOracle(serverRows, ref) : { ok: false, failures: [{ kind: 'replay', detail: 'no reference state' }] };
   report.structural = ref ? structuralOracle(ref) : { ok: false, failures: [{ kind: 'structural', detail: 'no reference state' }] };
-  report.ledger = ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs });
+  report.ledger = ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs, journal });
   report.displayed = (ref && scoreboards?.length) ? displayedTotalsOracle(scoreboards, ref) : { ok: true, failures: [] };
-  report.health = clientHealthOracle(devices, { maxReloadsPerDevice: 1 + (rollbackCutoffs?.length || 0) });
+  // Count the reloads the harness itself performed, per agent, straight
+  // from the ledger — the oracle must not be blind to the test's own
+  // actions.
+  const deliberateReloads = {};
+  (ledgerLines || []).forEach(l => {
+    if (typeof l.note === 'string' && l.note.includes('reload')) {
+      deliberateReloads[l.agent] = (deliberateReloads[l.agent] || 0) + 1;
+    }
+  });
+  report.health = clientHealthOracle(devices, {
+    maxReloadsPerDevice: rollbackCutoffs?.length || 0,
+    deliberateReloads
+  });
 
   const failures = Object.entries(report).flatMap(([name, r]) =>
     (r.failures || []).map(f => ({ oracle: name, ...f }))

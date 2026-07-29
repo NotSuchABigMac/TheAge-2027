@@ -197,6 +197,9 @@ export class Ledger {
       // a nine writes one per scored hole). Counted loosely by the
       // write-count oracle, since predicting the count would be guessing.
       cascade: entry.cascade === true,
+      // How many VALUE-bearing rows this gesture should produce (default 1,
+      // 0 for a pure-clear cascade, null when genuinely unpredictable).
+      expectedValueRows: entry.expectedValueRows === undefined ? 1 : entry.expectedValueRows,
       note: entry.note ?? null
     };
     this.lines.push(line);

@@ -180,8 +180,7 @@ export async function setDay1Hole(phone, matchIdx, side, holeNum, gross) {
   const sel = day1HoleSelector(matchIdx, side, holeNum);
   const el = phone.page.locator(sel);
   if (await el.count() === 0) return false;
-  await commitOnce(phone, el, gross);
-  return true;
+  return await commitOnce(phone, el, gross) === 'committed';
 }
 
 export async function clearDay1Nine(phone, matchIdx, whichNine /* 'front9'|'back9' */) {
@@ -258,8 +257,7 @@ export async function openDay2HoleGrid(phone, code) {
 export async function setDay2Hole(phone, code, holeNum, gross) {
   const el = phone.page.locator(`#${code}-grid input.grid-in`).nth(holeNum - 1);
   if (await el.count() === 0) return false;
-  await commitOnce(phone, el, gross);
-  return true;
+  return await commitOnce(phone, el, gross) === 'committed';
 }
 
 export async function clearDay2Group(phone, code) {
@@ -371,11 +369,20 @@ export async function restoreHistoryRow(phone, index = 0) {
    from one cell to the next blurs the previous cell, and that blur is
    what commits it. */
 export async function commitOnce(phone, locator, value) {
-  await locator.fill(value === null || value === undefined ? '' : String(value));
+  const next = value === null || value === undefined ? '' : String(value);
+  // `change` only fires if the value actually changed since focus, so
+  // re-entering the value a cell already holds writes NOTHING. Reporting
+  // that as a commit made the write-count oracle see phantom lost writes
+  // (Day 1 shakeout: 5 of them, purely from scorers re-entering a number
+  // that happened to match). Detect the no-op and tell the truth.
+  const before = await locator.inputValue();
+  if (before === next) return 'noop';
+  await locator.fill(next);
   // Blur the element itself rather than pressing Tab: Tab would focus
   // whatever cell happens to be next and commit-on-focus-change is exactly
   // the ambiguity we're eliminating here.
   await locator.evaluate(el => el.blur());
+  return 'committed';
 }
 
 // Deliberately relinquishes focus, because several render paths in the app

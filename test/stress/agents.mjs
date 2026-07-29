@@ -74,7 +74,7 @@ export class Agent {
   }
 
   /* ── the single funnel every action passes through ── */
-  async act(intent, bounds, perform, { cascade = false } = {}) {
+  async act(intent, bounds, perform, { cascade = false, expectedValueRows = 1 } = {}) {
     if (this.stopped) return { committed: false, skipped: 'stopped' };
     intent = { ...intent, updateType: intent.updateType || UPDATE_TYPE_BY_KIND[intent.kind] || null };
     const m = mutateAction(this.rng, intent, { scale: this.slipScale, bounds });
@@ -95,9 +95,15 @@ export class Agent {
         committed = true;
         if (i + 1 < times) await this.phone.page.waitForTimeout(120);
         if (i > 0) {
+          // The Day 1 nine-result control is a TOGGLE
+          // (`match[half] === result ? null : result`), so tapping the
+          // same button twice sets the value and then clears it — the
+          // repeat writes a null, not a second copy of the value.
           this.ledger.record({
             agent: this.name, kind: intent.kind, intent, performed: m.performed,
-            slipType: 'doubleTap', committed: true, note: 'repeat-commit'
+            slipType: 'doubleTap', committed: true,
+            expectedValueRows: intent.kind === 'toggle' ? 0 : 1,
+            note: 'repeat-commit'
           });
         }
       }
@@ -113,7 +119,8 @@ export class Agent {
 
     this.ledger.record({
       agent: this.name, kind: intent.kind, intent, performed: m.performed,
-      slipType: m.slipType, willCorrect: m.willCorrect, committed, cascade, note
+      slipType: m.slipType, willCorrect: m.willCorrect, committed, cascade,
+      expectedValueRows, note
     });
 
     // A noticed slip becomes a scheduled future intent re-entering the
@@ -208,7 +215,7 @@ export class Agent {
         await dom.gotoTab(this.phone, 'day1');
         return dom.clearDay1Nine(this.phone, matchIdx, whichNine);
       },
-      { cascade: true }
+      { cascade: true, expectedValueRows: 0 }
     );
   }
 
@@ -280,6 +287,35 @@ export class Agent {
         await dom.gotoTab(this.phone, `day${p.target.day}`);
         return dom.setNtp(this.phone, p.target.day, p.target.holeKey, p.value);
       }
+    );
+  }
+
+  // Saving names writes BOTH team_name rows every time (the app doesn't
+  // diff them), so this is a cascade by the oracle's reckoning.
+  async setTeamNames(nameA, nameB) {
+    return this.act(
+      { kind: 'admin', updateType: 'team_name', target: {}, value: `${nameA}|${nameB}` },
+      {},
+      async () => {
+        await dom.gotoTab(this.phone, 'teams');
+        await dom.setTeamName(this.phone, 'a', nameA);
+        await this.phone.page.waitForTimeout(300);
+        await dom.setTeamName(this.phone, 'b', nameB);
+        return true;
+      },
+      { cascade: true, expectedValueRows: 4 }
+    );
+  }
+
+  async toggleDayLock(day) {
+    return this.act(
+      { kind: 'admin', updateType: 'day_lock', target: { day }, value: 'toggle' },
+      {},
+      async () => {
+        await dom.gotoTab(this.phone, `day${day}`);
+        return dom.toggleDayLock(this.phone, day);
+      },
+      { cascade: true, expectedValueRows: 1 }
     );
   }
 

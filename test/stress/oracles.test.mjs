@@ -392,10 +392,76 @@ test('ledgerOracle ignores null-valued cascade rows (clears, not duplicates)', (
     row(3, { update_type: 'day1_hole', match_idx: 0, field_key: 'A3', value: null, updated_by: 'alice' })
   ];
   const ledger = [
-    { ts: 1, agent: 'alice', committed: true, cascade: true, performed: { updateType: 'day1_hole', target: { card: 0 }, value: 'clear' } }
+    { ts: 1, agent: 'alice', committed: true, cascade: true, expectedValueRows: 0, performed: { updateType: 'day1_hole', target: { card: 0 }, value: 'clear' } }
   ];
   const r = ledgerOracle(rows, ledger);
   assert.ok(r.ok, 'a cascade of clears from one gesture is not a failure: ' + JSON.stringify(r.failures));
   assert.equal(r.clearRowCount, 3);
   assert.equal(r.valueRowCount, 0);
+});
+
+test('ledgerOracle counts expectedValueRows, not ledger lines (Save Names writes both)', () => {
+  // One gesture, four rows, and that is correct: the app rewrites both
+  // team_name rows on every save and the scenario saves twice.
+  const rows = [
+    row(1, { update_type: 'team_name', field_key: 'A', value: 'X', updated_by: 'admin' }),
+    row(2, { update_type: 'team_name', field_key: 'B', value: 'Y', updated_by: 'admin' }),
+    row(3, { update_type: 'team_name', field_key: 'A', value: 'X', updated_by: 'admin' }),
+    row(4, { update_type: 'team_name', field_key: 'B', value: 'Y', updated_by: 'admin' })
+  ];
+  const ledger = [
+    { ts: 1, agent: 'admin', committed: true, cascade: true, expectedValueRows: 4,
+      performed: { updateType: 'team_name', target: {}, value: 'X|Y' } }
+  ];
+  const r = ledgerOracle(rows, ledger);
+  assert.ok(r.ok, JSON.stringify(r.failures));
+});
+
+test('ledgerOracle reports an unpredictable type informationally, not as a failure', () => {
+  const rows = [row(1, { update_type: 'day1_ntp', field_key: 'h8', value: '3', updated_by: 'admin' })];
+  const ledger = [
+    { ts: 1, agent: 'admin', committed: true, cascade: true, expectedValueRows: null,
+      performed: { updateType: 'day1_ntp', target: {}, value: 'restored' } }
+  ];
+  const r = ledgerOracle(rows, ledger);
+  assert.ok(r.ok, JSON.stringify(r.failures));
+  assert.ok(r.informational.day1_ntp, 'the type is reported rather than strict-counted');
+});
+
+test('clientHealthOracle does not flag reloads the harness itself performed', () => {
+  const devices = [{ agent: 'alice', navigations: 4, errors: [] }];
+  // 1 initial + 3 deliberate = 4 allowed, 0 rollbacks.
+  assert.ok(clientHealthOracle(devices, { maxReloadsPerDevice: 0, deliberateReloads: { alice: 3 } }).ok);
+  // One more than accounted for IS a finding.
+  const r = clientHealthOracle([{ agent: 'alice', navigations: 6, errors: [] }],
+    { maxReloadsPerDevice: 0, deliberateReloads: { alice: 3 } });
+  assert.equal(r.ok, false);
+  assert.equal(r.failures[0].kind, 'reload-loop');
+});
+
+test('ledgerOracle expects a retried duplicate when the mock dropped the response', () => {
+  // The write landed, the client never heard back, queued and retried it.
+  // Two identical rows is the correct outcome — the app cannot tell
+  // "stored, response lost" from "never arrived".
+  const content = { update_type: 'day1_hole', match_idx: 0, field_key: 'A5', value: '6', updated_by: 'alice' };
+  const rows = [row(1, content), row(2, content)];
+  const ledger = [
+    { ts: 1, agent: 'alice', committed: true, expectedValueRows: 1,
+      performed: { updateType: 'day1_hole', target: { card: 0, hole: 5 }, value: '6' } }
+  ];
+  const journal = [{ result: 'applied-then-dropped', type: 'day1_hole', id: rows[0].id }];
+  const r = ledgerOracle(rows, ledger, { journal });
+  assert.ok(r.ok, JSON.stringify(r.failures));
+});
+
+test('ledgerOracle still catches a duplicate that no dropped response explains', () => {
+  const content = { update_type: 'day1_hole', match_idx: 0, field_key: 'A5', value: '6', updated_by: 'alice' };
+  const rows = [row(1, content), row(2, content)];
+  const ledger = [
+    { ts: 1, agent: 'alice', committed: true, expectedValueRows: 1,
+      performed: { updateType: 'day1_hole', target: { card: 0, hole: 5 }, value: '6' } }
+  ];
+  const r = ledgerOracle(rows, ledger, { journal: [] });
+  assert.equal(r.ok, false);
+  assert.ok(r.failures.some(f => f.kind === 'duplicated-writes' || f.kind === 'duplicate-content-rows'));
 });
