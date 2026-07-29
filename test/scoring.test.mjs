@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const {
   escapeHtml,
+  defaultDay,
   ninePoints, matchPoints, sumMatchPoints,
   DAY1_GROSS_MIN, DAY1_GROSS_MAX,
   matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
@@ -1532,4 +1533,27 @@ test('flushQueue: an "auth" result stops the pass immediately and requeues every
   const result = await flushQueue([{ id: 1 }, { id: 2 }, { id: 3 }], sendFn);
   assert.deepEqual(result, [{ id: 2 }, { id: 3 }]);
   assert.deepEqual(calls, [1, 2]); // item 3 was never even attempted this pass
+});
+
+/* ── defaultDay (issue #193 — tab-by-date default) ── */
+test('defaultDay: maps each tournament date to its day tab, pinned to Australia/Melbourne local time', () => {
+  assert.equal(defaultDay(new Date('2026-08-07T00:00:00Z')), 'day1'); // 10:00 AEST 7 Aug
+  assert.equal(defaultDay(new Date('2026-08-08T00:00:00Z')), 'day2'); // 10:00 AEST 8 Aug
+  assert.equal(defaultDay(new Date('2026-08-09T00:00:00Z')), 'day3'); // 10:00 AEST 9 Aug
+});
+
+test('defaultDay: a UTC instant that has already rolled into the next Melbourne day picks the Melbourne day, not the UTC one', () => {
+  // 2026-08-06T14:00:00Z is midnight AEST on 7 Aug -- a naive UTC-date
+  // check would still see "6 Aug" and wrongly return null/day-before.
+  assert.equal(defaultDay(new Date('2026-08-06T14:00:00Z')), 'day1');
+  // Conversely, 2026-08-09T13:59:00Z is still 23:59 AEST on 9 Aug.
+  assert.equal(defaultDay(new Date('2026-08-09T13:59:00Z')), 'day3');
+  // and 2026-08-09T14:00:00Z has rolled into 10 Aug AEST -- no tournament day.
+  assert.equal(defaultDay(new Date('2026-08-09T14:00:00Z')), null);
+});
+
+test('defaultDay: outside the tournament dates returns null so the caller falls back', () => {
+  assert.equal(defaultDay(new Date('2026-08-06T00:00:00Z')), null);
+  assert.equal(defaultDay(new Date('2026-08-10T00:00:00Z')), null);
+  assert.equal(defaultDay(new Date('2025-08-07T00:00:00Z')), null);
 });
