@@ -750,6 +750,15 @@ let currentAdminToken = null;
 let isOffline = false;
 let autoPollingInterval = null;
 
+// Issue #212: location.reload() only *schedules* a navigation -- it does
+// not halt the synchronous JS still on the stack above it. Without this
+// flag, applyUpdate()'s rollback handler wiping localStorage was
+// immediately undone by the rest of the same poll pass (loadFromSupabase()
+// rewriting the sync cursor, then saveState() rewriting the in-memory
+// state back over it) before the page actually navigated away. Every
+// localStorage write that could race a pending reload checks this first.
+let rollbackInProgress = false;
+
 // Columns anon is actually granted SELECT on (see
 // supabase/migrations/002_restrict_write_token_column_and_admin_secret.sql)
 // -- write_token is deliberately excluded (issue #105 reopened). Every read
@@ -913,6 +922,7 @@ function renderCourseCard(day) {
    PERSISTENCE
 ───────────────────────────────────── */
 function saveState() {
+  if (rollbackInProgress) return; // issue #212: a wipe is pending -- don't rewrite what it just cleared
   try {
     const s = {
       teamNameA: state.teamNameA,
@@ -2207,6 +2217,7 @@ let pendingWrites = [];
 // #114). Persisted alongside every mutation and rehydrated at init.
 const PENDING_KEY = 'wongaCup2026_pendingWrites';
 function persistPending() {
+  if (rollbackInProgress) return; // issue #212: don't resurrect the queue a wipe just cleared
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(pendingWrites)); } catch(e) {}
 }
 
@@ -2344,6 +2355,15 @@ function applyUpdate(row) {
   if (row.update_type === 'rollback') {
     if (getHandledRollbacks().includes(row.id)) return; // already actioned on this device
     markRollbackHandled(row.id);
+    // Issue #212: location.reload() schedules a navigation, it doesn't stop
+    // execution -- without this flag, the rest of this same poll pass (back
+    // in loadFromSupabase()'s loop, then flushPendingWrites(), then whatever
+    // called loadFromSupabase() in the first place, e.g. refreshAllDays() ->
+    // ... -> saveState()) kept running and rewrote every key just removed
+    // below, using the untouched in-memory state/pendingWrites -- so the
+    // reloaded page read back exactly the pre-rollback data it was supposed
+    // to have wiped.
+    rollbackInProgress = true;
     localStorage.removeItem('wongaCup2026');
     localStorage.removeItem(LAST_SYNC_KEY);
     localStorage.removeItem(LAST_SYNC_IDS_KEY);
@@ -2396,6 +2416,12 @@ async function loadFromSupabase() {
         // sync until someone manually finds and deletes it from the table.
         const result = processUpdateRows(rows, applyUpdate);
         result.failed.forEach(f => console.error('Skipping malformed update row:', f.row, f.error));
+        // Issue #212: applyUpdate() may have just set this flag (a rollback
+        // marker was in this batch) and kicked off location.reload() -- stop
+        // immediately rather than writing a cursor that would resurrect the
+        // very keys the reload is about to wipe, or looping back around to a
+        // pointless from-epoch refetch (LAST_SYNC_KEY is now gone too).
+        if (rollbackInProgress) break;
         const lastTs = result.lastUpdatedAt;
         const idsAtLastTs = rows.filter(r => r.updated_at === lastTs).map(r => r.id);
         localStorage.setItem(LAST_SYNC_KEY, lastTs);
@@ -2532,6 +2558,11 @@ async function rollbackScores() {
     const marker = await insertRollbackMarker(cutoff.toISOString());
     if (marker.ok) {
       markRollbackHandled(marker.id);
+      // Issue #212: the 800ms gap before the reload below is a real window
+      // -- a concurrent 30s auto-poll landing inside it would otherwise
+      // rewrite these same keys via loadFromSupabase()/saveState() before
+      // the navigation actually happens, same race as the remote path.
+      rollbackInProgress = true;
       localStorage.removeItem('wongaCup2026');
       localStorage.removeItem(LAST_SYNC_KEY);
       localStorage.removeItem(LAST_SYNC_IDS_KEY);
