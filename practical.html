@@ -223,10 +223,28 @@
 <script src="theme.js?v=__CACHEBUST__"></script>
 <script>
 // Music consent modal
+// Issue #183: browser autoplay policy generally doesn't carry a user
+// gesture across a page navigation, so play() on a consented-return visit
+// is routinely rejected -- catch it (mirroring scorecard-live.html) and
+// fall back to asking again rather than leaving an unhandled rejection and
+// silently-dead music. Also persist playback position across navigations
+// so each page doesn't restart the track from 0:00.
+function seekToSavedMusicTime(audio) {
+  const saved = parseFloat(sessionStorage.getItem('musicTime') || '0');
+  if (!(saved > 0)) return;
+  if (audio.readyState >= 1) audio.currentTime = saved;
+  else audio.addEventListener('loadedmetadata', () => { audio.currentTime = saved; }, { once: true });
+}
+window.addEventListener('pagehide', () => {
+  const audio = document.getElementById('bg-audio');
+  if (!audio.paused) sessionStorage.setItem('musicTime', String(audio.currentTime));
+});
 function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   sessionStorage.setItem('musicConsented', '1');
-  document.getElementById('bg-audio').play();
+  const audio = document.getElementById('bg-audio');
+  seekToSavedMusicTime(audio);
+  audio.play().catch(() => {});
 }
 function dismissMusic() {
   document.getElementById('music-modal').classList.add('hidden');
@@ -235,7 +253,11 @@ function dismissMusic() {
 if (!sessionStorage.getItem('musicConsented')) {
   document.getElementById('music-modal').classList.remove('hidden');
 } else if (sessionStorage.getItem('musicConsented') === '1') {
-  document.getElementById('bg-audio').play();
+  const audio = document.getElementById('bg-audio');
+  seekToSavedMusicTime(audio);
+  audio.play().catch(() => {
+    document.getElementById('music-modal').classList.remove('hidden');
+  });
 }
 
 // Hamburger menu
