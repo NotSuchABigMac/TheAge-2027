@@ -193,6 +193,10 @@ export class Ledger {
       slipType: entry.slipType ?? null,
       willCorrect: entry.willCorrect ?? false,
       committed: entry.committed === true,
+      // Marks a gesture that emits an app-decided NUMBER of rows (clearing
+      // a nine writes one per scored hole). Counted loosely by the
+      // write-count oracle, since predicting the count would be guessing.
+      cascade: entry.cascade === true,
       note: entry.note ?? null
     };
     this.lines.push(line);

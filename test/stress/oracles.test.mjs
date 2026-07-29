@@ -202,10 +202,10 @@ test('structuralOracle FAILS on an out-of-range Day 3 score', () => {
 test('ledgerOracle passes when server rows match committed gestures', () => {
   const rows = [row(1), row(2), row(3)];
   const ledger = [
-    { ts: 1, committed: true, performed: { updateType: 'day3_stableford' } },
-    { ts: 2, committed: true, performed: { updateType: 'day3_stableford' } },
-    { ts: 3, committed: true, performed: { updateType: 'day3_stableford' } },
-    { ts: 4, committed: false, performed: { updateType: 'day3_stableford' } }
+    { ts: 1, agent: 'a', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
+    { ts: 2, agent: 'b', committed: true, performed: { updateType: 'day3_stableford', target: { player: 1 }, value: '31' } },
+    { ts: 3, agent: 'c', committed: true, performed: { updateType: 'day3_stableford', target: { player: 2 }, value: '32' } },
+    { ts: 4, agent: 'd', committed: false, performed: { updateType: 'day3_stableford', target: { player: 3 }, value: '33' } }
   ];
   const r = ledgerOracle(rows, ledger);
   assert.ok(r.ok, JSON.stringify(r.failures));
@@ -214,9 +214,9 @@ test('ledgerOracle passes when server rows match committed gestures', () => {
 test('ledgerOracle FAILS on a duplicated write and names the update_type', () => {
   const rows = [row(1), row(2), row(3), row(4)];
   const ledger = [
-    { ts: 1, committed: true, performed: { updateType: 'day3_stableford' } },
-    { ts: 2, committed: true, performed: { updateType: 'day3_stableford' } },
-    { ts: 3, committed: true, performed: { updateType: 'day3_stableford' } }
+    { ts: 1, agent: 'a', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
+    { ts: 2, agent: 'b', committed: true, performed: { updateType: 'day3_stableford', target: { player: 1 }, value: '31' } },
+    { ts: 3, agent: 'c', committed: true, performed: { updateType: 'day3_stableford', target: { player: 2 }, value: '32' } }
   ];
   const r = ledgerOracle(rows, ledger);
   assert.equal(r.ok, false);
@@ -227,8 +227,8 @@ test('ledgerOracle FAILS on a duplicated write and names the update_type', () =>
 test('ledgerOracle FAILS on a lost write', () => {
   const rows = [row(1)];
   const ledger = [
-    { ts: 1, committed: true, performed: { updateType: 'day3_stableford' } },
-    { ts: 2, committed: true, performed: { updateType: 'day3_stableford' } }
+    { ts: 1, agent: 'a', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
+    { ts: 2, agent: 'b', committed: true, performed: { updateType: 'day3_stableford', target: { player: 1 }, value: '31' } }
   ];
   const r = ledgerOracle(rows, ledger);
   assert.equal(r.ok, false);
@@ -240,8 +240,8 @@ test('ledgerOracle discounts writes a rollback legitimately deleted', () => {
   const cutoffMs = 1800000000000;
   const rows = [row(1)]; // only the pre-cutoff row survived
   const ledger = [
-    { ts: cutoffMs - 1000, committed: true, performed: { updateType: 'day3_stableford' } },
-    { ts: cutoffMs + 5000, committed: true, performed: { updateType: 'day3_stableford' } }
+    { ts: cutoffMs - 1000, agent: 'a', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
+    { ts: cutoffMs + 5000, agent: 'b', committed: true, performed: { updateType: 'day3_stableford', target: { player: 1 }, value: '31' } }
   ];
   const r = ledgerOracle(rows, ledger, {
     rollbackCutoffs: [{ cutoff: new Date(cutoffMs).toISOString(), at: cutoffMs + 10000 }]
@@ -355,4 +355,47 @@ test('PLAYERS is parsed out of the live page, 14 golfers, ids 0..13', () => {
   assert.equal(PLAYERS.length, 14);
   assert.equal(PLAYERS[3].name, 'James McIntyre');
   PLAYERS.forEach((p, i) => assert.equal(p.id, i));
+});
+
+test('ledgerOracle FAILS on the retry-duplicate signature (same content, twice)', () => {
+  // One agent gesture, two identical rows on the server — the shape a
+  // dropped response retried off the pending queue produces.
+  const dup = { update_type: 'day3_stableford', player_id: 0, value: '30', updated_by: 'alice' };
+  const rows = [row(1, dup), row(2, dup)];
+  const ledger = [
+    { ts: 1, agent: 'alice', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } }
+  ];
+  const r = ledgerOracle(rows, ledger);
+  assert.equal(r.ok, false);
+  const f = r.failures.find(x => x.kind === 'duplicate-content-rows');
+  assert.ok(f, JSON.stringify(r.failures));
+  assert.equal(f.samples[0].serverCopies, 2);
+  assert.equal(f.samples[0].agentPerformed, 1);
+});
+
+test('ledgerOracle accepts a genuine double-tap (agent really did it twice)', () => {
+  const dup = { update_type: 'day3_stableford', player_id: 0, value: '30', updated_by: 'alice' };
+  const rows = [row(1, dup), row(2, dup)];
+  const ledger = [
+    { ts: 1, agent: 'alice', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } },
+    { ts: 2, agent: 'alice', committed: true, performed: { updateType: 'day3_stableford', target: { player: 0 }, value: '30' } }
+  ];
+  assert.ok(ledgerOracle(rows, ledger).ok);
+});
+
+test('ledgerOracle ignores null-valued cascade rows (clears, not duplicates)', () => {
+  // Clearing a nine emits one null row per scored hole from a single
+  // gesture — correct behaviour that must not read as duplication.
+  const rows = [
+    row(1, { update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: null, updated_by: 'alice' }),
+    row(2, { update_type: 'day1_hole', match_idx: 0, field_key: 'A2', value: null, updated_by: 'alice' }),
+    row(3, { update_type: 'day1_hole', match_idx: 0, field_key: 'A3', value: null, updated_by: 'alice' })
+  ];
+  const ledger = [
+    { ts: 1, agent: 'alice', committed: true, cascade: true, performed: { updateType: 'day1_hole', target: { card: 0 }, value: 'clear' } }
+  ];
+  const r = ledgerOracle(rows, ledger);
+  assert.ok(r.ok, 'a cascade of clears from one gesture is not a failure: ' + JSON.stringify(r.failures));
+  assert.equal(r.clearRowCount, 3);
+  assert.equal(r.valueRowCount, 0);
 });

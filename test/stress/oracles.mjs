@@ -270,39 +270,117 @@ export function structuralOracle(c) {
    Every gesture the ledger recorded as committed must appear in the log
    exactly once, minus whatever a rollback legitimately deleted. This is
    the oracle that catches the offline queue double-sending or dropping. */
+/* A flat "one action, one row" count is wrong for this app, and the S0
+   smoke run proved it: clearing a nine emits one row per scored hole,
+   a team move cascades into the match slots it invalidates, and
+   setMatchPlayer clears any result recorded against the slot. Counting
+   those as duplicates would make the oracle cry wolf on correct
+   behaviour.
+
+   The clean boundary is that every cascade row the app emits carries
+   `value: null` — cascades only ever CLEAR. So value-bearing rows are
+   counted strictly, per exact content key (who wrote what, where), which
+   is a sharper test than a total: it catches a duplicate even when some
+   other write was lost in the same run and the totals happened to
+   cancel out. Null-valued rows are reported informationally.
+
+   That content key is also exactly the signature of the failure this
+   oracle exists for: a write whose response was dropped, retried off the
+   pending queue, and landed twice. */
+function contentKey(r) {
+  return [r.update_type, r.match_idx ?? '', r.player_id ?? '', r.field_key ?? '', r.value ?? '', r.updated_by ?? ''].join('|');
+}
+
+function ledgerContentKey(line) {
+  const p = line.performed || {};
+  const t = p.target || {};
+  return [
+    p.updateType ?? '',
+    t.card !== undefined && typeof t.card === 'number' ? t.card : '',
+    t.player ?? '',
+    t.hole ?? t.holeKey ?? '',
+    p.value ?? '',
+    line.agent ?? ''
+  ].join('|');
+}
+
 export function ledgerOracle(serverRows, ledgerLines, { rollbackCutoffs = [] } = {}) {
   const failures = [];
   const committed = ledgerLines.filter(l => l.committed === true);
 
-  // Rows the log should hold = committed gestures, except those a
-  // rollback deleted (recorded at ledger time as a cutoff timestamp).
-  const survivingExpected = committed.filter(l => {
-    return !rollbackCutoffs.some(cut => l.ts > Date.parse(cut.cutoff) && l.ts < cut.at);
-  });
+  // Rows a rollback legitimately deleted must not count as lost.
+  const surviving = committed.filter(l =>
+    !rollbackCutoffs.some(cut => l.ts > Date.parse(cut.cutoff) && l.ts < cut.at)
+  );
 
-  const rowsExcludingMarkers = serverRows.filter(r => r.update_type !== 'rollback');
-  const delta = rowsExcludingMarkers.length - survivingExpected.length;
+  const rows = serverRows.filter(r => r.update_type !== 'rollback');
+  const valueRows = rows.filter(r => r.value !== null && r.value !== undefined);
+  const clearRows = rows.filter(r => r.value === null || r.value === undefined);
 
-  if (delta !== 0) {
-    // Per-type breakdown makes the culprit obvious without reading 2,000
-    // ledger lines by hand.
-    const byTypeRows = {}, byTypeLedger = {};
-    rowsExcludingMarkers.forEach(r => { byTypeRows[r.update_type] = (byTypeRows[r.update_type] || 0) + 1; });
-    survivingExpected.forEach(l => {
+  // Strict, per-type totals over value-bearing rows only. Lines the
+  // harness marked `cascade` are excluded on both sides: a single
+  // "clear this nine" gesture emits one row per scored hole, a count
+  // only the app's own state knows, so predicting it would be guessing.
+  const countable = surviving.filter(l =>
+    l.cascade !== true && l.performed?.value !== null && l.performed?.value !== undefined
+  );
+  const byTypeRows = {}, byTypeLedger = {};
+  valueRows.forEach(r => { byTypeRows[r.update_type] = (byTypeRows[r.update_type] || 0) + 1; });
+  countable
+    .forEach(l => {
       const t = l.performed?.updateType || l.intent?.updateType || 'unknown';
       byTypeLedger[t] = (byTypeLedger[t] || 0) + 1;
     });
-    const mismatched = {};
-    new Set([...Object.keys(byTypeRows), ...Object.keys(byTypeLedger)]).forEach(t => {
-      const r = byTypeRows[t] || 0, l = byTypeLedger[t] || 0;
-      if (r !== l) mismatched[t] = { serverRows: r, ledgerCommitted: l, delta: r - l };
-    });
-    fail(failures, delta > 0 ? 'duplicated-writes' : 'lost-writes', {
-      detail: `server holds ${rowsExcludingMarkers.length} rows; ledger recorded ${survivingExpected.length} surviving commits (delta ${delta > 0 ? '+' : ''}${delta})`,
+
+  const mismatched = {};
+  new Set([...Object.keys(byTypeRows), ...Object.keys(byTypeLedger)]).forEach(t => {
+    const r = byTypeRows[t] || 0, l = byTypeLedger[t] || 0;
+    if (r !== l) mismatched[t] = { serverRows: r, ledgerCommitted: l, delta: r - l };
+  });
+
+  if (Object.keys(mismatched).length > 0) {
+    const totalDelta = Object.values(mismatched).reduce((s, m) => s + m.delta, 0);
+    fail(failures, totalDelta > 0 ? 'duplicated-writes' : 'lost-writes', {
+      detail: `value-bearing rows: server ${valueRows.length}, ledger ${countable.length} (cascade lines excluded)`,
       byType: mismatched
     });
   }
-  return { ok: failures.length === 0, failures, serverRowCount: rowsExcludingMarkers.length, expectedCount: survivingExpected.length };
+
+  // The retry-duplicate signature: the same content written more times
+  // than the agent performed it.
+  const rowCounts = new Map();
+  valueRows.forEach(r => {
+    const k = contentKey(r);
+    rowCounts.set(k, (rowCounts.get(k) || 0) + 1);
+  });
+  const ledgerCounts = new Map();
+  countable.forEach(l => {
+    const k = ledgerContentKey(l);
+    ledgerCounts.set(k, (ledgerCounts.get(k) || 0) + 1);
+  });
+  const suspectDuplicates = [];
+  rowCounts.forEach((count, key) => {
+    if (count < 2) return;
+    const expected = ledgerCounts.get(key);
+    // `undefined` means the harness can't reconstruct this key (cascade
+    // or admin-issued row) — not evidence of a duplicate.
+    if (expected !== undefined && count > expected) {
+      suspectDuplicates.push({ key, serverCopies: count, agentPerformed: expected });
+    }
+  });
+  if (suspectDuplicates.length > 0) {
+    fail(failures, 'duplicate-content-rows', {
+      detail: 'identical content written more often than the agent performed it — the retry-after-dropped-response signature',
+      samples: suspectDuplicates.slice(0, 8)
+    });
+  }
+
+  return {
+    ok: failures.length === 0, failures,
+    serverRowCount: rows.length, valueRowCount: valueRows.length,
+    clearRowCount: clearRows.length,
+    ledgerCommitted: surviving.length
+  };
 }
 
 /* ── Oracle 5: displayed totals ──

@@ -92,6 +92,11 @@ export async function login(phone, { name, token, summonPlayerId = 0 }) {
   const { page } = phone;
   const modal = page.locator('#username-modal');
   const isHidden = await modal.evaluate(el => el.classList.contains('hidden'));
+  // Reported back so the caller can record the summoning tap in the
+  // ledger: it appends a real (if no-op) day2_anthem row, and an
+  // unrecorded row makes the write-count oracle report a phantom
+  // duplicate.
+  const summoned = isHidden;
   if (isHidden) {
     await gotoTab(phone, 'day2');
     await page.locator('#day2-anthem .anthem-row').nth(summonPlayerId).locator('button').nth(1).click();
@@ -107,6 +112,29 @@ export async function login(phone, { name, token, summonPlayerId = 0 }) {
     () => document.getElementById('username-modal').classList.contains('hidden'),
     null, { timeout: 5000 }
   );
+  return { summoned };
+}
+
+// A deliberately-wrong PIN. The app must reopen the login modal rather
+// than silently queue the write as if offline (issue #141) — the scenario
+// asserts exactly that before logging in properly.
+export async function loginWithWrongPin(phone, { name, wrongToken, summonPlayerId = 0 }) {
+  const { page } = phone;
+  const modal = page.locator('#username-modal');
+  if (await modal.evaluate(el => el.classList.contains('hidden'))) {
+    await gotoTab(phone, 'day2');
+    await page.locator('#day2-anthem .anthem-row').nth(summonPlayerId).locator('button').nth(1).click();
+    await page.waitForFunction(
+      () => !document.getElementById('username-modal').classList.contains('hidden'),
+      null, { timeout: 5000 }
+    );
+  }
+  await page.selectOption('#username-input', name);
+  await page.fill('#write-token-input', wrongToken);
+  await page.locator('#username-modal .username-btn').click();
+  // The modal closes optimistically, then the rejected insert reopens it.
+  await page.waitForTimeout(2500);
+  return { reopened: await isLoginModalOpen(phone) };
 }
 
 // Whether the app has bounced this device back to the login modal — which
