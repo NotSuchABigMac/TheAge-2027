@@ -289,6 +289,9 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 @media (prefers-reduced-motion: reduce){
   .entry-tick-ok{transition:none}
 }
+.update-toast{position:fixed;top:60px;right:24px;display:flex;align-items:center;gap:10px;font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 14px;border-radius:var(--r);background:var(--gold);color:var(--ink);border:1px solid var(--rule-strong);opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:101;max-width:calc(100vw - 48px)}
+.update-toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
+.update-toast-btn{background:var(--ink);color:var(--canvas);border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
 .sync-spacer{flex:1}
 
 /* ── USERNAME PICKER MODAL ── */
@@ -395,6 +398,10 @@ body{padding-top:58px;padding-bottom:52px}
 <div id="undo-toast" class="undo-toast" role="status">
   <span class="undo-toast-text"></span>
   <button type="button" class="undo-toast-btn" onclick="performUndo()">Undo</button>
+</div>
+<div id="update-toast" class="update-toast" role="status">
+  <span>Site updated —</span>
+  <button type="button" class="update-toast-btn" onclick="location.reload()">Tap to refresh</button>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -771,6 +778,43 @@ const LAST_SYNC_KEY = 'wongaCup2026_lastSync';
 // changed" -- only rows genuinely newer than this page load are real-time
 // remote changes worth flashing.
 const PAGE_LOAD_ISO = new Date().toISOString();
+
+// Issue #196: a fix pushed mid-tournament reaches ~none of the 14 open
+// phones -- __CACHEBUST__ (the sed substitution deploy.yml already does
+// for CSS/JS query strings) only helps a device that reloads, and nobody
+// reloads a tab they're mid-round on. Baked in via the identical sed, so
+// comparing it against version.json (written by the same deploy step)
+// tells an already-open tab a new version has shipped.
+const DEPLOYED_VERSION = '__CACHEBUST__';
+let updateAvailable = false;
+// Deliberately no "is this still the unsubstituted placeholder" guard
+// here: deploy.yml's sed is a global find-replace across the whole file,
+// so a literal '__CACHEBUST__' string comparison would itself get
+// replaced by the same substitution, always matching DEPLOYED_VERSION
+// against itself and silently disabling this entire check in production.
+// Local dev/tests without a version.json simply 404 below instead, which
+// already no-ops safely.
+async function checkForUpdate() {
+  try {
+    const resp = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.v && data.v !== DEPLOYED_VERSION) updateAvailable = true;
+    }
+  } catch (e) { /* transient network blip -- retried next poll cycle */ }
+  maybeShowUpdateToast();
+}
+function maybeShowUpdateToast() {
+  const toast = document.getElementById('update-toast');
+  if (!toast) return;
+  if (!updateAvailable) { toast.classList.remove('show'); return; }
+  // Never yank the page out from under a scorer mid-entry, and don't push
+  // a reload while a write is still queued to go out -- both conditions
+  // are re-checked on the next poll cycle rather than forcing the issue.
+  const focusedGridIn = document.activeElement && document.activeElement.classList.contains('grid-in');
+  if (focusedGridIn || pendingWrites.length > 0) { toast.classList.remove('show'); return; }
+  toast.classList.add('show');
+}
 
 let currentUsername = null;
 let currentWriteToken = null;
@@ -3490,6 +3534,9 @@ async function pollOnce() {
     // GET's own success/failure, regardless of whether anything changed.
     if (!isOffline) lastSyncedAt = Date.now();
     syncStatus = isOffline ? 'offline' : 'live';
+    // Piggybacks on the same 30s cycle rather than its own timer -- a
+    // mid-round hotfix doesn't need to be noticed faster than that.
+    checkForUpdate();
   } catch(e) {
     console.error('Poll load error:', e);
     syncStatus = 'offline';

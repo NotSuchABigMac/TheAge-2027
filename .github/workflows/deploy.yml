@@ -35,6 +35,14 @@ jobs:
         # stale JS against fresh HTML (or vice versa).
         run: sed -i "s/__CACHEBUST__/${GITHUB_SHA::8}/g" *.html
 
+      - name: Write version.json
+        # Issue #196: a fix pushed mid-tournament reaches ~none of the open
+        # phones -- __CACHEBUST__ only helps a device that actually
+        # reloads, and nobody reloads a tab they're mid-round on. The
+        # scorecard polls this file and prompts to refresh on a mismatch
+        # against its own baked-in version (same SHA, same sed above).
+        run: echo "{\"v\":\"${GITHUB_SHA::8}\"}" > version.json
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
