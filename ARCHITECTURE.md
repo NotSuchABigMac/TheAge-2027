@@ -312,6 +312,39 @@ visible symptom — instead the marker is queued through the normal
 writes refer to now-deleted data) and reaches every device, including this
 one, on the next successful sync.
 
+## Practice mode (issue #208)
+
+`scorecard-live.html?demo=1` runs the exact same app against a
+completely separate sandbox: `SUPABASE_CONFIG.tournamentId`/`sessionKey`
+switch to `wonga-demo-2026`, and every localStorage/sessionStorage key
+this page touches (`STATE_KEY`, `LAST_SYNC_KEY`, `LAST_SYNC_IDS_KEY`,
+`ACTIVE_TAB_KEY`, `PENDING_KEY`, `HANDLED_ROLLBACKS_KEY`,
+`PROVENANCE_KEY`, and the `SS_*` sessionStorage auth keys) gets a
+`demo_` prefix (`KEY_PREFIX`, computed once at the very top of the
+script, before any of those consts are declared). No backend changes —
+segregation is purely by `tournament_id`, which every existing read and
+write already filters on; the same table, RLS, and shared `write_token`
+serve both. `musicConsented` is deliberately left unprefixed (it's a
+cosmetic audio preference, not tournament data — no reason to re-nag
+someone for being in practice mode).
+
+The mode is sticky for the rest of the browser tab's session
+(`DEMO_SESSION_KEY`, itself deliberately unprefixed — it's what decides
+the prefix), so it survives navigating to another page and back without
+every internal link needing `?demo=1` appended by hand; the banner's
+"Exit" link clears it. The persistent caution-tape banner is loud by
+design (a solid color bar, not a subtle theme retint) so a screenshot or
+a glance can never mistake it for the real tournament.
+
+The Admin tab gains a "Seed Sample Data" section, visible only when
+both `isAdmin()` and `isDemoMode` are true (re-checked on every
+login/logout in `updateAdminVisibility()`, not just once at load) — it
+writes sample teams/a match/a few holes of scores through the same
+`insertUpdate()` path every real write goes through, so seeded rows are
+indistinguishable from a scorer's own entries. "Rollback Scores"
+doubles as the sandbox's reset button unchanged, since it's already
+scoped to `SUPABASE_CONFIG.tournamentId`.
+
 ## Day 1/Day 2 live-entry render fixes (issues #142, #143, #147, #148)
 
 A handful of correctness/UX bugs surfaced by re-review of the #124/#128
