@@ -445,6 +445,38 @@
     return 'double-bogey';
   }
 
+  /* ── UNDO TOAST SCORE REACTIONS (issue #228) ──
+     A one-glance emoji reaction to a just-entered score, shown on the
+     undo toast alongside the existing "what changed" text. Two buckets,
+     since the two scoring models aren't comparable: net-to-par for
+     Day 1/Day 2 hole-by-hole entry (where a real par + handicap-stroke
+     allocation exists per hole), and the manual 18-hole Stableford total
+     for Day 3 (points-based, no per-hole granularity yet -- see #188). */
+  const REACTION_EMOJI = { great: '🎉', ok: '🙂', bad: '😥' };
+
+  // net-to-par = (gross - strokes received) - par. `great` = net birdie or
+  // better, `ok` = net par or net bogey, `bad` = net double-bogey or
+  // worse. null gross (no score entered) -> no reaction.
+  function holeScoreReaction(gross, par, strokes) {
+    if (gross === null || gross === undefined) return null;
+    const netToPar = (gross - (strokes || 0)) - par;
+    if (netToPar <= -1) return 'great';
+    if (netToPar <= 1) return 'ok';
+    return 'bad';
+  }
+
+  // Buckets around the standard 36-point "played to handicap" baseline --
+  // organiser-confirmed cut lines (see issue #228): bad < 32, ok 32-39,
+  // great >= 40. null/blank/non-numeric total -> no reaction.
+  function stablefordTotalReaction(total) {
+    if (total === null || total === undefined || total === '') return null;
+    const n = typeof total === 'number' ? total : parseInt(total, 10);
+    if (isNaN(n)) return null;
+    if (n >= 40) return 'great';
+    if (n >= 32) return 'ok';
+    return 'bad';
+  }
+
   function matchStrokesForPlayers(match, players, day1StrokeIndexes) {
     const pA = players.find(p => p.id === match.pA[0]);
     const pB = players.find(p => p.id === match.pB[0]);
@@ -1127,6 +1159,7 @@
     resolveOverallWinner,
     day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
     teamOfSets, ntpPointsFor, scoreToParSymbol,
+    REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
     computeSeasonTotals, phaseFor, daysUntilDay1,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,

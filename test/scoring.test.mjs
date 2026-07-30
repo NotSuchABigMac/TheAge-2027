@@ -10,6 +10,7 @@ const {
   DAY1_GROSS_MIN, DAY1_GROSS_MAX,
   matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
   day1CourseHolesFor, scoreToParSymbol,
+  REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
   ntpTeamPoints,
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
@@ -1587,4 +1588,55 @@ test('day1CourseHolesFor: degrades to a flat par-4 fallback if courses.js someho
   assert.equal(fallback.length, 18);
   assert.equal(fallback[0].par, 4);
   assert.equal(fallback[0].si, 1);
+});
+
+/* ── holeScoreReaction / stablefordTotalReaction (issue #228 — undo toast
+   score reaction emoji) ── */
+test('holeScoreReaction: buckets by net-to-par (gross minus strokes, minus par)', () => {
+  // Par 4, no strokes received.
+  assert.equal(holeScoreReaction(2, 4, 0), 'great'); // net eagle (-2)
+  assert.equal(holeScoreReaction(3, 4, 0), 'great'); // net birdie (-1)
+  assert.equal(holeScoreReaction(4, 4, 0), 'ok');     // net par (0)
+  assert.equal(holeScoreReaction(5, 4, 0), 'ok');     // net bogey (+1)
+  assert.equal(holeScoreReaction(6, 4, 0), 'bad');    // net double-bogey (+2)
+  assert.equal(holeScoreReaction(9, 4, 0), 'bad');    // net +5, still bad
+});
+
+test('holeScoreReaction: a stroke received shifts the bucket the same way it shifts the score-to-par symbol', () => {
+  // Par 4, gross 5, but this player gets 1 stroke -> net 4 -> net par -> ok.
+  assert.equal(holeScoreReaction(5, 4, 1), 'ok');
+  // Same gross/par with 2 strokes received -> net 3 -> net birdie -> great.
+  assert.equal(holeScoreReaction(5, 4, 2), 'great');
+});
+
+test('holeScoreReaction: null gross (no score entered) means no reaction', () => {
+  assert.equal(holeScoreReaction(null, 4, 0), null);
+  assert.equal(holeScoreReaction(undefined, 4, 0), null);
+});
+
+test('stablefordTotalReaction: buckets around the 36pt "played to handicap" baseline', () => {
+  assert.equal(stablefordTotalReaction(45), 'great');
+  assert.equal(stablefordTotalReaction(40), 'great'); // boundary
+  assert.equal(stablefordTotalReaction(39), 'ok');    // boundary
+  assert.equal(stablefordTotalReaction(36), 'ok');
+  assert.equal(stablefordTotalReaction(32), 'ok');    // boundary
+  assert.equal(stablefordTotalReaction(31), 'bad');   // boundary
+  assert.equal(stablefordTotalReaction(0), 'bad');
+});
+
+test('stablefordTotalReaction: accepts a numeric string (as stored) as well as a number', () => {
+  assert.equal(stablefordTotalReaction('42'), 'great');
+});
+
+test('stablefordTotalReaction: null/blank/non-numeric total means no reaction', () => {
+  assert.equal(stablefordTotalReaction(null), null);
+  assert.equal(stablefordTotalReaction(undefined), null);
+  assert.equal(stablefordTotalReaction(''), null);
+  assert.equal(stablefordTotalReaction('abc'), null);
+});
+
+test('REACTION_EMOJI: has exactly one deterministic emoji per bucket', () => {
+  assert.equal(REACTION_EMOJI.great, '🎉');
+  assert.equal(REACTION_EMOJI.ok, '🙂');
+  assert.equal(REACTION_EMOJI.bad, '😥');
 });
