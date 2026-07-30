@@ -31,7 +31,7 @@
   const {
     phaseFor, daysUntilDay1, defaultDay,
     normalizeState, processUpdateRows, applyUpdateToState,
-    computeSeasonTotals, resolveOverallWinner
+    computeSeasonTotals, resolveOverallWinner, playersWithOverrides
   } = WongaScoring;
   const { COURSES } = WongaCourses;
   const { PLAYERS } = WongaPlayers;
@@ -89,7 +89,11 @@
   async function computeTotals() {
     const rows = await fetchAllRows();
     const state = replayState(rows);
-    return { totals: computeSeasonTotals(state, PLAYERS, COURSES), state };
+    // Admin handicap overrides (issue #206) replay onto state.hcp the same
+    // way every other synced field does -- must be layered on top of the
+    // roster here too, or this ribbon's score would silently drift from
+    // the live scorecard's once an organiser corrects a handicap.
+    return { totals: computeSeasonTotals(state, playersWithOverrides(PLAYERS, state.hcp), COURSES), state };
   }
 
   async function renderLive() {

@@ -124,12 +124,14 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 | `day2_group` | — (uses `player_id`) | `'a4'` \| `'a3'` \| `'b4'` \| `'b3'` \| `null` — the scramble group that player was just moved to (or removed from all groups) |
 | `day2_ntp` | `h4` / `h16` | nearest-the-pin winner's player id |
 | `day2_anthem` | — (uses `player_id`) | `'true'` (sang) \| `'false'` (didn't sing) \| `null` (no adjustment) — national anthem house rule, issue #149 |
-| `day3_stableford` | — (uses `player_id`) | net stableford score |
+| `day3_stableford` | — (uses `player_id`) | manual net stableford score, used only when that player has no hole-by-hole scores — see `day3_hole` below (issue #188) |
+| `day3_hole` | `h1`..`h18` (uses `player_id` for which player) | gross score for that player on that hole, 1-15 |
 | `day3_ntp` | `h7` / `h14` | nearest-the-pin winner's player id |
 | `tiebreak` | — | `'A'` or `'B'` (sudden-death putt-off winner) |
 | `team_name` | `A` / `B` | team display name |
 | `team_assign` | `A` / `B` | JSON array of player ids on that team — only emitted by the "Clear Teams" reset; individual moves use `player_team` below so two concurrent moves of different players don't clobber each other |
 | `player_team` | — (uses `player_id`) | `'A'` or `'B'` — the team that player was just moved to |
+| `player_hcp` | — (uses `player_id`) | an admin-entered handicap override, or `null`/unparseable to clear it and revert to the `players.js` default (issue #206) |
 | `rollback` | — | ISO timestamp of the rollback cutoff — a synced marker (issue #140, page-layer-only, not in `applyUpdateToState`) telling every device to wipe its local cache and reload after an admin rollback, since a server-side `DELETE` alone produces no sync signal a normal replay could act on |
 
 - **Save:** insert one row per change (no PATCH/GET logic needed).
@@ -236,6 +238,87 @@ A group's net-to-par is only derived (and fed into the unchanged
 incomplete round falls back to the manual `day2_score` aggregate exactly like
 before, per the confirmed "manual fallback only" decision for an
 abandoned/unfinished round.
+
+## Day 3 automatic hole-by-hole Stableford scoring (issue #188)
+
+Each player optionally carries per-hole gross scores (`state.day3.holes`,
+sparse — an 18-entry array keyed by player id, created lazily on that
+player's first hole entry rather than pre-populated for all 14, unlike Day
+2's fixed `a4`/`a3`/`b4`/`b3` keys — synced via `day3_hole`, addressed by the
+native `player_id` column plus `field_key: 'h1'..'h18'`). `scoring.js` exports
+the pure functions this is built on:
+
+- `stablefordPoints(gross, par, strokes)` — `max(0, 2 + par + strokes -
+  gross)`: 2 = net par, +1 per stroke better, floored at 0, never negative.
+- `day3HolePoints(grossHoles, strokes, pars)` — the per-hole points array
+  (nullable), feeding the sortable points-per-hole table on the Day 3 tab.
+- `day3PointsThru(grossHoles, strokes, pars)` — running total + holes played.
+- `day3CourseHolesFor(courses)` — Lake Course par/stroke index, same
+  degrade-gracefully fallback as `day1CourseHolesFor`/`day2CourseHolesFor`.
+
+Unlike Day 2's net-to-par (which needs a complete 18-hole round before
+`scrambleRoundComplete()` lets the derived value override the manual
+fallback), Day 3's derived total has **no completeness gate** for display —
+confirmed scope for #188, since Stableford points are inherently additive
+per hole rather than needing the full round to be meaningful. As soon as any
+hole has a score, `effectiveDay3ScoreFor()` returns a live points-thru-N
+total that immediately feeds the same unchanged `computeStableford()`/
+`sumStablefordPoints()` (and `computeSeasonTotals()`, shared with index.html's
+ribbon) — so the Day 3 ranking table doubles as a running leaderboard mid-round.
+The manual `day3_stableford` box is only ever read as the no-hole-data
+fallback, same manual-vs-derived precedent as Day 1/Day 2.
+
+The **whole-tournament-complete** gate (`isDay3Complete()`, which decides
+when the overall-winner banner/tiebreak control can appear) is deliberately
+a *different, stricter* check than the live leaderboard above: a player
+using hole-by-hole entry only counts once `scrambleRoundComplete()` confirms
+all 18 holes are in, not the moment they enter their first hole — conflating
+the two would have ended the tournament as soon as all 14 players had played
+just one hole each.
+
+## Admin-editable player handicaps (issue #206)
+
+`players.js` ships each player's handicap as of when the roster was built —
+a value that occasionally needs correcting later (a late card, a data-entry
+fix) without a code deploy. `state.hcp` is a sparse object keyed by player
+id (synced via `player_hcp`, `addressing: 'player'` like `day2_anthem`/
+`player_team`, so it gets Admin History/Restore for free); an entry there
+overrides that player's `players.js` handicap everywhere, an absent/cleared
+entry falls back to the shipped default.
+
+The one substitution point is `playersWithOverrides(players, hcpOverrides)`
+in `scoring.js` — a pure function that returns a players array with any
+overridden `.hcp` values swapped in. Every match/scramble/Stableford
+calculation already just reads `.hcp` off whatever players array it's
+handed (`matchStrokesForPlayers`, `effectiveMatchFor`, `day2GroupHandicapFor`,
+`effectiveDay3ScoreFor`, and `computeSeasonTotals` itself), so overrides
+reach all of them by passing `playersWithOverrides(PLAYERS, state.hcp)`
+(scorecard-live.html's `currentPlayers()` helper) in place of the raw
+roster at each call site, rather than threading a new parameter through
+scoring.js's function signatures. `ribbon-status.js` does the same after
+replaying `state.hcp` from the transaction log, so index.html's live score
+never silently disagrees with the scorecard over a corrected handicap.
+Composes correctly with issue #149's anthem adjustment: `anthemAdjustedHandicap()`
+is applied to whatever `.hcp` value it's given, override or not, so an
+overridden base handicap still gets its per-round anthem nudge on top.
+
+Editing is gated behind the Admin tab (organiser-only) *and* the same
+admin-PIN prompt (`requireAdminToken()`) Rollback Scores uses — a bad
+handicap silently changes every derived score rather than failing loudly
+like a bad hole score would, so it gets the stronger gate even though it
+isn't destructive.
+
+**Mid-tournament change semantics** (a question the issue left open,
+resolved here rather than blocked on, per the organiser's explicit go-ahead
+to pick a default and document it): there's no reliable way to *block* an
+edit once Day 1 has teed off — the organiser is the only actor who could
+enforce that, and a genuine late correction should still be possible even
+mid-tournament. Instead, `renderAdminHandicaps()` swaps in a stronger
+warning (rather than disabling the field) once `daysUntilDay1(new Date())
+<= 0` — the same calendar-day granularity `phaseFor()`/`defaultDay()`
+already use elsewhere, not the exact tee time. This is the "simplest
+honest rule" the issue itself suggested: allow it, but make the organiser
+stop and think before saving a retroactive change.
 
 ## Admin: field history + restore (issues #129, #132)
 

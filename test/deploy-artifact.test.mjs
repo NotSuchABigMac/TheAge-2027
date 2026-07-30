@@ -57,7 +57,7 @@ test('deploy.yml assembles an explicit _site/ directory instead of uploading the
   // The explicit copy list must actually include every kind of file the
   // live site needs -- a guard against someone narrowing it and quietly
   // breaking the site (e.g. forgetting *.css or the images/ directory).
-  for (const pattern of [/\*\.html/, /\*\.js/, /\*\.css/, /\*\.mp3/, /CNAME/, /version\.json/, /cp -r images/]) {
+  for (const pattern of [/\*\.html/, /\*\.js/, /\*\.css/, /\*\.mp3/, /CNAME/, /version\.json/, /cp -r images/, /cp -r fonts/]) {
     assert.match(workflow, pattern, `expected deploy.yml's _site/ assembly to include something matching ${pattern}`);
   }
 });
