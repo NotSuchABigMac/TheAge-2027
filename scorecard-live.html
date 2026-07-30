@@ -284,6 +284,11 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 @media (prefers-reduced-motion: reduce){
   .remote-flash{transition:none}
 }
+.entry-tick-ok{outline:2px solid #44dd88;outline-offset:-1px;transition:outline-color .3s ease}
+.entry-tick-queued{outline:2px dashed var(--gold);outline-offset:-1px}
+@media (prefers-reduced-motion: reduce){
+  .entry-tick-ok{transition:none}
+}
 .sync-spacer{flex:1}
 
 /* ── USERNAME PICKER MODAL ── */
@@ -2424,9 +2429,23 @@ async function sendUpdateRow(updateType, fields) {
   }
 }
 
+// Issue #195: elementsForUpdate() (built for the remote-flash issue, #194)
+// takes a row-shaped object -- this is the same shape built from a
+// setter's (updateType, fields) call args, so per-entry tick and
+// remote-flash resolution share one element-lookup helper instead of two.
+function pendingWriteToRow(updateType, fields) {
+  return {
+    update_type: updateType,
+    match_idx: fields.match_idx ?? null,
+    player_id: fields.player_id ?? null,
+    field_key: fields.field_key ?? null
+  };
+}
+
 async function insertUpdate(updateType, fields) {
   if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername || !currentWriteToken) return;
   showSaveToast('Saving...', 'saving');
+  const row = pendingWriteToRow(updateType, fields);
   const result = await sendUpdateRow(updateType, fields);
   if (result === 'auth') {
     currentWriteToken = null;
@@ -2437,6 +2456,8 @@ async function insertUpdate(updateType, fields) {
     // stories at once alongside the "Wrong PIN" toast.
     isOffline = false;
     updateOfflineIndicator();
+    authNeeded = true;
+    renderSyncBar();
     showSaveToast('✗ Wrong tournament PIN', 'error');
     const errorEl = document.getElementById('username-error');
     if (errorEl) { errorEl.textContent = 'Wrong PIN — check with the organiser'; errorEl.style.display = 'block'; }
@@ -2445,9 +2466,12 @@ async function insertUpdate(updateType, fields) {
   }
   const ok = result === 'ok';
   isOffline = !ok;
+  if (ok) authNeeded = false;
   if (!ok) { pendingWrites.push({ updateType, fields }); persistPending(); }
   updateOfflineIndicator();
+  renderSyncBar();
   showSaveToast(ok ? '✓ Saved' : '✗ Offline', ok ? 'success' : 'error');
+  showEntryTick(row, ok ? 'ok' : 'queued');
 }
 
 // Called after every successful poll — resends anything that failed
@@ -2461,9 +2485,17 @@ async function insertUpdate(updateType, fields) {
 // a thin wrapper supplying the real network call and persisting the result.
 async function flushPendingWrites() {
   if (pendingWrites.length === 0) return;
-  pendingWrites = await flushQueue(pendingWrites, w => sendUpdateRow(w.updateType, w.fields));
+  pendingWrites = await flushQueue(pendingWrites, async w => {
+    const result = await sendUpdateRow(w.updateType, w.fields);
+    // Flips this entry's queued (⏳) indicator to saved (✓) the moment it
+    // actually lands, rather than leaving it looking queued until the
+    // next full render happens to touch it.
+    if (result === 'ok') showEntryTick(pendingWriteToRow(w.updateType, w.fields), 'ok');
+    return result;
+  });
   persistPending();
   updateOfflineIndicator();
+  renderSyncBar();
 }
 
 // Issue #153: the marker row lives in the log forever, and wiping the sync
@@ -2613,6 +2645,23 @@ function flushRemoteFlashes() {
   const rows = pendingRemoteFlashes;
   pendingRemoteFlashes = [];
   rows.forEach(row => elementsForUpdate(row).forEach(el => flashElement(el, row)));
+}
+
+// Issue #195: per-entry trust indicator -- a checkmark outline once a
+// write actually lands ('ok'), or a dashed outline while it's sitting in
+// pendingWrites offline ('queued') that flushPendingWrites() flips to
+// 'ok' the moment it succeeds. Shares elementsForUpdate() with the
+// remote-flash feature (#194) rather than a second element-resolution
+// helper.
+function showEntryTick(row, kind) {
+  elementsForUpdate(row).forEach(el => {
+    el.classList.remove('entry-tick-ok', 'entry-tick-queued');
+    el.classList.add(kind === 'ok' ? 'entry-tick-ok' : 'entry-tick-queued');
+    clearTimeout(el._entryTickTimer);
+    if (kind === 'ok') {
+      el._entryTickTimer = setTimeout(() => el.classList.remove('entry-tick-ok'), 1500);
+    }
+  });
 }
 
 // Ids already applied at the exact LAST_SYNC_KEY timestamp -- needed
@@ -3380,6 +3429,20 @@ let syncInFlight = false;
 // state, before the real sync had even started -- indistinguishable from
 // an up-to-date board (issue #117).
 let syncStatus = 'initial-loading';
+// Issue #195: the sync layer is genuinely robust (offline queue, #141
+// auth-vs-network classification) but was invisible -- and invisible sync
+// is exactly what drives scorers to re-enter values "just in case".
+// lastSyncedAt is set on every successful poll GET; authNeeded surfaces
+// the "wrong PIN" state insertUpdate() already detects (previously it
+// only silently reopened the login modal).
+let lastSyncedAt = null;
+let authNeeded = false;
+function relativeAgo(ms) {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 5) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  return `${Math.round(s / 60)}m ago`;
+}
 function renderSyncBar() {
   const dot = document.querySelector('.sync-bar .live-dot');
   const label = document.querySelector('.sync-bar .sync-text');
@@ -3388,17 +3451,31 @@ function renderSyncBar() {
   if (syncStatus === 'initial-loading') {
     dot.classList.add('grey');
     label.textContent = 'Syncing latest scores…';
-  } else if (syncStatus === 'offline') {
+  } else if (authNeeded) {
     dot.classList.add('offline');
-    label.textContent = 'Offline — local only';
+    label.textContent = 'Sign-in needed';
+  } else if (syncInFlight) {
+    dot.classList.add('grey');
+    label.textContent = 'Syncing…';
+  } else if (isOffline || pendingWrites.length > 0) {
+    dot.classList.add('offline');
+    label.textContent = pendingWrites.length > 0
+      ? `Offline · ${pendingWrites.length} queued`
+      : 'Offline — local only';
   } else {
-    label.textContent = 'Live Scores';
+    label.textContent = lastSyncedAt ? `Live · synced ${relativeAgo(lastSyncedAt)}` : 'Live Scores';
   }
 }
+// The "synced Xs ago" text keeps drifting even when nothing else changes
+// -- refreshed lazily rather than on a busy per-second timer, and only
+// while the tab is actually visible (same don't-do-work-while-hidden
+// principle as #191).
+setInterval(() => { if (!document.hidden && syncStatus !== 'initial-loading') renderSyncBar(); }, 10000);
 
 async function pollOnce() {
   if (syncInFlight) return;
   syncInFlight = true;
+  renderSyncBar();
   try {
     const ok = await loadFromSupabase();
     if (ok) {
@@ -3407,6 +3484,11 @@ async function pollOnce() {
       // see pendingRemoteFlashes' own comment for why (rebuilt nodes).
       flushRemoteFlashes();
     }
+    // loadFromSupabase()'s own return value means "new rows arrived", not
+    // "the sync succeeded" -- most polls find nothing new and still
+    // legitimately return false. isOffline is what it actually sets on the
+    // GET's own success/failure, regardless of whether anything changed.
+    if (!isOffline) lastSyncedAt = Date.now();
     syncStatus = isOffline ? 'offline' : 'live';
   } catch(e) {
     console.error('Poll load error:', e);
