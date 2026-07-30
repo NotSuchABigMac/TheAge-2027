@@ -312,10 +312,31 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .nine-status-line{font-size:.72rem;color:var(--ink-mute);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .nine-status-line .clear-btn{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:3px;padding:2px 8px;cursor:pointer}
 /* ── Day 2 scramble groups + hole-by-hole entry (issue #128) ── */
-.day2-group-team{margin-bottom:14px}
-.day2-group-team .pg-label{font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px}
-.day2-group-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:.85rem}
-.day2-group-row select{font-family:var(--font-h);font-size:.75rem;background:var(--canvas);color:var(--ink);border:1px solid var(--rule-strong);border-radius:4px;padding:4px 6px}
+/* Issue #244: bucket-based group selector -- four visual "Group of N"
+   buckets (one per team per size) with player chips instead of a flat
+   per-player <select> list, wrapped in a <details> so it can be tucked
+   away once everyone's assigned instead of taking up permanent space. */
+.day2-groups-details{margin-bottom:20px;border:1px solid var(--rule-strong);border-radius:var(--rl);overflow:hidden}
+.day2-groups-summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;background:var(--canvas-2);font-family:var(--font-h);font-size:.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink)}
+.day2-groups-summary::-webkit-details-marker{display:none}
+.day2-groups-summary::before{content:'▾';color:var(--gold);margin-right:2px;transition:transform .15s}
+.day2-groups-details[open]>.day2-groups-summary::before{transform:rotate(180deg)}
+.day2-groups-progress{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:1px;text-transform:none;color:var(--ink-mute)}
+.day2-groups-progress.complete{color:var(--gold)}
+.day2-buckets-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px}
+@media(max-width:700px){.day2-buckets-grid{grid-template-columns:1fr}}
+.day2-bucket{border:1px solid var(--rule);border-radius:var(--r);padding:12px}
+.day2-bucket.full{border-color:color-mix(in srgb,var(--gold) 50%,transparent);background:color-mix(in srgb,var(--gold) 5%,transparent)}
+.day2-bucket-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.day2-bucket-team{font-family:var(--font-h);font-size:.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.day2-bucket-title{font-family:var(--font-b);font-size:.85rem;color:var(--ink)}
+.day2-bucket-count{margin-left:auto;font-family:var(--font-h);font-size:.7rem;color:var(--ink-mute)}
+.day2-bucket.full .day2-bucket-count{color:var(--gold);font-weight:700}
+.day2-bucket-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:26px}
+.day2-chip{display:inline-flex;align-items:center;gap:5px;background:var(--canvas-2);border-radius:999px;padding:4px 6px 4px 10px;font-size:.78rem;color:var(--ink)}
+.day2-chip-remove{background:none;border:none;color:var(--ink-mute);font-size:.85rem;line-height:1;cursor:pointer;padding:2px 4px;border-radius:50%}
+.day2-chip-remove:hover{background:var(--rule);color:var(--hot)}
+.day2-bucket select{width:100%;font-family:var(--font-h);font-size:.75rem;background:var(--canvas);color:var(--ink-mute);border:1px dashed var(--rule-strong);border-radius:4px;padding:6px 8px}
 .derived-score{font-size:.82rem;color:var(--ink-mute);margin-top:4px}
 .derived-score .dv-big{font-family:var(--font-d);font-size:1.6rem;color:var(--ink)}
 .derived-score .clear-btn{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:3px;padding:2px 8px;cursor:pointer;margin-left:8px}
@@ -2268,31 +2289,65 @@ function day2GroupHandicap(code) {
   return day2GroupHandicapFor(code, state.day2, PLAYERS);
 }
 
+// Issue #244: one visual bucket per (team, size) combination, each
+// showing its current members as removable chips plus a dropdown to add
+// any of that team's still-unassigned players -- easier to scan than a
+// flat per-player <select> list, and shows at a glance which buckets
+// still need filling. Wrapped in a <details> that collapses once every
+// drafted player has a group, same open/closed-state-survives-rebuild
+// pattern as the hole-by-hole grids (issue #148) -- only the *first*
+// render (no existing element yet) uses "complete -> start closed" as
+// its default; an explicit user toggle afterward is always honored.
 function renderDay2Groups() {
   const container = document.getElementById('day2-groups');
   if (!container) return;
+  const prevDetails = container.querySelector('.day2-groups-details');
   const teamLabel = { A: state.teamNameA, B: state.teamNameB };
-  let html = '';
+  const draftedPlayers = PLAYERS.filter(p => teamOf(p.id) !== null);
+  const assignedCount = draftedPlayers.filter(p => groupOf(p.id) !== null).length;
+  const allAssigned = draftedPlayers.length > 0 && assignedCount === draftedPlayers.length;
+  const isOpen = prevDetails ? prevDetails.open : !allAssigned;
+
+  let bucketsHtml = '';
   ['A', 'B'].forEach(team => {
-    const players = PLAYERS.filter(p => teamOf(p.id) === team);
-    html += `<div class="day2-group-team"><div class="pg-label">${escapeHtml(teamLabel[team])}</div>`;
-    if (players.length === 0) {
-      html += `<div class="grey" style="font-size:.82rem">No players drafted to this team yet.</div>`;
+    const teamPlayers = PLAYERS.filter(p => teamOf(p.id) === team);
+    if (teamPlayers.length === 0) {
+      bucketsHtml += `<div class="day2-bucket"><div class="day2-bucket-head"><span class="day2-bucket-team" style="color:var(--team-${team.toLowerCase()})">${escapeHtml(teamLabel[team])}</span></div><div class="grey" style="font-size:.82rem">No players drafted to this team yet.</div></div>`;
+      return;
     }
-    players.forEach(p => {
-      const current = groupOf(p.id);
-      const fourCode = team === 'A' ? 'a4' : 'b4';
-      const threeCode = team === 'A' ? 'a3' : 'b3';
-      html += `<div class="day2-group-row"><span>${escapeHtml(p.short)} (${p.hcp})</span>
-        <select onchange="setDay2Group(${p.id}, this.value)">
-          <option value="" ${!current ? 'selected' : ''}>— unassigned —</option>
-          <option value="${fourCode}" ${current === fourCode ? 'selected' : ''}>Group of 4</option>
-          <option value="${threeCode}" ${current === threeCode ? 'selected' : ''}>Group of 3</option>
-        </select></div>`;
+    [4, 3].forEach(size => {
+      const code = team === 'A' ? `a${size}` : `b${size}`;
+      const members = teamPlayers.filter(p => groupOf(p.id) === code);
+      const unassigned = teamPlayers.filter(p => groupOf(p.id) === null);
+      const full = members.length >= size;
+      const chips = members.map(p => `<span class="day2-chip">${escapeHtml(p.short)} (${p.hcp})<button type="button" class="day2-chip-remove" onclick="setDay2Group(${p.id}, '')" aria-label="Remove ${escapeHtml(p.short)} from Group of ${size}">×</button></span>`).join('')
+        || '<span class="grey" style="font-size:.8rem">Empty</span>';
+      const addSelect = unassigned.length ? `
+        <select onchange="if(this.value) setDay2Group(parseInt(this.value,10), '${code}')">
+          <option value="">+ add player…</option>
+          ${unassigned.map(p => `<option value="${p.id}">${escapeHtml(p.short)} (${p.hcp})</option>`).join('')}
+        </select>` : '';
+      bucketsHtml += `
+      <div class="day2-bucket${full ? ' full' : ''}">
+        <div class="day2-bucket-head">
+          <span class="day2-bucket-team" style="color:var(--team-${team.toLowerCase()})">${escapeHtml(teamLabel[team])}</span>
+          <span class="day2-bucket-title">Group of ${size}</span>
+          <span class="day2-bucket-count">${members.length}/${size}</span>
+        </div>
+        <div class="day2-bucket-chips">${chips}</div>
+        ${addSelect}
+      </div>`;
     });
-    html += `</div>`;
   });
-  container.innerHTML = html;
+
+  container.innerHTML = `
+    <details class="day2-groups-details"${isOpen ? ' open' : ''}>
+      <summary class="day2-groups-summary">
+        <span>Groups</span>
+        <span class="day2-groups-progress${allAssigned ? ' complete' : ''}">${allAssigned ? '✓ All assigned' : `${assignedCount}/${draftedPlayers.length} assigned`}</span>
+      </summary>
+      <div class="day2-buckets-grid">${bucketsHtml}</div>
+    </details>`;
 }
 
 function setDay2Group(playerId, groupCode) {
