@@ -381,6 +381,38 @@
     return sorted;
   }
 
+  /* ── DAY 3 — AUTOMATIC HOLE-BY-HOLE STABLEFORD (issue #188) ──
+     Pure and course-data-free, same spirit as #124's Day 1 and #128's
+     Day 2 hole-by-hole functions. */
+  const DAY3_HOLE_GROSS_MIN = 1, DAY3_HOLE_GROSS_MAX = 15;
+
+  // Net Stableford points for one hole: 2 = net par, 3 = net birdie, one
+  // stroke better per stroke under, one worse per stroke over, floored at
+  // 0 (never negative). null gross (hole not played yet) -> null.
+  function stablefordPoints(gross, par, strokes) {
+    if (gross === null || gross === undefined) return null;
+    return Math.max(0, 2 + par + strokes - gross);
+  }
+
+  // Points-per-hole array (nullable, one entry per hole) -- the input to
+  // the sortable points-per-hole table (issue #188).
+  function day3HolePoints(grossHoles, strokes, pars) {
+    return grossHoles.map((g, i) => stablefordPoints(g, pars[i], strokes[i]));
+  }
+
+  // Running total + how many holes are actually in, summed over played
+  // holes only -- unlike Day 2's net-to-par (which needs all 18 for a
+  // meaningful "complete round" total, see scrambleRoundComplete()),
+  // Stableford points are inherently additive per hole, so a live
+  // leaderboard mid-round ("23 points thru 11") needs no completeness
+  // gate at all (confirmed scope for #188).
+  function day3PointsThru(grossHoles, strokes, pars) {
+    const points = day3HolePoints(grossHoles, strokes, pars);
+    let total = 0, played = 0;
+    points.forEach(p => { if (p !== null) { total += p; played++; } });
+    return { total, played };
+  }
+
   // A player not yet assigned to a team (team is null/undefined — hasn't
   // been through the Captain's Draft yet) must not have their points
   // silently credited to either side.
@@ -505,6 +537,13 @@
     return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
   }
 
+  // Lake Course par/stroke index per hole, same degrade-gracefully
+  // fallback as day1CourseHolesFor()/day2CourseHolesFor() (issue #188).
+  function day3CourseHolesFor(courses) {
+    const course = courses && courses[3];
+    return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
+  }
+
   function day2GroupHandicapFor(code, day2, players) {
     const ids = day2.groups[code];
     const anthem = day2.anthem || {};
@@ -537,6 +576,28 @@
     };
   }
 
+  // The value that actually feeds computeStableford()/sumStablefordPoints()
+  // for this player (issue #188): derived from hole-by-hole entry as soon
+  // as any hole has a score -- a live points-thru-N total, no completeness
+  // gate needed (see day3PointsThru()) -- otherwise the manual 18-hole
+  // total exactly as before. Same precedence shape as
+  // effectiveNines()/effectiveDay2FieldFor(): hole data wins once any
+  // exists, manual is only ever read as the no-hole-data fallback.
+  function effectiveDay3ScoreFor(playerId, day3, players, courses) {
+    const holes = (day3.holes || {})[playerId];
+    if (!Array.isArray(holes) || !holes.some(h => h !== null)) {
+      return parseScoreToPar(day3.scores[playerId]);
+    }
+    const player = players.find(p => p.id === playerId);
+    if (!player) return null;
+    const hcp = Math.round(parseFloat(player.hcp));
+    if (isNaN(hcp)) return null;
+    const courseHoles = day3CourseHolesFor(courses);
+    const strokes = groupStrokes(hcp, courseHoles.map(h => h.si));
+    const pars = courseHoles.map(h => h.par);
+    return day3PointsThru(holes, strokes, pars).total;
+  }
+
   // The one function index.html actually calls: replayed `state` (see
   // normalizeState/applyUpdateToState) plus the static players/courses
   // data in, every day's points and the running total out.
@@ -554,7 +615,7 @@
       id: p.id,
       hcp: p.hcp,
       team: teamOfSets(p.id, state.teamA, state.teamB),
-      score: parseScoreToPar(state.day3.scores[p.id])
+      score: effectiveDay3ScoreFor(p.id, state.day3, players, courses)
     }));
     const day3Sorted = computeStableford(day3Entries);
     const day3Base = sumStablefordPoints(day3Sorted);
@@ -838,6 +899,21 @@
         state.day3.scores[row.player_id] = n === null ? null : String(Math.max(DAY3_SCORE_MIN, Math.min(DAY3_SCORE_MAX, n)));
         break;
       }
+      case 'day3_hole': {
+        // Addressed by the native player_id column (like day3_stableford
+        // above) plus field_key 'h1'..'h18' -- not a fixed whitelist, so
+        // the hole number is validated here via pattern + range.
+        if (typeof row.player_id !== 'number' || row.player_id < 0 || row.player_id >= 14) break;
+        const m = /^h(\d{1,2})$/.exec(row.field_key || '');
+        if (!m) break;
+        const holeNum = parseInt(m[1], 10);
+        if (holeNum < 1 || holeNum > 18) break;
+        if (!state.day3.holes) state.day3.holes = {};
+        if (!Array.isArray(state.day3.holes[row.player_id])) state.day3.holes[row.player_id] = Array(18).fill(null);
+        const n = parseIntOrNull(v);
+        state.day3.holes[row.player_id][holeNum - 1] = n === null ? null : Math.max(DAY3_HOLE_GROSS_MIN, Math.min(DAY3_HOLE_GROSS_MAX, n));
+        break;
+      }
       case 'day3_ntp':
         if (row.field_key) state.day3.ntp[row.field_key] = parseIntOrNull(v);
         break;
@@ -896,7 +972,8 @@
     day2_group:      { label: 'Day 2 — Group Assignment',        addressing: 'player',      restorable: true },
     day2_ntp:        { label: 'Day 2 — Nearest the Pin',         addressing: 'field',       fieldKeys: ['h4', 'h16'], restorable: true },
     day2_anthem:     { label: 'Day 2 — National Anthem',         addressing: 'player',      restorable: true },
-    day3_stableford: { label: 'Day 3 — Stableford Score',        addressing: 'player',      restorable: true },
+    day3_stableford: { label: 'Day 3 — Stableford Score (manual)', addressing: 'player',     restorable: true },
+    day3_hole:       { label: 'Day 3 — Hole Score',              addressing: 'player+hole', restorable: true },
     day3_ntp:        { label: 'Day 3 — Nearest the Pin',         addressing: 'field',       fieldKeys: ['h7', 'h14'], restorable: true },
     tiebreak:        { label: 'Tiebreak',                        addressing: 'none',        restorable: true },
     team_name:       { label: 'Team Name',                       addressing: 'field',       fieldKeys: ['A', 'B'], restorable: true },
@@ -957,6 +1034,11 @@
         return { fieldLabel: `Day 2 Anthem · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : (v === 'true' ? 'Sang (-1)' : v === 'false' ? "Didn't sing (+2)" : String(v)) };
       case 'day3_stableford':
         return { fieldLabel: `Day 3 Stableford · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : String(v) };
+      case 'day3_hole': {
+        const m = /^h(\d{1,2})$/.exec(row.field_key || '');
+        const holeLabel = m ? `Hole ${m[1]}` : (row.field_key || '?');
+        return { fieldLabel: `Day 3 · ${playerName(row.player_id) || `Player #${row.player_id}`} · ${holeLabel}`, valueLabel: isCleared ? '(cleared)' : String(v) };
+      }
       case 'day3_ntp':
         return { fieldLabel: `Day 3 NTP · ${row.field_key || '?'}`, valueLabel: isCleared ? '(cleared)' : (playerName(v) || String(v)) };
       case 'tiebreak':
@@ -1108,6 +1190,19 @@
       state.day3 = { scores: old.scores || old || {}, ntp: old.ntp || { h7:null, h14:null } };
     }
     if (!state.day3.ntp) state.day3.ntp = { h7:null, h14:null };
+    // Per-player hole-by-hole gross scores (issue #188) -- sparse object
+    // keyed by player id (unlike Day 2's fixed a4/a3/b4/b3 keys, Day 3 has
+    // up to 14 dynamic player ids), created lazily on first hole entry
+    // rather than pre-populated for every player. Existing entries are
+    // padded/repaired the same way normalizedHoles() already does for
+    // Day 1/Day 2, so a stale/malformed synced payload can't crash the grid.
+    if (typeof state.day3.holes !== 'object' || state.day3.holes === null) {
+      state.day3.holes = {};
+    } else {
+      Object.keys(state.day3.holes).forEach(id => {
+        state.day3.holes[id] = normalizedHoles(state.day3.holes[id], DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX);
+      });
+    }
     // Lock flags (issue #168) -- only `true` survives a stale/forged saved or
     // synced payload; anything else (missing, a string, etc.) normalizes to
     // unlocked rather than accidentally locking a day out from under everyone.
@@ -1156,11 +1251,13 @@
     ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap,
     scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
     POS_PTS, computeStableford, sumStablefordPoints,
+    DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints, day3PointsThru,
     resolveOverallWinner,
     day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
     teamOfSets, ntpPointsFor, scoreToParSymbol,
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
+    day3CourseHolesFor, effectiveDay3ScoreFor,
     computeSeasonTotals, phaseFor, daysUntilDay1,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
     parseIntOrNull, applyUpdateToState,

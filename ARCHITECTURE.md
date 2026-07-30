@@ -124,7 +124,8 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 | `day2_group` | — (uses `player_id`) | `'a4'` \| `'a3'` \| `'b4'` \| `'b3'` \| `null` — the scramble group that player was just moved to (or removed from all groups) |
 | `day2_ntp` | `h4` / `h16` | nearest-the-pin winner's player id |
 | `day2_anthem` | — (uses `player_id`) | `'true'` (sang) \| `'false'` (didn't sing) \| `null` (no adjustment) — national anthem house rule, issue #149 |
-| `day3_stableford` | — (uses `player_id`) | net stableford score |
+| `day3_stableford` | — (uses `player_id`) | manual net stableford score, used only when that player has no hole-by-hole scores — see `day3_hole` below (issue #188) |
+| `day3_hole` | `h1`..`h18` (uses `player_id` for which player) | gross score for that player on that hole, 1-15 |
 | `day3_ntp` | `h7` / `h14` | nearest-the-pin winner's player id |
 | `tiebreak` | — | `'A'` or `'B'` (sudden-death putt-off winner) |
 | `team_name` | `A` / `B` | team display name |
@@ -236,6 +237,43 @@ A group's net-to-par is only derived (and fed into the unchanged
 incomplete round falls back to the manual `day2_score` aggregate exactly like
 before, per the confirmed "manual fallback only" decision for an
 abandoned/unfinished round.
+
+## Day 3 automatic hole-by-hole Stableford scoring (issue #188)
+
+Each player optionally carries per-hole gross scores (`state.day3.holes`,
+sparse — an 18-entry array keyed by player id, created lazily on that
+player's first hole entry rather than pre-populated for all 14, unlike Day
+2's fixed `a4`/`a3`/`b4`/`b3` keys — synced via `day3_hole`, addressed by the
+native `player_id` column plus `field_key: 'h1'..'h18'`). `scoring.js` exports
+the pure functions this is built on:
+
+- `stablefordPoints(gross, par, strokes)` — `max(0, 2 + par + strokes -
+  gross)`: 2 = net par, +1 per stroke better, floored at 0, never negative.
+- `day3HolePoints(grossHoles, strokes, pars)` — the per-hole points array
+  (nullable), feeding the sortable points-per-hole table on the Day 3 tab.
+- `day3PointsThru(grossHoles, strokes, pars)` — running total + holes played.
+- `day3CourseHolesFor(courses)` — Lake Course par/stroke index, same
+  degrade-gracefully fallback as `day1CourseHolesFor`/`day2CourseHolesFor`.
+
+Unlike Day 2's net-to-par (which needs a complete 18-hole round before
+`scrambleRoundComplete()` lets the derived value override the manual
+fallback), Day 3's derived total has **no completeness gate** for display —
+confirmed scope for #188, since Stableford points are inherently additive
+per hole rather than needing the full round to be meaningful. As soon as any
+hole has a score, `effectiveDay3ScoreFor()` returns a live points-thru-N
+total that immediately feeds the same unchanged `computeStableford()`/
+`sumStablefordPoints()` (and `computeSeasonTotals()`, shared with index.html's
+ribbon) — so the Day 3 ranking table doubles as a running leaderboard mid-round.
+The manual `day3_stableford` box is only ever read as the no-hole-data
+fallback, same manual-vs-derived precedent as Day 1/Day 2.
+
+The **whole-tournament-complete** gate (`isDay3Complete()`, which decides
+when the overall-winner banner/tiebreak control can appear) is deliberately
+a *different, stricter* check than the live leaderboard above: a player
+using hole-by-hole entry only counts once `scrambleRoundComplete()` confirms
+all 18 holes are in, not the moment they enter their first hole — conflating
+the two would have ended the tournament as soon as all 14 players had played
+just one hole each.
 
 ## Admin: field history + restore (issues #129, #132)
 

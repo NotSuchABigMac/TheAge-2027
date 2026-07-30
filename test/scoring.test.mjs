@@ -17,6 +17,7 @@ const {
   scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
   ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap,
   POS_PTS, computeStableford, sumStablefordPoints,
+  DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX,
   resolveOverallWinner,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
@@ -1199,6 +1200,34 @@ test('applyUpdateToState: day2_hole rejects a malformed field_key without throwi
   assert.equal(JSON.stringify(state.day2.holes), before);
 });
 
+test('applyUpdateToState: day3_hole sets and clears one player\'s gross score for one hole, creating the holes array lazily', () => {
+  const state = makeState();
+  assert.equal(state.day3.holes, undefined); // not pre-populated (issue #188 -- sparse, unlike Day 2's fixed keys)
+  applyUpdateToState(state, { update_type: 'day3_hole', player_id: 2, field_key: 'h7', value: '5' });
+  assert.equal(state.day3.holes[2][6], 5);
+  applyUpdateToState(state, { update_type: 'day3_hole', player_id: 2, field_key: 'h7', value: 'null' });
+  assert.equal(state.day3.holes[2][6], null);
+});
+
+test('applyUpdateToState: day3_hole clamps to DAY3_HOLE_GROSS_MIN/MAX', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day3_hole', player_id: 0, field_key: 'h1', value: '999' });
+  assert.equal(state.day3.holes[0][0], DAY3_HOLE_GROSS_MAX);
+  applyUpdateToState(state, { update_type: 'day3_hole', player_id: 0, field_key: 'h1', value: '-5' });
+  assert.equal(state.day3.holes[0][0], DAY3_HOLE_GROSS_MIN);
+});
+
+test('applyUpdateToState: day3_hole rejects an out-of-range player_id or malformed field_key without throwing or writing anything', () => {
+  const state = makeState();
+  assert.doesNotThrow(() => {
+    applyUpdateToState(state, { update_type: 'day3_hole', player_id: 99, field_key: 'h1', value: '5' });
+    applyUpdateToState(state, { update_type: 'day3_hole', player_id: -1, field_key: 'h1', value: '5' });
+    applyUpdateToState(state, { update_type: 'day3_hole', player_id: 0, field_key: 'h19', value: '5' });
+    applyUpdateToState(state, { update_type: 'day3_hole', player_id: 0, field_key: 'a1', value: '5' });
+  });
+  assert.equal(state.day3.holes, undefined);
+});
+
 test('applyUpdateToState: day2_group assigns and reassigns a player between groups', () => {
   const state = makeState();
   applyUpdateToState(state, { update_type: 'day2_group', player_id: 2, value: 'a4' });
@@ -1494,6 +1523,23 @@ test('normalizeState: a bare day3 scores map (pre-refactor shape) becomes {score
   assert.equal(state.day3.locked, false);
 });
 
+test('normalizeState: a missing day3.holes becomes an empty object (sparse, not pre-populated per player)', () => {
+  const state = { day1: { matches: [] }, day2: {}, day3: { scores: {} } };
+  normalizeState(state);
+  assert.deepEqual(state.day3.holes, {});
+});
+
+test('normalizeState: an existing day3.holes entry is repaired to 18 clamped entries, same as Day 1/Day 2 hole arrays', () => {
+  const state = { day1: { matches: [] }, day2: {}, day3: { scores: {}, holes: { 3: ['4', 99, 'x'] } } };
+  normalizeState(state);
+  const holes3 = state.day3.holes[3];
+  assert.equal(holes3.length, 18);
+  assert.equal(holes3[0], 4);
+  assert.equal(holes3[1], DAY3_HOLE_GROSS_MAX); // 99 clamped
+  assert.equal(holes3[2], null); // 'x' isn't a number
+  assert.deepEqual(holes3.slice(3), Array(15).fill(null));
+});
+
 test('normalizeState: an already-normal state passes through unchanged', () => {
   const normal = {
     day1: {
@@ -1506,7 +1552,7 @@ test('normalizeState: an already-normal state passes through unchanged', () => {
       holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
       anthem: {}, locked: false
     },
-    day3: { scores: {}, ntp: { h7: null, h14: null }, locked: false }
+    day3: { scores: {}, ntp: { h7: null, h14: null }, locked: false, holes: {} }
   };
   const before = JSON.stringify(normal);
   normalizeState(normal);

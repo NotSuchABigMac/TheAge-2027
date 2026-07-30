@@ -231,6 +231,21 @@ input[type=number]:focus{outline:none;border-color:var(--gold)}
 .row-a.top-scorer{background:color-mix(in srgb,var(--team-a) 7%,transparent);border-left:3px solid var(--team-a)}
 .row-b.top-scorer{background:color-mix(in srgb,var(--team-b) 7%,transparent);border-left:3px solid var(--team-b)}
 input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
+/* Issue #188: sortable points-per-hole table -- clickable headers, and
+   cells color-coded by that hole's Stableford points (0 = muted/worse,
+   1 = bogey tint, 2/net-par = plain ink, 3 = birdie green, 4+ = gold),
+   reusing the same birdie/eagle/bogey color tokens issue #250 already
+   introduced for the hole-grid symbols. */
+.pph-table th{cursor:pointer;user-select:none;white-space:nowrap}
+.pph-table th:hover{color:var(--ink)}
+.pph-name{text-align:left;white-space:nowrap}
+.pph-hole,.pph-cell{text-align:center;width:28px}
+.pph-agg{text-align:center;font-weight:600;color:var(--ink-mute)}
+.pph-total{color:var(--gold);font-weight:700}
+.pph-cell.pph-0{color:var(--worse)}
+.pph-cell.pph-1{color:var(--bogey)}
+.pph-cell.pph-3{color:var(--birdie);font-weight:700}
+.pph-cell.pph-4{color:var(--eagle);font-weight:700}
 .team-badge{font-family:var(--font-h);font-size:.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:2px 9px;border-radius:100px}
 .ta-badge{background:color-mix(in srgb,var(--team-a) 15%,transparent);color:var(--team-a);border:1px solid color-mix(in srgb,var(--team-a) 40%,transparent)}
 .tb-badge{background:color-mix(in srgb,var(--team-b) 15%,transparent);color:var(--team-b);border:1px solid color-mix(in srgb,var(--team-b) 40%,transparent)}
@@ -789,7 +804,7 @@ body{padding-top:58px;padding-bottom:52px}
       </div>
       <div class="day-lock-row" id="day3-lock-row"></div>
       <div id="day3-lockable">
-      <div class="info-box">Enter each player's <strong>net Stableford score</strong> (via The Grint). Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
+      <div class="info-box">Enter each player's <strong>net Stableford score</strong> either as one 18-hole total, or hole-by-hole below (whichever's easier). Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
       <div id="course-card-day3"></div>
       <div class="sf-table-wrap">
         <table class="sf-table">
@@ -806,6 +821,18 @@ body{padding-top:58px;padding-bottom:52px}
           <tbody id="sf-tbody"></tbody>
         </table>
       </div>
+      <div class="section-header" style="padding-top:20px">
+        <div class="section-label">Entry</div>
+        <div class="section-title" style="font-size:1.3rem">Hole-by-Hole Entry</div>
+      </div>
+      <div class="info-box">Enter each player's gross score hole-by-hole and their net Stableford total is worked out automatically (handicap strokes allocated by the Lake Course's stroke index) — updates live as holes go in, so it doubles as a running leaderboard mid-round.</div>
+      <div id="day3-hole-entries"></div>
+      <div class="section-header" style="padding-top:20px">
+        <div class="section-label">Leaderboard</div>
+        <div class="section-title" style="font-size:1.3rem">Points Per Hole</div>
+      </div>
+      <div class="info-box">Click a column to sort by that hole, OUT, IN, or TOTAL. Only players with at least one hole entered appear here.</div>
+      <div class="sf-table-wrap" id="day3-points-table-wrap"></div>
       <div class="section-header" style="padding-top:20px">
         <div class="section-label">Bonus</div>
         <div class="section-title" style="font-size:1.3rem">Nearest the Pin</div>
@@ -1160,7 +1187,7 @@ const state = {
     anthem: {}, // player id -> true (sang, -1) | false (didn't sing, +2) (issue #149); absent = no adjustment
     locked: false
   },
-  day3: { scores:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string
+  day3: { scores:{}, holes:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string; holes: id -> 18-entry gross array (issue #188)
   tiebreak: null // null | 'A' | 'B' — sudden-death putt-off winner
 };
 
@@ -1175,6 +1202,7 @@ const {
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
   POS_PTS, computeStableford, sumStablefordPoints,
+  DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints,
   resolveOverallWinner,
   // Issue #203: the season-totals glue (which player has which handicap,
   // a match's/scramble group's *effective* result once hole-by-hole data
@@ -1185,6 +1213,7 @@ const {
   ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
+  day3CourseHolesFor, effectiveDay3ScoreFor,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
   UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
@@ -2289,6 +2318,30 @@ function day2GroupHandicap(code) {
   return day2GroupHandicapFor(code, state.day2, PLAYERS);
 }
 
+// Lake Course par/stroke index per hole (issue #188), same
+// degrade-gracefully fallback as day1StrokeIndexes()/day2CourseHoles().
+function day3CourseHoles() {
+  return day3CourseHolesFor(COURSES);
+}
+
+// One player's full handicap allocated across the Lake Course's stroke
+// index -- groupStrokes() already does exactly this generic allocation
+// for Day 2's team handicaps, so it's reused as-is for a single player's
+// own handicap rather than adding a second copy of the same math.
+function day3StrokesFor(player) {
+  const hcp = Math.round(parseFloat(player.hcp));
+  if (isNaN(hcp)) return Array(18).fill(0);
+  return groupStrokes(hcp, day3CourseHoles().map(h => h.si));
+}
+
+// The value that actually feeds computeStableford()/sumStablefordPoints()
+// for this player (issue #188): derived from hole-by-hole entry once any
+// hole has a score, otherwise the manual 18-hole total exactly as before
+// -- see effectiveDay3ScoreFor()'s own comment for the precedence rule.
+function effectiveDay3Score(playerId) {
+  return effectiveDay3ScoreFor(playerId, state.day3, PLAYERS, COURSES);
+}
+
 // Issue #244: one visual bucket per (team, size) combination, each
 // showing its current members as removable chips plus a dropdown to add
 // any of that team's still-unassigned players -- easier to scan than a
@@ -2700,10 +2753,18 @@ function computeDay3() {
     short: p.short,
     hcp:   p.hcp,
     team:  teamOf(p.id),
-    score: parseScoreToPar(state.day3.scores[p.id])
+    // Issue #188: derived from hole-by-hole entry once any hole has a
+    // score (a live points-thru-N total), otherwise the manual 18-hole
+    // total exactly as before -- same precedence as Day 1/Day 2.
+    score: effectiveDay3Score(p.id)
   }));
   const sorted = computeStableford(entries);
   return { sorted, entries };
+}
+
+function day3HasHoleData(playerId) {
+  const holes = state.day3.holes[playerId];
+  return Array.isArray(holes) && holes.some(h => h !== null);
 }
 
 function renderDay3() {
@@ -2714,6 +2775,10 @@ function renderDay3() {
   // in one would drop focus and whatever they'd typed. setStableford()'s
   // own DOM patch already keeps the edited row's badges in sync locally;
   // the next poll (once focus moves elsewhere) picks up the full picture.
+  // Day 3's hole-by-hole grids live in a separate #day3-hole-entries
+  // container (renderDay3HoleEntries()), so a scorer typing there never
+  // trips this guard -- rebuilding this table is always safe regardless
+  // of hole-grid focus.
   if (document.activeElement && document.activeElement.classList.contains('sf-in')) return;
   const { sorted } = computeDay3();
   tbody.innerHTML = '';
@@ -2728,16 +2793,25 @@ function renderDay3() {
     const posClass = p.pos === 1 ? 'pos-1' : p.pos === 2 ? 'pos-2' : p.pos === 3 ? 'pos-3' : '';
     const posText  = p.pos ? (p.pos === 1 ? '🥇' : p.pos === 2 ? '🥈' : p.pos === 3 ? '🥉' : p.pos) : '—';
     const ptsText  = p.score !== null ? (p.pts % 1 === 0 ? p.pts : p.pts.toFixed(1)) : '—';
+    // Issue #188: once any hole has a score, the manual box is replaced
+    // by a read-only derived total (same manual-vs-derived precedent as
+    // Day 1's front9/back9 and Day 2's net-to-par) -- editing happens in
+    // the hole-by-hole grid below, not two competing places at once.
+    const scoreCell = day3HasHoleData(p.id)
+      ? `<span class="grey" style="font-size:.85rem">${p.score ?? 0} pts (hole-by-hole)</span>`
+      : `<input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${escapeHtml(state.day3.scores[p.id]||'')}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)">`;
     row.innerHTML = `
       <td class="pos-cell ${posClass}">${posText}</td>
       <td style="color:var(--ink)">${escapeHtml(p.short)}</td>
       <td>${teamBadgeHtml(p.team)}</td>
       <td class="grey" style="font-size:.84rem">${escapeHtml(p.hcp)}</td>
-      <td><input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${escapeHtml(state.day3.scores[p.id]||'')}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
+      <td>${scoreCell}</td>
       <td class="pts-cell">${ptsText}</td>`;
     tbody.appendChild(row);
   });
   renderDay3Ntp();
+  renderDay3HoleEntries();
+  renderDay3PointsTable();
   updateScoreboard();
 }
 
@@ -2753,8 +2827,9 @@ function setStableford(pid, val) {
     saveState();
     const fields = { player_id: pid, value: stored };
     insertUpdate('day3_stableford', fields);
-    // Issue #228: reaction emoji bucketed off the 18-hole total (no
-    // per-hole Stableford entry yet -- see #188).
+    // Issue #228: reaction emoji bucketed off the manual 18-hole total.
+    // Only reachable while this player has no hole-by-hole data at all
+    // (see day3HasHoleData() -- the manual box isn't rendered otherwise).
     if (stored !== previous) showUndoToast({ update_type: 'day3_stableford', ...fields }, previous ?? null, stablefordTotalReaction(stored));
     const { sorted } = computeDay3();
     const player = sorted.find(p => p.id === pid);
@@ -2771,6 +2846,237 @@ function setStableford(pid, val) {
     }
     updateScoreboard();
   });
+}
+
+/* ─────────────────────────────────────
+   DAY 3 — HOLE-BY-HOLE ENTRY (issue #188)
+   One <details> per player (14 total), same par/strokes/gross-row shape
+   as Day 2's per-group grid (day2HoleGridNineHtml()) -- Day 3 has no
+   "team" dimension per row, so it's simpler: one player, one handicap,
+   one row of 9 inputs per nine.
+───────────────────────────────────── */
+function day3HoleGridNineHtml(playerId, holes, strokes, courseHoles, startIdx) {
+  const holeIndexes = Array.from({ length: 9 }, (_, i) => startIdx + i);
+  const ntpHoles = NTP_HOLES[3] || [];
+  const headerCells = holeIndexes.map(i => {
+    const holeNum = i + 1;
+    const isNtp = ntpHoles.includes(holeNum);
+    return `<th class="${isNtp ? 'ntp' : ''}">${holeNum}${isNtp ? ' 📍' : ''}</th>`;
+  }).join('');
+  const parRow = holeIndexes.map(i => `<td class="par-cell">${courseHoles[i] ? courseHoles[i].par : ''}</td>`).join('');
+  const dotsRow = holeIndexes.map(i => `<td class="dots">${strokes[i] > 0 ? '●'.repeat(strokes[i]) : ''}</td>`).join('');
+  const inputRow = holeIndexes.map(i => {
+    const holeNum = i + 1;
+    const val = holes[i];
+    const par = courseHoles[i] ? courseHoles[i].par : null;
+    const symbol = scoreToParSymbol(val, par);
+    const markClass = symbol && symbol !== 'par' ? ` mark-${symbol}` : '';
+    return `<td><input id="day3-in-${playerId}-${holeNum}" class="grid-in${markClass}" type="number" inputmode="numeric" min="${DAY3_HOLE_GROSS_MIN}" max="${DAY3_HOLE_GROSS_MAX}"
+      value="${val === null ? '' : val}"
+      onchange="setDay3HoleScore(${playerId},${holeNum},this.value)"
+      oninput="handleGridInputAdvance(event)"
+      onfocus="this.scrollIntoView({block:'center'})"></td>`;
+  }).join('');
+  return `
+    <table class="hole-grid-table">
+      <thead><tr><th class="rlab">Hole</th>${headerCells}</tr></thead>
+      <tbody>
+        <tr><td class="rlab">Par</td>${parRow}</tr>
+        <tr><td class="rlab">Strokes</td>${dotsRow}</tr>
+        <tr><td class="rlab">Gross</td>${inputRow}</tr>
+      </tbody>
+    </table>`;
+}
+
+// Guards against a poll-triggered rebuild dropping focus/keystrokes in a
+// hole-grid input, same reasoning as renderDay2AllGroupCards()'s guard.
+function renderDay3HoleEntries() {
+  const container = document.getElementById('day3-hole-entries');
+  if (!container) return;
+  if (document.activeElement && document.activeElement.classList.contains('grid-in')) return;
+  const courseHoles = day3CourseHoles();
+  let html = '';
+  PLAYERS.forEach(p => {
+    const holes = state.day3.holes[p.id] || Array(18).fill(null);
+    const strokes = day3StrokesFor(p);
+    // Issue #148: carry the previous open/closed state across the rebuild
+    // -- a brand-new <details> always starts closed, which would slam an
+    // in-progress scorer's open panel shut on every poll.
+    const prev = document.getElementById(`day3-details-${p.id}`);
+    const wasOpen = prev ? prev.open : false;
+    const hasData = holes.some(h => h !== null);
+    html += `
+    <details class="hole-grid-details" id="day3-details-${p.id}"${wasOpen ? ' open' : ''}>
+      <summary class="hole-grid-summary">${escapeHtml(p.short)} — Hole-by-hole entry</summary>
+      ${day3HoleGridNineHtml(p.id, holes, strokes, courseHoles, 0)}
+      ${day3HoleGridNineHtml(p.id, holes, strokes, courseHoles, 9)}
+      ${hasData ? `<div class="nine-status-line"><button type="button" class="clear-btn" onclick="clearDay3PlayerHoles(${p.id})">Clear hole scores to enter manually</button></div>` : ''}
+    </details>`;
+  });
+  container.innerHTML = html;
+}
+
+// Same classList add/remove approach as Day 1/Day 2's patch functions --
+// preserves showEntryTick()'s independent sync-status classes instead of
+// a wholesale className overwrite.
+function patchDay3HoleMark(playerId, holeNum) {
+  const input = document.getElementById(`day3-in-${playerId}-${holeNum}`);
+  if (!input) return;
+  const courseHoles = day3CourseHoles();
+  const par = courseHoles[holeNum - 1] ? courseHoles[holeNum - 1].par : null;
+  const val = (state.day3.holes[playerId] || [])[holeNum - 1] ?? null;
+  const symbol = scoreToParSymbol(val, par);
+  input.classList.remove('mark-eagle', 'mark-birdie', 'mark-bogey', 'mark-double-bogey');
+  if (symbol && symbol !== 'par') input.classList.add(`mark-${symbol}`);
+}
+
+function setDay3HoleScore(playerId, holeNum, rawVal) {
+  requireUsername(() => {
+    if (!Array.isArray(state.day3.holes[playerId])) state.day3.holes[playerId] = Array(18).fill(null);
+    const arr = state.day3.holes[playerId];
+    const n = parseIntOrNull(rawVal);
+    const clamped = n === null ? null : Math.max(DAY3_HOLE_GROSS_MIN, Math.min(DAY3_HOLE_GROSS_MAX, n));
+    const previous = arr[holeNum - 1];
+    arr[holeNum - 1] = clamped;
+    saveState();
+    const fields = { player_id: playerId, field_key: `h${holeNum}`, value: clamped };
+    insertUpdate('day3_hole', fields);
+    if (clamped !== previous) {
+      // Issue #228: same net-to-par reaction bucket as Day 1/Day 2 --
+      // stablefordPoints()'s own par/strokes inputs, fed through the same
+      // holeScoreReaction() boundaries (net birdie-or-better/par-or-bogey/
+      // double-bogey-or-worse), not a new bucket function.
+      const player = PLAYERS.find(p => p.id === playerId);
+      const courseHoles = day3CourseHoles();
+      const strokes = day3StrokesFor(player);
+      showUndoToast({ update_type: 'day3_hole', ...fields }, previous, holeScoreReaction(clamped, courseHoles[holeNum - 1].par, strokes[holeNum - 1]));
+    }
+    notifyIfOutlierScore(clamped);
+    // renderDay3() only ever touches #sf-tbody -- a disjoint DOM subtree
+    // from this grid -- so it's always safe to call regardless of focus.
+    // renderDay3HoleEntries() rebuilds the grid itself, though, so it
+    // still needs the focus-guard/patch dance Day 1/Day 2 use.
+    renderDay3();
+    setTimeout(() => {
+      const gridHasFocus = document.activeElement && document.activeElement.classList.contains('grid-in');
+      if (gridHasFocus) patchDay3HoleMark(playerId, holeNum);
+      else renderDay3HoleEntries();
+    }, 0);
+  });
+}
+
+// Clears every hole score for one player so their manual Stableford total
+// box becomes usable again -- the escape hatch referenced by the "Clear
+// hole scores to enter manually" hint, same pattern as Day 1/Day 2.
+function clearDay3PlayerHoles(playerId) {
+  requireUsername(() => {
+    const holes = state.day3.holes[playerId];
+    if (!Array.isArray(holes)) return;
+    holes.forEach((v, i) => {
+      if (v !== null) {
+        holes[i] = null;
+        insertUpdate('day3_hole', { player_id: playerId, field_key: `h${i + 1}`, value: null });
+      }
+    });
+    saveState();
+    renderDay3HoleEntries();
+    renderDay3();
+  });
+}
+
+/* ─────────────────────────────────────
+   DAY 3 — SORTABLE POINTS-PER-HOLE TABLE (issue #188)
+   A live leaderboard that updates progressively during the round: each
+   player's points for every hole they've played, sortable by any single
+   hole, OUT, IN, or TOTAL. Only players with at least one hole entered
+   appear -- this is a companion view to the ranking table above, not a
+   replacement for it.
+───────────────────────────────────── */
+let day3SortKey = 'total';
+let day3SortDir = 'desc';
+
+function day3SetSort(key) {
+  if (day3SortKey === key) {
+    day3SortDir = day3SortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    day3SortKey = key;
+    day3SortDir = key === 'name' ? 'asc' : 'desc';
+  }
+  renderDay3PointsTable();
+}
+
+function renderDay3PointsTable() {
+  const wrap = document.getElementById('day3-points-table-wrap');
+  if (!wrap) return;
+  const courseHoles = day3CourseHoles();
+  const pars = courseHoles.map(h => h.par);
+
+  const rows = PLAYERS.map(p => {
+    const holes = state.day3.holes[p.id];
+    if (!Array.isArray(holes) || !holes.some(h => h !== null)) return null;
+    const strokes = day3StrokesFor(p);
+    const points = day3HolePoints(holes, strokes, pars);
+    const out = points.slice(0, 9).reduce((sum, pt) => sum + (pt || 0), 0);
+    const inn = points.slice(9).reduce((sum, pt) => sum + (pt || 0), 0);
+    return { id: p.id, name: p.short, points, out, inn, total: out + inn };
+  }).filter(Boolean);
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div class="grey" style="padding:16px;font-size:.85rem">No hole-by-hole scores entered yet -- enter gross scores below to populate this leaderboard.</div>`;
+    return;
+  }
+
+  const dir = day3SortDir === 'desc' ? -1 : 1;
+  rows.sort((a, b) => {
+    if (day3SortKey === 'name') return dir * a.name.localeCompare(b.name);
+    let av, bv;
+    if (day3SortKey === 'out') { av = a.out; bv = b.out; }
+    else if (day3SortKey === 'in') { av = a.inn; bv = b.inn; }
+    else if (day3SortKey === 'total') { av = a.total; bv = b.total; }
+    else {
+      const holeIdx = parseInt(day3SortKey.slice(1), 10) - 1;
+      av = a.points[holeIdx]; bv = b.points[holeIdx];
+      // Unplayed (null) holes always sort last regardless of direction.
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+    }
+    return dir * (av - bv);
+  });
+
+  const sortIndicator = key => day3SortKey === key ? (day3SortDir === 'desc' ? ' ▾' : ' ▴') : '';
+  const markClass = pt => {
+    if (pt === null) return '';
+    if (pt === 0) return 'pph-0';
+    if (pt === 1) return 'pph-1';
+    if (pt === 3) return 'pph-3';
+    if (pt >= 4) return 'pph-4';
+    return '';
+  };
+  const headerCells = Array.from({ length: 18 }, (_, i) => {
+    const key = `h${i + 1}`;
+    return `<th class="pph-hole" onclick="day3SetSort('${key}')">${i + 1}${sortIndicator(key)}</th>`;
+  }).join('');
+  const bodyRows = rows.map(r => `
+    <tr>
+      <td class="pph-name">${escapeHtml(r.name)}</td>
+      ${r.points.map(pt => `<td class="pph-cell ${markClass(pt)}">${pt === null ? '—' : pt}</td>`).join('')}
+      <td class="pph-agg">${r.out}</td>
+      <td class="pph-agg">${r.inn}</td>
+      <td class="pph-agg pph-total">${r.total}</td>
+    </tr>`).join('');
+
+  wrap.innerHTML = `
+    <table class="sf-table pph-table">
+      <thead><tr>
+        <th class="pph-name" onclick="day3SetSort('name')">Player${sortIndicator('name')}</th>
+        ${headerCells}
+        <th onclick="day3SetSort('out')">OUT${sortIndicator('out')}</th>
+        <th onclick="day3SetSort('in')">IN${sortIndicator('in')}</th>
+        <th onclick="day3SetSort('total')">TOTAL${sortIndicator('total')}</th>
+      </tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>`;
 }
 
 /* ─────────────────────────────────────
@@ -2809,8 +3115,21 @@ function isDay2Complete() {
   return ['a4','a3','b4','b3'].every(k => eff[k] !== null && eff[k] !== undefined && eff[k] !== '');
 }
 
+// Deliberately NOT the same as effectiveDay3Score()/computeDay3()'s "score"
+// -- those intentionally have no completeness gate (issue #188: a live
+// points-thru-N leaderboard reads fine mid-round). This gate is for a
+// different question -- "has Day 3 actually finished" (the tournament-over
+// banner/tiebreak trigger) -- so a player using hole-by-hole entry only
+// counts once all 18 holes are in (scrambleRoundComplete(), same generic
+// "every hole filled" check Day 2 already uses), not the moment they enter
+// their first hole.
 function isDay3Complete() {
-  return PLAYERS.every(p => parseScoreToPar(state.day3.scores[p.id]) !== null);
+  return PLAYERS.every(p => {
+    const holes = state.day3.holes[p.id];
+    const hasHoleData = Array.isArray(holes) && holes.some(h => h !== null);
+    if (hasHoleData) return scrambleRoundComplete(holes);
+    return parseScoreToPar(state.day3.scores[p.id]) !== null;
+  });
 }
 
 /* ─────────────────────────────────────
@@ -3184,6 +3503,12 @@ function elementsForUpdate(row) {
       const el = document.querySelector(`.sf-in[data-pid="${row.player_id}"]`);
       return el ? [el] : [];
     }
+    case 'day3_hole': {
+      const m = /^h(\d{1,2})$/.exec(row.field_key || '');
+      if (!m) return [];
+      const el = document.getElementById(`day3-in-${row.player_id}-${m[1]}`);
+      return el ? [el] : [];
+    }
     case 'day2_anthem': {
       const el = document.getElementById(`anthem-row-${row.player_id}`);
       return el ? [el] : [];
@@ -3529,6 +3854,10 @@ function renderHistoryContext() {
     ctx.innerHTML = `<label>Field</label><select id="history-ctx-fieldkey">${fieldKeyOptions()}</select>`;
   } else if (d.addressing === 'player') {
     ctx.innerHTML = `<label>Player</label><select id="history-ctx-player">${playerSelectOptions()}</select>`;
+  } else if (d.addressing === 'player+hole') {
+    ctx.innerHTML = `<label>Player / hole</label><div style="display:flex;gap:8px">
+      <select id="history-ctx-player">${playerSelectOptions()}</select>
+      <select id="history-ctx-hole">${holeOptions()}</select></div>`;
   } else {
     ctx.innerHTML = `<label>&nbsp;</label><div class="grey" style="font-size:.82rem">No further selection needed.</div>`;
   }
@@ -3550,6 +3879,9 @@ function currentHistoryCoords() {
     coords.field_key = document.getElementById('history-ctx-fieldkey').value;
   } else if (d.addressing === 'player') {
     coords.player_id = parseInt(document.getElementById('history-ctx-player').value, 10);
+  } else if (d.addressing === 'player+hole') {
+    coords.player_id = parseInt(document.getElementById('history-ctx-player').value, 10);
+    coords.field_key = 'h' + document.getElementById('history-ctx-hole').value;
   }
   return coords;
 }
@@ -3756,6 +4088,8 @@ function coordForElement(el) {
   if (m) return { update_type: 'day1_hole', match_idx: parseInt(m[1], 10), field_key: `${m[2]}${m[3]}` };
   m = el.id.match(/^day2-in-(a4|a3|b4|b3)-(\d+)$/);
   if (m) return { update_type: 'day2_hole', field_key: `${m[1]}_${m[2]}` };
+  m = el.id.match(/^day3-in-(\d+)-(\d+)$/);
+  if (m) return { update_type: 'day3_hole', player_id: parseInt(m[1], 10), field_key: `h${m[2]}` };
   m = el.id.match(/^(a4|a3|b4|b3)-score$/);
   if (m) return { update_type: 'day2_score', field_key: m[1] };
   m = el.id.match(/^ntp-(day1|day2|day3)-(h\d+)$/);
