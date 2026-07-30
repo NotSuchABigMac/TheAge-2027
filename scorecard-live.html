@@ -321,6 +321,15 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .username-btn{width:100%;padding:12px 20px;font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
 .username-btn:hover{background:var(--gold-light)}
 .username-btn:disabled{opacity:.5;cursor:not-allowed}
+/* Practice Mode (issue #208): a persistent, un-dismissable, unmissable
+   strip -- deliberately loud (caution-tape stripes) rather than a subtle
+   theme retint, so it can never be mistaken for the real scorecard even
+   at a glance. Always static/full-width (never position:fixed, unlike
+   the badges below it) since body's own padding-top already clears the
+   fixed masthead for anything in normal flow here. */
+.demo-mode-banner{position:static;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;background:#f0b429;color:#1a1408;font-family:var(--font-h);font-size:.78rem;font-weight:700;letter-spacing:.5px;text-align:center;padding:10px 16px;border-top:6px solid;border-bottom:6px solid;border-image:repeating-linear-gradient(135deg,#f0b429,#f0b429 10px,#1a1408 10px,#1a1408 20px) 6}
+.demo-mode-banner span{background:#1a1408;color:#f0b429;padding:3px 10px;border-radius:100px;letter-spacing:1.5px;text-transform:uppercase}
+.demo-mode-banner a{color:#1a1408;text-decoration:underline;font-weight:800}
 .username-badge{position:fixed;top:64px;right:24px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.3);padding:6px 14px;border-radius:100px;z-index:100}
 .offline-banner{position:fixed;top:108px;right:24px;background:rgba(200,0,0,.9);color:#efe7d3;padding:8px 16px;border-radius:var(--r);font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;z-index:999;animation:slideIn .3s ease}
 @keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
@@ -454,6 +463,18 @@ body{padding-top:58px;padding-bottom:52px}
     <div class="masthead-right"></div>
   </div>
 </header>
+
+<!-- Practice Mode banner (issue #208) -- always in normal document flow
+     (never position:fixed, unlike the badges below), so it just needs
+     the same body padding-top clearance every other in-flow element
+     here already gets; no extra positioning to get wrong. Hidden by
+     default and shown by JS the instant isDemoMode is known, since
+     that can only be determined client-side (the URL's ?demo=1, or a
+     sticky sessionStorage flag from earlier this tab). -->
+<div id="demo-mode-banner" class="demo-mode-banner" style="display:none">
+  <span>🧪 Practice Mode</span> Nothing entered here counts towards the real tournament.
+  <a href="scorecard-live.html" onclick="try{sessionStorage.removeItem(DEMO_SESSION_KEY);}catch(e){}">Exit</a>
+</div>
 
 <!-- Username Badge & Offline Alert — placed after the masthead's fixed
      header (which already carries top padding to clear it), so that on
@@ -750,6 +771,15 @@ body{padding-top:58px;padding-bottom:52px}
       </div>
       <button class="username-btn" style="max-width:280px;margin-top:12px" onclick="copyShareAccessLink()">Copy Link</button>
 
+      <div id="seed-demo-section" style="display:none">
+        <div class="section-header" style="padding-top:32px">
+          <div class="section-label">Admin</div>
+          <div class="section-title">Seed Practice Sandbox</div>
+        </div>
+        <div class="info-box">Populates sample teams, a Day 1 match, and a few holes of scores so the sandbox isn't empty on first open — real writes, synced to every device currently practicing. "Rollback Scores" below doubles as the sandbox's reset button (it's scoped to this practice tournament only, same as everything else here).</div>
+        <button class="username-btn" style="max-width:280px" onclick="seedDemoData()">Seed Sample Data</button>
+      </div>
+
       <div class="section-header" style="padding-top:32px">
         <div class="section-label">Admin</div>
         <div class="section-title">Rollback Scores</div>
@@ -818,15 +848,54 @@ body{padding-top:58px;padding-bottom:52px}
 <script src="qrcode-vendor.js?v=__CACHEBUST__"></script>
 <script>
 /* ─────────────────────────────────────
+   PRACTICE MODE (issue #208)
+   ?demo=1 (or having landed on it once already this tab -- see
+   DEMO_SESSION_KEY below) switches every piece of state this page
+   touches -- the Supabase tournament_id AND every localStorage key --
+   onto a completely separate namespace from the real tournament.
+   Segregation is otherwise purely by tournament_id (same table, same
+   RLS, same write_token; zero backend changes), so this constant is
+   read once, at the very top of the script, before anything below it
+   that depends on it is declared.
+───────────────────────────────────── */
+const DEMO_SESSION_KEY = 'wongaCup_demoMode'; // deliberately unprefixed -- this IS what decides the prefix
+const isDemoMode = new URLSearchParams(location.search).get('demo') === '1'
+  || sessionStorage.getItem(DEMO_SESSION_KEY) === '1';
+if (isDemoMode) {
+  // Sticky for the rest of this browser tab's session, so the mode
+  // survives navigating away (e.g. the masthead's "Tournament Info"
+  // link) and back without every internal link needing "?demo=1"
+  // appended by hand. "Exit Practice Mode" in the banner below clears
+  // this before reloading without the query param.
+  try { sessionStorage.setItem(DEMO_SESSION_KEY, '1'); } catch(e) {}
+}
+const KEY_PREFIX = isDemoMode ? 'demo_' : '';
+if (isDemoMode) {
+  const banner = document.getElementById('demo-mode-banner');
+  if (banner) banner.style.display = 'flex';
+  // The seed-sample-data section is also admin-gated -- see
+  // updateAdminVisibility(), which runs on every login/logout and is
+  // the single place that decides its visibility.
+}
+
+/* ─────────────────────────────────────
    SUPABASE CONFIG — REPLACE WITH YOUR VALUES
 ───────────────────────────────────── */
 const SUPABASE_CONFIG = {
   apiUrl: 'https://wtyyarvyscbrrkawjcvo.supabase.co',
   apiKey: 'sb_publishable_T1z1rYbZ7yMoDdBXZMrjKw_R3aTxsrx',
-  tournamentId: 'wonga-cup-2026',
-  sessionKey: 'wonga-cup-2026'
+  tournamentId: isDemoMode ? 'wonga-demo-2026' : 'wonga-cup-2026',
+  sessionKey: isDemoMode ? 'wonga-demo-2026' : 'wonga-cup-2026'
 };
-const LAST_SYNC_KEY = 'wongaCup2026_lastSync';
+const STATE_KEY = KEY_PREFIX + 'wongaCup2026';
+const LAST_SYNC_KEY = KEY_PREFIX + 'wongaCup2026_lastSync';
+// sessionStorage auth (issue #208): prefixed the same way as every
+// localStorage key above -- a device that's ever logged into the real
+// tournament in this tab must not be silently auto-logged-into practice
+// mode with the same identity, or vice versa.
+const SS_USERNAME_KEY = KEY_PREFIX + 'wongaCup_username';
+const SS_WRITE_TOKEN_KEY = KEY_PREFIX + 'wongaCup_writeToken';
+const SS_ADMIN_TOKEN_KEY = KEY_PREFIX + 'wongaCup_adminToken';
 
 // Issue #194: a from-epoch replay (first load, or the full replay after a
 // rollback wipe) must not light up every cell on the page as "just
@@ -1056,7 +1125,7 @@ function saveState() {
       day3:  state.day3,
       tiebreak: state.tiebreak
     };
-    localStorage.setItem('wongaCup2026', JSON.stringify(s));
+    localStorage.setItem(STATE_KEY, JSON.stringify(s));
   } catch(e) {}
 }
 
@@ -1070,7 +1139,7 @@ function normalizeState() {
 
 function loadState() {
   try {
-    const raw = localStorage.getItem('wongaCup2026');
+    const raw = localStorage.getItem(STATE_KEY);
     if (!raw) return;
     const s = JSON.parse(raw);
     if (s.teamNameA) state.teamNameA = s.teamNameA;
@@ -1097,7 +1166,7 @@ function visibleScTabs() { return scTabs.filter(x => x.style.display !== 'none')
 // Issue #193: reflect the active tab into location.hash (deep-linkable
 // group-chat links) and remember it across reloads, without spamming
 // browser history on every tab click -- replaceState only.
-const ACTIVE_TAB_KEY = 'wongaCup2026_activeTab';
+const ACTIVE_TAB_KEY = KEY_PREFIX + 'wongaCup2026_activeTab';
 function activateTab(btn, { focus = false, updateHash = true } = {}) {
   if (btn.style.display === 'none') return;
   scTabs.forEach(x => {
@@ -2446,7 +2515,7 @@ let pendingWrites = [];
 // the patchy course wifi that most needed the queue discarded it entirely,
 // while localStorage still showed the score as if it had synced (issue
 // #114). Persisted alongside every mutation and rehydrated at init.
-const PENDING_KEY = 'wongaCup2026_pendingWrites';
+const PENDING_KEY = KEY_PREFIX + 'wongaCup2026_pendingWrites';
 function persistPending() {
   if (rollbackInProgress) return; // issue #212: don't resurrect the queue a wipe just cleared
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(pendingWrites)); } catch(e) {}
@@ -2531,7 +2600,7 @@ async function insertUpdate(updateType, fields) {
   const result = await sendUpdateRow(updateType, fields);
   if (result === 'auth') {
     currentWriteToken = null;
-    sessionStorage.removeItem('wongaCup_writeToken');
+    sessionStorage.removeItem(SS_WRITE_TOKEN_KEY);
     // Issue #154: the server just answered (with a rejection, but an
     // answer) -- that proves connectivity is fine, so leaving isOffline/the
     // "⚠ Offline" banner untouched here told the scorer two contradictory
@@ -2589,7 +2658,7 @@ async function flushPendingWrites() {
 // reload that's the whole point of this handler) so each marker fires its
 // wipe-and-reload exactly once per device, no matter how many times it's
 // replayed afterwards.
-const HANDLED_ROLLBACKS_KEY = 'wongaCup2026_handledRollbacks';
+const HANDLED_ROLLBACKS_KEY = KEY_PREFIX + 'wongaCup2026_handledRollbacks';
 function getHandledRollbacks() {
   try {
     const a = JSON.parse(localStorage.getItem(HANDLED_ROLLBACKS_KEY) || '[]');
@@ -2626,7 +2695,7 @@ function applyUpdate(row) {
     // reloaded page read back exactly the pre-rollback data it was supposed
     // to have wiped.
     rollbackInProgress = true;
-    localStorage.removeItem('wongaCup2026');
+    localStorage.removeItem(STATE_KEY);
     localStorage.removeItem(LAST_SYNC_KEY);
     localStorage.removeItem(LAST_SYNC_IDS_KEY);
     localStorage.removeItem(PENDING_KEY);
@@ -2759,7 +2828,7 @@ function showEntryTick(row, kind) {
 // the last-applied row if it fell on the far side of a page/poll boundary
 // (issue #111); overlapping on `gte` and de-duping by id here is what
 // makes that safe instead of re-applying the boundary row forever.
-const LAST_SYNC_IDS_KEY = 'wongaCup2026_lastSyncIds';
+const LAST_SYNC_IDS_KEY = KEY_PREFIX + 'wongaCup2026_lastSyncIds';
 function getSyncedIdsAtCursor() {
   try { return JSON.parse(localStorage.getItem(LAST_SYNC_IDS_KEY) || '[]'); } catch(e) { return []; }
 }
@@ -2835,7 +2904,7 @@ function requireAdminToken() {
   const token = window.prompt('Admin PIN (separate from the tournament scoring PIN):');
   if (!token) return null;
   currentAdminToken = token;
-  sessionStorage.setItem('wongaCup_adminToken', token);
+  sessionStorage.setItem(SS_ADMIN_TOKEN_KEY, token);
   return token;
 }
 
@@ -2898,6 +2967,34 @@ async function insertRollbackMarker(cutoffIso) {
   }
 }
 
+// Issue #208: demo mode only -- populates sample teams, a Day 1 match,
+// and a few holes of scores via the exact same insertUpdate() path
+// every real write goes through, so seeded data is indistinguishable
+// from a scorer's own entries and reaches every device currently
+// practicing. Reloads afterward (same pattern the rollback flow below
+// already uses) for a simple, consistent full refresh, rather than
+// hand-mutating local state and the UI in parallel with the writes.
+function seedDemoData() {
+  if (!isDemoMode || !isAdmin()) return;
+  requireUsername(() => {
+    if (!window.confirm('Seed the practice sandbox with sample teams, a match, and a few holes of scores?')) return;
+    insertUpdate('team_name', { field_key: 'A', value: 'Team Practice' });
+    insertUpdate('team_name', { field_key: 'B', value: 'Team Rehearsal' });
+    const half = Math.ceil(PLAYERS.length / 2);
+    PLAYERS.forEach((p, i) => {
+      insertUpdate('player_team', { player_id: p.id, value: i < half ? 'A' : 'B' });
+    });
+    insertUpdate('day1_match', { match_idx: 0, field_key: 'pA', value: PLAYERS[0].id });
+    insertUpdate('day1_match', { match_idx: 0, field_key: 'pB', value: PLAYERS[half].id });
+    [4, 4, 3, 5].forEach((score, i) => {
+      insertUpdate('day1_hole', { match_idx: 0, field_key: `A${i + 1}`, value: score });
+      insertUpdate('day1_hole', { match_idx: 0, field_key: `B${i + 1}`, value: score + (i % 2 === 0 ? 1 : -1) });
+    });
+    showSaveToast('Seeding sandbox…', 'saving');
+    setTimeout(() => location.reload(), 1200);
+  });
+}
+
 async function rollbackScores() {
   if (currentUsername !== 'James McIntyre') return;
   const adminToken = requireAdminToken();
@@ -2924,7 +3021,7 @@ async function rollbackScores() {
       const bodyText = await resp.text();
       if (resp.status === 401 || resp.status === 403 || /invalid admin token/.test(bodyText)) {
         currentAdminToken = null;
-        sessionStorage.removeItem('wongaCup_adminToken');
+        sessionStorage.removeItem(SS_ADMIN_TOKEN_KEY);
         showSaveToast('✗ Wrong admin PIN', 'error');
         return;
       }
@@ -2942,7 +3039,7 @@ async function rollbackScores() {
       // rewrite these same keys via loadFromSupabase()/saveState() before
       // the navigation actually happens, same race as the remote path.
       rollbackInProgress = true;
-      localStorage.removeItem('wongaCup2026');
+      localStorage.removeItem(STATE_KEY);
       localStorage.removeItem(LAST_SYNC_KEY);
       localStorage.removeItem(LAST_SYNC_IDS_KEY);
       localStorage.removeItem(PENDING_KEY);
@@ -3213,7 +3310,7 @@ function performUndo() {
    applyUpdate()'s rollback branch) since it's purely derived, same as
    state itself.
 ───────────────────────────────────── */
-const PROVENANCE_KEY = 'wongaCup2026_provenance';
+const PROVENANCE_KEY = KEY_PREFIX + 'wongaCup2026_provenance';
 let provenance = {};
 try { provenance = JSON.parse(localStorage.getItem(PROVENANCE_KEY) || '{}'); } catch(e) { provenance = {}; }
 function recordProvenance(row) {
@@ -3396,8 +3493,8 @@ function confirmUsername() {
   error.style.display = 'none';
   currentUsername = name;
   currentWriteToken = token;
-  sessionStorage.setItem('wongaCup_username', name);
-  sessionStorage.setItem('wongaCup_writeToken', token);
+  sessionStorage.setItem(SS_USERNAME_KEY, name);
+  sessionStorage.setItem(SS_WRITE_TOKEN_KEY, token);
   document.getElementById('username-modal').classList.add('hidden');
   document.getElementById('username-badge').textContent = `🎯 ${name}`;
   document.getElementById('username-badge').style.display = 'block';
@@ -3414,6 +3511,11 @@ function updateAdminVisibility() {
   updateTeamsLockUI();
   renderAllDayLocks();
   renderShareAccess();
+  // Issue #208: the seed-sample-data button is admin-only (same gate as
+  // the rest of this tab) AND demo-only -- re-checked here, not just
+  // once at script load, since isAdmin() can change after login/logout.
+  const seedSection = document.getElementById('seed-demo-section');
+  if (seedSection) seedSection.style.display = (isDemoMode && isAdmin()) ? '' : 'none';
 }
 
 // Issue #201: QR-code login handoff. The organiser's own currentWriteToken
@@ -3550,8 +3652,8 @@ function populateUsernameSelect() {
 
 function initUsername() {
   populateUsernameSelect();
-  const saved = sessionStorage.getItem('wongaCup_username');
-  const savedToken = sessionStorage.getItem('wongaCup_writeToken');
+  const saved = sessionStorage.getItem(SS_USERNAME_KEY);
+  const savedToken = sessionStorage.getItem(SS_WRITE_TOKEN_KEY);
   if (saved && savedToken) {
     currentUsername = saved;
     currentWriteToken = savedToken;
@@ -3565,7 +3667,7 @@ function initUsername() {
   // (including the one rollbackScores() itself triggers) re-prompted for
   // no benefit. Rehydrate it the same way the username/write-token pair
   // above already is.
-  const savedAdmin = sessionStorage.getItem('wongaCup_adminToken');
+  const savedAdmin = sessionStorage.getItem(SS_ADMIN_TOKEN_KEY);
   if (savedAdmin) currentAdminToken = savedAdmin;
   updateAdminVisibility();
   document.getElementById('username-input').addEventListener('keydown', (e) => {
@@ -3674,7 +3776,7 @@ try {
   document.getElementById('page-scorecard').innerHTML =
     '<div class="info-box" style="margin:40px 24px">' +
     '⚠ Saved data on this device is corrupted and the scorecard could not start.<br><br>' +
-    '<button class="tc sync-btn" onclick="localStorage.removeItem(\'wongaCup2026\'); location.reload();">Reset &amp; Reload</button>' +
+    '<button class="tc sync-btn" onclick="localStorage.removeItem(\'' + STATE_KEY + '\'); location.reload();">Reset &amp; Reload</button>' +
     '</div>';
 }
 // Load from Supabase on init if configured
