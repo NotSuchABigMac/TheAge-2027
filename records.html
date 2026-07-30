@@ -13,6 +13,8 @@
 </head>
 <body>
 
+<a href="#honour" class="skip-link">Skip to content</a>
+
 <!-- Music Warning Modal -->
 <div id="music-modal" class="music-modal hidden">
   <div class="music-modal-card">
@@ -55,7 +57,7 @@
 <h1 class="sr-only">History &amp; Records · The Wonga Cup</h1>
 
 <!-- Mobile nav -->
-<nav class="mobile-menu" id="mobile-menu" aria-hidden="true">
+<nav class="mobile-menu" id="mobile-menu" aria-hidden="true" inert>
   <a href="index.html" class="mm-link" onclick="closeMenu()">Home</a>
   <a href="golfers.html" class="mm-link" onclick="closeMenu()">Golfers</a>
   <a href="records.html" class="mm-link" onclick="closeMenu()">Records</a>
@@ -362,6 +364,10 @@ if (!sessionStorage.getItem('musicConsented')) {
 }
 
 // Hamburger menu
+// Issue #181 item 1: a closed-but-still-focusable mobile menu is an
+// outright WAI-ARIA violation (focusable content inside aria-hidden) --
+// `inert` actually removes it from the tab order/accessibility tree,
+// aria-hidden alone never did.
 function toggleMenu() {
   const menu = document.getElementById('mobile-menu');
   const btn = document.getElementById('hamburger');
@@ -369,6 +375,7 @@ function toggleMenu() {
   btn.classList.toggle('is-open', open);
   btn.setAttribute('aria-expanded', open);
   menu.setAttribute('aria-hidden', !open);
+  menu.toggleAttribute('inert', !open);
   document.body.style.overflow = open ? 'hidden' : '';
 }
 function closeMenu() {
@@ -378,9 +385,52 @@ function closeMenu() {
   btn.classList.remove('is-open');
   btn.setAttribute('aria-expanded', 'false');
   menu.setAttribute('aria-hidden', 'true');
+  menu.setAttribute('inert', '');
   document.body.style.overflow = '';
 }
 document.getElementById('hamburger').addEventListener('click', toggleMenu);
+
+/* ─────────────────────────────────────
+   OVERLAY ACCESSIBILITY — Escape-to-close + focus trap + focus restore
+   (issue #181 item 2). `isOpenFn` decouples this from which class/attribute
+   a given overlay happens to use to represent "open".
+───────────────────────────────────── */
+function getFocusable(container) {
+  return Array.from(container.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  ));
+}
+function setupOverlayA11y(el, isOpenFn, onEscape) {
+  let lastFocused = null;
+  let wasOpen = false;
+  new MutationObserver(() => {
+    const isOpen = isOpenFn();
+    if (isOpen && !wasOpen) {
+      lastFocused = document.activeElement;
+      const first = getFocusable(el)[0];
+      if (first) first.focus();
+    } else if (!isOpen && wasOpen && lastFocused) {
+      lastFocused.focus();
+      lastFocused = null;
+    }
+    wasOpen = isOpen;
+  }).observe(el, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
+  el.addEventListener('keydown', e => {
+    if (!isOpenFn()) return;
+    if (e.key === 'Escape') { onEscape(); return; }
+    if (e.key !== 'Tab') return;
+    const focusable = getFocusable(el);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  });
+}
+setupOverlayA11y(document.getElementById('music-modal'), () => !document.getElementById('music-modal').classList.contains('hidden'), dismissMusic);
+setupOverlayA11y(document.getElementById('mobile-menu'), () => document.getElementById('mobile-menu').classList.contains('is-open'), closeMenu);
 </script>
 
 </body>

@@ -165,6 +165,8 @@
 </head>
 <body>
 
+<a href="#main-content" class="skip-link">Skip to content</a>
+
 <!-- Music Warning Modal -->
 <div id="music-modal" class="music-modal hidden">
   <div class="music-modal-card">
@@ -205,7 +207,7 @@
 </header>
 
 <!-- Mobile nav -->
-<nav class="mobile-menu" id="mobile-menu" aria-hidden="true">
+<nav class="mobile-menu" id="mobile-menu" aria-hidden="true" inert>
   <a href="index.html" class="mm-link" onclick="closeMenu()">Home</a>
   <a href="golfers.html" class="mm-link" onclick="closeMenu()">Golfers</a>
   <a href="records.html" class="mm-link" onclick="closeMenu()">Records</a>
@@ -217,7 +219,7 @@
 <!-- ═══════════════════════════════════════════════════════════════════════
      DRAFT PLACEHOLDER
 ═══════════════════════════════════════════════════════════════════════ -->
-<section class="draft-hero">
+<section class="draft-hero" id="main-content">
   <div class="shell">
     <div class="eyebrow">A.G.E IV · Yarrawonga &amp; Mulwala G.C. · 7–9 August 2026</div>
     <h1>Teams decided by<br><em>Captain's Draft.</em></h1>
@@ -374,20 +376,68 @@ function dismissMusic() {
 })();
 
 // Hamburger / mobile menu
+// Issue #181 item 1: a closed-but-still-focusable mobile menu is an
+// outright WAI-ARIA violation (focusable content inside aria-hidden) --
+// `inert` actually removes it from the tab order/accessibility tree,
+// aria-hidden alone never did.
 const hamburger = document.getElementById('hamburger');
 const mobileMenu = document.getElementById('mobile-menu');
 function closeMenu() {
   mobileMenu.classList.remove('is-open');
   mobileMenu.setAttribute('aria-hidden', 'true');
+  mobileMenu.setAttribute('inert', '');
   hamburger.setAttribute('aria-expanded', 'false');
   hamburger.classList.remove('is-open');
 }
 hamburger.addEventListener('click', function () {
   const open = mobileMenu.classList.toggle('is-open');
   mobileMenu.setAttribute('aria-hidden', String(!open));
+  mobileMenu.toggleAttribute('inert', !open);
   hamburger.setAttribute('aria-expanded', String(open));
   hamburger.classList.toggle('is-open', open);
 });
+
+/* ─────────────────────────────────────
+   OVERLAY ACCESSIBILITY — Escape-to-close + focus trap + focus restore
+   (issue #181 item 2). `isOpenFn` decouples this from which class/attribute
+   a given overlay happens to use to represent "open".
+───────────────────────────────────── */
+function getFocusable(container) {
+  return Array.from(container.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  ));
+}
+function setupOverlayA11y(el, isOpenFn, onEscape) {
+  let lastFocused = null;
+  let wasOpen = false;
+  new MutationObserver(() => {
+    const isOpen = isOpenFn();
+    if (isOpen && !wasOpen) {
+      lastFocused = document.activeElement;
+      const first = getFocusable(el)[0];
+      if (first) first.focus();
+    } else if (!isOpen && wasOpen && lastFocused) {
+      lastFocused.focus();
+      lastFocused = null;
+    }
+    wasOpen = isOpen;
+  }).observe(el, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
+  el.addEventListener('keydown', e => {
+    if (!isOpenFn()) return;
+    if (e.key === 'Escape') { onEscape(); return; }
+    if (e.key !== 'Tab') return;
+    const focusable = getFocusable(el);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  });
+}
+setupOverlayA11y(document.getElementById('music-modal'), () => !document.getElementById('music-modal').classList.contains('hidden'), dismissMusic);
+setupOverlayA11y(mobileMenu, () => mobileMenu.classList.contains('is-open'), closeMenu);
 </script>
 
 </body>
