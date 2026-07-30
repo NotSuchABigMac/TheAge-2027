@@ -83,6 +83,34 @@ three:
   stops at the first `'auth'` rejection rather than re-failing the same
   wrong PIN against every queued write forever.
 
+## Supabase Schema: `client_errors` (write-only error beacon, issue #202)
+
+`error-beacon.js` (loaded on all six pages) fire-and-forget inserts a row
+here on every uncaught `error`/`unhandledrejection`, gated client-side by
+a per-session cap, a dedupe set, and an ignore-list for known-benign
+noise (`error-beacon.js`'s `shouldReport()`).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid (PK) | Auto-generated |
+| tournament_id | text | e.g. `wonga-cup-2026` |
+| page | text | Filename the error happened on |
+| message | text | Truncated to 500 chars |
+| stack_head | text | Truncated to 500 chars |
+| ua | text | `navigator.userAgent` |
+| username | text | From `sessionStorage`, if set |
+| write_token | text | Same shared PIN as `tournament_updates`, gates the insert |
+| created_at | timestamptz | Auto-generated |
+
+Locked down tighter than `tournament_updates` (`supabase/migrations/
+004_client_errors.sql`): `anon` gets `INSERT` only, gated by the same
+`internal.check_tournament_token()` — no `SELECT`/`UPDATE`/`DELETE` grant
+at all, since nothing client-side ever reads this back. Reading error
+reports is organiser-only, via the Supabase dashboard's table editor
+(service-role access, not subject to RLS). A pre-login error (no
+`write_token` yet in this browser session) is simply never reported —
+an accepted trade against leaving the table open to public spam writes.
+
 `update_type` values the app writes and reads, and what `field_key`/`value`
 mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 
