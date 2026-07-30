@@ -4689,11 +4689,29 @@ function initUsername() {
 
 /* ─────────────────────────────────────
    MUSIC
+   Issue #183 parity: this page has its own bespoke modal (see comment in
+   site.js), so it never picked up the sessionStorage position-persistence
+   fix applied there -- navigating here from a #183-fixed page (or away
+   from here) restarted TheSong.mp3 from 0:00. Mirrors site.js's
+   seekToSavedMusicTime()/pagehide handling so playback position carries
+   across navigations here too.
 ───────────────────────────────────── */
+function seekToSavedMusicTime(audio) {
+  const saved = parseFloat(sessionStorage.getItem('musicTime') || '0');
+  if (!(saved > 0)) return;
+  if (audio.readyState >= 1) audio.currentTime = saved;
+  else audio.addEventListener('loadedmetadata', () => { audio.currentTime = saved; }, { once: true });
+}
+window.addEventListener('pagehide', () => {
+  const audio = document.getElementById('bg-audio');
+  if (audio && !audio.paused) sessionStorage.setItem('musicTime', String(audio.currentTime));
+});
 function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   sessionStorage.setItem('musicConsented', '1');
-  document.getElementById('bg-audio').play().catch(() => {});
+  const audio = document.getElementById('bg-audio');
+  seekToSavedMusicTime(audio);
+  audio.play().catch(() => {});
 }
 
 function dismissMusic() {
@@ -4710,7 +4728,9 @@ if (!sessionStorage.getItem('musicConsented')) {
   // Autoplay policy can reject a gesture-less play() on a revisit (or the
   // file can 404) -- fall back to asking again rather than leaving an
   // unhandled promise rejection in the console.
-  document.getElementById('bg-audio').play().catch(() => {
+  const audio = document.getElementById('bg-audio');
+  seekToSavedMusicTime(audio);
+  audio.play().catch(() => {
     document.getElementById('music-modal').classList.remove('hidden');
   });
 }
