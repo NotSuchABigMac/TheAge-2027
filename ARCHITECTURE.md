@@ -162,6 +162,43 @@ once at init via `renderCourseCard(day)` — it's static for the whole
 tournament, so it deliberately stays out of the 30s poll/`refreshAllDays()`
 cycle.
 
+## Player roster + season totals (issue #203)
+
+`players.js` is the static roster (name, handicap, seed) as its own
+UMD module, same pattern as `courses.js` — extracted out of
+`scorecard-live.html`'s own inline `PLAYERS` constant so a second page
+(`index.html`'s live-score ribbon) can read the exact same handicaps
+the live scorecard scores against, rather than risk a second, driftable
+copy.
+
+The glue that turns raw synced state into team points — which player
+has which handicap, a Day 1 match's/Day 2 scramble group's *effective*
+result once hole-by-hole data exists on top of (or instead of) a manual
+entry — used to live only as page-local functions in
+`scorecard-live.html`, closing over its own `PLAYERS`/`COURSES`/`state`
+globals. `scoring.js` now exports parameterized versions of the same
+chain (`day1StrokeIndexesFor`, `matchStrokesForPlayers`,
+`effectiveMatchFor`, `teamOfSets`, `ntpPointsFor`, `day2CourseHolesFor`,
+`day2GroupHandicapFor`, `effectiveDay2FieldFor`, `effectiveDay2StateFor`,
+and the top-level `computeSeasonTotals(state, players, courses)`) —
+`scorecard-live.html`'s own same-named local functions are now thin
+wrappers passing this page's `PLAYERS`/`COURSES`/`state`, and
+`index.html` calls `computeSeasonTotals` directly. One set of functions,
+one set of tests (`test/scoring-season-totals.test.mjs`), both pages
+guaranteed to agree on what the score actually is.
+
+`index.html`'s ribbon (`ribbon-status.js`) drives three date-based
+phases via `WongaScoring.phaseFor()`/`daysUntilDay1()` (Melbourne-local,
+same `TOURNAMENT_DAY_DATES` `defaultDay()` already keys off): a
+countdown before 7 Aug, a live score (fresh full read of
+`tournament_updates` each render/poll, replayed via the same
+`normalizeState`/`applyUpdateToState`/`processUpdateRows` the live
+scorecard uses, then `computeSeasonTotals`) during the tournament, and a
+frozen result after. It's read-only forever — no login, no writes, no
+`localStorage` sync-cursor machinery — and degrades to the ribbon's
+shipped static content on any fetch/parse failure rather than showing a
+spinner or error state.
+
 ## Day 1 automatic hole-by-hole scoring (issue #124)
 
 Each Day 1 match optionally carries per-hole gross scores (`holesA`/`holesB`,
