@@ -198,6 +198,8 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .pop{animation:pop .28s ease}
 .info-box{background:color-mix(in srgb,var(--gold) 8%,transparent);border:1px solid color-mix(in srgb,var(--gold) 20%,transparent);border-radius:var(--r);padding:14px 18px;font-size:.88rem;color:var(--ink);margin-bottom:20px}
 .info-box strong{color:var(--gold)}
+.share-access-qr{max-width:220px;margin:0 0 16px}
+.share-access-qr svg{display:block;width:100%;height:auto;border-radius:var(--r)}
 
 /* ── COURSE IMAGES ── */
 .course-img-frame{position:relative;overflow:hidden;border-bottom:2px solid rgba(45,106,79,.5)}
@@ -719,6 +721,20 @@ body{padding-top:58px;padding-bottom:52px}
     <div class="sc-panel" id="sc-admin" role="tabpanel" aria-labelledby="tab-admin" tabindex="0">
       <div class="section-header" style="padding-top:28px">
         <div class="section-label">Admin</div>
+        <div class="section-title">Share Access</div>
+      </div>
+      <div class="info-box">Scan this on a phone to prefill the tournament PIN — nobody has to read it aloud or type it in on the first tee. Show it screen-to-screen or print it at registration; don't post it publicly, it's the same shared PIN everyone else scores with.</div>
+      <div id="share-access-qr" class="share-access-qr"></div>
+      <div class="ntp-grid">
+        <div class="sig" style="flex:1">
+          <label for="share-access-link">Join link</label>
+          <input type="text" id="share-access-link" class="username-input" readonly onclick="this.select()">
+        </div>
+      </div>
+      <button class="username-btn" style="max-width:280px;margin-top:12px" onclick="copyShareAccessLink()">Copy Link</button>
+
+      <div class="section-header" style="padding-top:32px">
+        <div class="section-label">Admin</div>
         <div class="section-title">Rollback Scores</div>
       </div>
       <div class="info-box">Deletes every scoring update recorded in the chosen window, on every device. Use this to undo a batch of bad entries. This cannot be undone.</div>
@@ -780,6 +796,7 @@ body{padding-top:58px;padding-bottom:52px}
 <script src="theme.js?v=__CACHEBUST__"></script>
 <script src="scoring.js?v=__CACHEBUST__"></script>
 <script src="courses.js?v=__CACHEBUST__"></script>
+<script src="qrcode-vendor.js?v=__CACHEBUST__"></script>
 <script>
 /* ─────────────────────────────────────
    SUPABASE CONFIG — REPLACE WITH YOUR VALUES
@@ -3407,6 +3424,66 @@ function updateAdminVisibility() {
   document.getElementById('tab-admin').style.display = currentUsername === 'James McIntyre' ? '' : 'none';
   updateTeamsLockUI();
   renderAllDayLocks();
+  renderShareAccess();
+}
+
+// Issue #201: QR-code login handoff. The organiser's own currentWriteToken
+// -- the same shared PIN every scorer types in -- gets encoded into a
+// #join= link so a phone can scan it instead of someone reading the PIN
+// aloud in a car park. Generated locally via the vendored qrcode-vendor.js
+// (no CDN, no external API): the token never transits a third party.
+function renderShareAccess() {
+  const container = document.getElementById('share-access-qr');
+  const linkInput = document.getElementById('share-access-link');
+  if (!container || !linkInput) return;
+  if (!isAdmin() || !currentWriteToken || typeof qrcode === 'undefined') {
+    container.innerHTML = '';
+    linkInput.value = '';
+    return;
+  }
+  const url = location.origin + location.pathname + '#join=' + encodeURIComponent(currentWriteToken);
+  linkInput.value = url;
+  const qr = qrcode(0, 'M');
+  qr.addData(url);
+  qr.make();
+  container.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 4 });
+}
+
+function copyShareAccessLink() {
+  const linkInput = document.getElementById('share-access-link');
+  if (!linkInput || !linkInput.value) return;
+  const done = () => showSaveToast('✓ Link copied', 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(linkInput.value).then(done).catch(() => {
+      linkInput.select();
+      document.execCommand('copy');
+      done();
+    });
+  } else {
+    linkInput.select();
+    document.execCommand('copy');
+    done();
+  }
+}
+
+// The other half of #201: consuming a scanned #join= link. Fragments are
+// never sent in HTTP requests, so no server or proxy log ever sees the
+// token in transit -- the same trust model as reading the PIN aloud, just
+// a different channel. Username is deliberately NOT part of the link (it's
+// the attribution identity, still typed by hand), and the fragment is
+// stripped immediately via replaceState so the token never lingers in the
+// URL bar or survives a screenshot.
+function initJoinHandoff() {
+  const match = location.hash.match(/^#join=(.+)$/);
+  if (!match) return;
+  const token = decodeURIComponent(match[1]);
+  history.replaceState(null, '', location.pathname + location.search);
+  const tokenInput = document.getElementById('write-token-input');
+  if (tokenInput) tokenInput.value = token;
+  // A wrong/stale scanned token still lands in the existing 'auth'
+  // handling from #141 the moment it's actually used to write (the modal
+  // reopens with "Wrong PIN") -- nothing extra needed here for that case.
+  if (!currentUsername || !currentWriteToken) requireUsername(null);
 }
 
 // Same single-organiser-name gate as the Admin tab above -- shared by the
@@ -3585,6 +3662,7 @@ setupModalA11y('music-modal', dismissMusic);
 setupModalA11y('username-modal', closeUsernameModal);
 
 initUsername();
+initJoinHandoff();
 try { pendingWrites = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch(e) { pendingWrites = []; }
 if (!Array.isArray(pendingWrites)) pendingWrites = [];
 updateOfflineIndicator();
