@@ -234,7 +234,7 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .hole-grid-table th.rlab,.hole-grid-table td.rlab{text-align:left;padding-left:4px;color:var(--ink-mute);font-weight:600;width:15%}
 .hole-grid-table td.ntp,.hole-grid-table th.ntp{color:var(--gold)}
 .hole-grid-table .dots{font-size:.55rem;letter-spacing:-1px;color:var(--gold);min-height:1em}
-.hole-grid-table input{width:100%;min-height:30px;text-align:center;font-family:var(--font-h);font-size:.7rem;border:1px solid var(--rule-strong);border-radius:3px;background:var(--canvas);color:var(--ink);padding:2px 0}
+.hole-grid-table input{width:100%;min-height:44px;text-align:center;font-family:var(--font-h);font-size:.7rem;border:1px solid var(--rule-strong);border-radius:3px;background:var(--canvas);color:var(--ink);padding:8px 0}
 .hole-grid-table input:disabled{opacity:.4}
 .nine-status-line{font-size:.72rem;color:var(--ink-mute);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .nine-status-line .clear-btn{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:3px;padding:2px 8px;cursor:pointer}
@@ -273,6 +273,7 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .save-toast.saving{background:rgba(240,180,41,.2);color:var(--gold);border:1px solid var(--gold)}
 .save-toast.success{background:rgba(68,221,136,.2);color:#44dd88;border:1px solid #44dd88}
 .save-toast.error{background:rgba(220,0,0,.2);color:#ff6b6b;border:1px solid #ff6b6b}
+.save-toast.nudge{background:rgba(240,180,41,.2);color:var(--gold);border:1px solid var(--gold)}
 .sync-spacer{flex:1}
 
 /* ── USERNAME PICKER MODAL ── */
@@ -1301,7 +1302,9 @@ function holeGridNineHtml(mi, match, strokes, startIdx) {
       const val = arr[i];
       return `<td><input id="day1-in-${mi}-${team}-${holeNum}" class="grid-in" type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
         value="${val === null ? '' : val}"
-        onchange="setHoleScore(${mi},'${team}',${holeNum},this.value)"></td>`;
+        onchange="setHoleScore(${mi},'${team}',${holeNum},this.value)"
+        oninput="handleGridInputAdvance(event)"
+        onfocus="this.scrollIntoView({block:'center'})"></td>`;
     }).join('');
   }
   return `
@@ -1462,6 +1465,52 @@ function holeResultFor(match, strokes, holeIdx) {
   return holeResult(match.holesA[holeIdx], match.holesB[holeIdx], strokes.a[holeIdx], strokes.b[holeIdx]);
 }
 
+/* ─────────────────────────────────────
+   HOLE-GRID AUTO-ADVANCE (issue #192)
+   Shared by both the Day 1 and Day 2 hole grids -- after a gross score is
+   typed, moves focus straight to the next hole instead of making the
+   scorer tap it manually, 18 times a round. Scores are 1-15
+   (DAY1_GROSS_MAX/DAY2_HOLE_GROSS_MAX), so a lone "1" is genuinely
+   ambiguous (it could be the whole score, or the first digit of 10-15) --
+   every other leading digit (2-9) has no valid continuation and can
+   advance immediately.
+───────────────────────────────────── */
+let holeAdvanceTimer = null;
+function advanceToNextHole(el) {
+  const m = el.id.match(/^(.*)-(\d+)$/);
+  if (!m) { el.blur(); return; }
+  const next = document.getElementById(`${m[1]}-${parseInt(m[2], 10) + 1}`);
+  if (next) { next.focus(); next.select(); } else { el.blur(); }
+}
+function handleGridInputAdvance(e) {
+  clearTimeout(holeAdvanceTimer);
+  const el = e.target;
+  const val = el.value;
+  if (val.length === 0) return;
+  if (val.length >= 2) { advanceToNextHole(el); return; }
+  if (val === '1') {
+    // Wait for a possible second digit (10-15) -- re-check at fire time
+    // that this input is still focused and still reads exactly "1", so a
+    // scorer who's already tabbed elsewhere (or kept typing, which would
+    // have cleared this timer already) never gets their focus yanked back.
+    holeAdvanceTimer = setTimeout(() => {
+      if (document.activeElement === el && el.value === '1') advanceToNextHole(el);
+    }, 400);
+  } else if (val !== '0') {
+    advanceToNextHole(el);
+  }
+}
+
+// A soft, non-blocking nudge for a double-digit gross score on a single
+// hole (10-15 is the legal max, but also rare enough to be worth a second
+// glance -- most mistypes land here too, e.g. "13" meant to be "3"). Fires
+// after the save-toast sequence (Saving.../Saved/Offline) has had its own
+// turn, so it doesn't get clobbered by or clobber that confirmation.
+function notifyIfOutlierScore(clamped) {
+  if (clamped === null || clamped < 10) return;
+  setTimeout(() => showSaveToast('That score seems very high — is it correct? 👀', 'nudge'), 2200);
+}
+
 // Issue #143: renderDay1()'s grid-in focus guard makes a full rebuild a
 // no-op while the just-committed input still has focus (Enter-commit,
 // spinner arrows) -- previously that left the nine-status line, the
@@ -1512,6 +1561,7 @@ function setHoleScore(matchIdx, team, holeNum, rawVal) {
     arr[holeNum - 1] = clamped;
     saveState();
     insertUpdate('day1_hole', { match_idx: matchIdx, field_key: `${team}${holeNum}`, value: clamped });
+    notifyIfOutlierScore(clamped);
     updateScoreboard();
     const patched = patchDay1HoleFeedback(matchIdx, team, holeNum, clamped);
     // Issue: 'change' fires as part of the outgoing input's blur, before
@@ -1865,9 +1915,11 @@ function day2HoleGridNineHtml(code, holes, strokes, courseHoles, startIdx) {
   const inputRow = holeIndexes.map(i => {
     const holeNum = i + 1;
     const val = holes[i];
-    return `<td><input class="grid-in" type="number" inputmode="numeric" min="${DAY2_HOLE_GROSS_MIN}" max="${DAY2_HOLE_GROSS_MAX}"
+    return `<td><input id="day2-in-${code}-${holeNum}" class="grid-in" type="number" inputmode="numeric" min="${DAY2_HOLE_GROSS_MIN}" max="${DAY2_HOLE_GROSS_MAX}"
       value="${val === null ? '' : val}"
-      onchange="setDay2HoleScore('${code}',${holeNum},this.value)"></td>`;
+      onchange="setDay2HoleScore('${code}',${holeNum},this.value)"
+      oninput="handleGridInputAdvance(event)"
+      onfocus="this.scrollIntoView({block:'center'})"></td>`;
   }).join('');
   return `
     <table class="hole-grid-table">
@@ -1887,6 +1939,7 @@ function setDay2HoleScore(code, holeNum, rawVal) {
     state.day2.holes[code][holeNum - 1] = clamped;
     saveState();
     insertUpdate('day2_hole', { field_key: `${code}_${holeNum}`, value: clamped });
+    notifyIfOutlierScore(clamped);
     // Issue #143: a full renderDay2GroupCard() rebuilds gridEl.innerHTML --
     // including the input that just fired and whatever cell the scorer
     // tabbed/tapped into next -- dropping focus and closing the mobile
@@ -2246,7 +2299,9 @@ function showSaveToast(message, type) {
   toast.textContent = message;
   toast.className = `save-toast show ${type}`;
   if (type !== 'saving') {
-    toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+    // The outlier nudge (issue #192) needs a beat longer than a routine
+    // save confirmation to actually be read, not just glimpsed.
+    toastTimer = setTimeout(() => toast.classList.remove('show'), type === 'nudge' ? 3200 : 2000);
   }
 }
 
