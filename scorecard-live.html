@@ -4386,18 +4386,34 @@ function hideProvenancePopover() {
 // and-type, real scrolling, or an already-active edit. Never triggers on
 // an already-focused input (per the issue's explicit requirement) since
 // that's a scorer mid-entry, not someone asking "who set this".
+//
+// A finger held down on a real touchscreen always drifts a few pixels
+// (unlike a mouse, which reports zero pointermove during a still hold),
+// so cancelling on the very first pointermove made the long-press fire
+// essentially never off a real device -- only a perfectly still mouse
+// (as in the automated test) ever survived to 500ms. A small movement
+// budget before treating it as a scroll/drag fixes that.
+const PROVENANCE_LONGPRESS_SLOP = 10;
 let provenanceLongPressTimer = null;
+let provenanceLongPressOrigin = null;
 document.addEventListener('pointerdown', e => {
   const coord = coordForElement(e.target);
   if (!coord) return;
   if (document.activeElement === e.target) return;
   clearTimeout(provenanceLongPressTimer);
   const target = e.target;
+  provenanceLongPressOrigin = { x: e.clientX, y: e.clientY };
   provenanceLongPressTimer = setTimeout(() => showProvenancePopover(target), 500);
 }, { passive: true });
-['pointerup', 'pointercancel', 'pointermove'].forEach(evt => {
+['pointerup', 'pointercancel'].forEach(evt => {
   document.addEventListener(evt, () => clearTimeout(provenanceLongPressTimer), { passive: true });
 });
+document.addEventListener('pointermove', e => {
+  if (!provenanceLongPressOrigin) return;
+  const dx = e.clientX - provenanceLongPressOrigin.x;
+  const dy = e.clientY - provenanceLongPressOrigin.y;
+  if (Math.hypot(dx, dy) > PROVENANCE_LONGPRESS_SLOP) clearTimeout(provenanceLongPressTimer);
+}, { passive: true });
 window.addEventListener('scroll', hideProvenancePopover, { passive: true, capture: true });
 document.addEventListener('pointerdown', e => {
   const popover = document.getElementById('provenance-popover');
