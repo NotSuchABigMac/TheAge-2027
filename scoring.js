@@ -401,6 +401,145 @@
     return { winner: null, mode: 'tied-pending-tiebreak' };
   }
 
+  /* ── SEASON TOTALS (issue #203) ──
+     scorecard-live.html computes Day 1/2/3 team points from a chain of
+     small glue functions (which player has which handicap, what a
+     match's/scramble group's *effective* result is once hole-by-hole
+     data exists) that used to live only as page-local functions closing
+     over globals (PLAYERS, COURSES, state). index.html needs the exact
+     same numbers for its live-score ribbon -- duplicating that glue a
+     second time would leave two copies of tournament scoring logic that
+     could silently drift apart. Parameterized here instead (players/
+     courses/teamA/teamB all passed in, nothing read from a global) so
+     both pages call the same functions; scorecard-live.html's own
+     day1StrokeIndexes()/matchStrokesFor()/effectiveMatch()/
+     day2CourseHoles()/day2GroupHandicap()/effectiveDay2Field()/
+     effectiveDay2State()/ntpPointsFor() are now thin wrappers around
+     these. */
+
+  function day1StrokeIndexesFor(courses) {
+    const course = courses && courses[1];
+    return course ? course.holes.map(h => h.si) : Array.from({ length: 18 }, (_, i) => i + 1);
+  }
+
+  function matchStrokesForPlayers(match, players, day1StrokeIndexes) {
+    const pA = players.find(p => p.id === match.pA[0]);
+    const pB = players.find(p => p.id === match.pB[0]);
+    if (!pA || !pB) return { receiver: null, a: Array(18).fill(0), b: Array(18).fill(0) };
+    return matchStrokes(pA.hcp, pB.hcp, day1StrokeIndexes);
+  }
+
+  function effectiveMatchFor(match, players, day1StrokeIndexes) {
+    const eff = effectiveNines(match, matchStrokesForPlayers(match, players, day1StrokeIndexes));
+    return { front9: eff.front9, back9: eff.back9 };
+  }
+
+  function teamOfSets(playerId, teamA, teamB) {
+    if (playerId === null || playerId === undefined) return null;
+    if (teamA && teamA.has(playerId)) return 'A';
+    if (teamB && teamB.has(playerId)) return 'B';
+    return null;
+  }
+
+  function ntpPointsFor(ntpState, holeKeys, teamA, teamB) {
+    return ntpTeamPoints(holeKeys.map(k => teamOfSets(ntpState[k], teamA, teamB)));
+  }
+
+  function day2CourseHolesFor(courses) {
+    const course = courses && courses[2];
+    return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
+  }
+
+  function day2GroupHandicapFor(code, day2, players) {
+    const ids = day2.groups[code];
+    const anthem = day2.anthem || {};
+    const hcps = ids.map(id => {
+      const p = players.find(p => p.id === id);
+      return p === undefined ? undefined : anthemAdjustedHandicap(p.hcp, anthem[id]);
+    }).filter(h => h !== undefined);
+    if (hcps.length !== ids.length) return null; // stale id no longer a real player
+    return scrambleTeamHandicap(hcps);
+  }
+
+  function effectiveDay2FieldFor(code, day2, players, courses) {
+    const holes = day2.holes[code];
+    if (!holes.some(h => h !== null)) return day2[code];
+    if (!scrambleRoundComplete(holes)) return null;
+    const handicap = day2GroupHandicapFor(code, day2, players);
+    if (handicap === null) return null;
+    const courseHoles = day2CourseHolesFor(courses);
+    const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
+    const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
+    return netToPar === null ? null : String(netToPar);
+  }
+
+  function effectiveDay2StateFor(day2, players, courses) {
+    return {
+      a4: effectiveDay2FieldFor('a4', day2, players, courses),
+      a3: effectiveDay2FieldFor('a3', day2, players, courses),
+      b4: effectiveDay2FieldFor('b4', day2, players, courses),
+      b3: effectiveDay2FieldFor('b3', day2, players, courses)
+    };
+  }
+
+  // The one function index.html actually calls: replayed `state` (see
+  // normalizeState/applyUpdateToState) plus the static players/courses
+  // data in, every day's points and the running total out.
+  function computeSeasonTotals(state, players, courses) {
+    const day1SI = day1StrokeIndexesFor(courses);
+    const day1Base = sumMatchPoints(state.day1.matches.map(m => effectiveMatchFor(m, players, day1SI)));
+    const day1Ntp = ntpPointsFor(state.day1.ntp, ['h8', 'h17'], state.teamA, state.teamB);
+    const day1 = { a: day1Base.a + day1Ntp.a, b: day1Base.b + day1Ntp.b, base: day1Base, ntp: day1Ntp };
+
+    const day2Scramble = calcDay2(effectiveDay2StateFor(state.day2, players, courses));
+    const day2Ntp = ntpPointsFor(state.day2.ntp, ['h4', 'h16'], state.teamA, state.teamB);
+    const day2 = { a: day2Scramble.a + day2Ntp.a, b: day2Scramble.b + day2Ntp.b, scramble: day2Scramble, ntp: day2Ntp };
+
+    const day3Entries = players.map(p => ({
+      id: p.id,
+      hcp: p.hcp,
+      team: teamOfSets(p.id, state.teamA, state.teamB),
+      score: parseScoreToPar(state.day3.scores[p.id])
+    }));
+    const day3Sorted = computeStableford(day3Entries);
+    const day3Base = sumStablefordPoints(day3Sorted);
+    const day3Ntp = ntpPointsFor(state.day3.ntp, ['h7', 'h14'], state.teamA, state.teamB);
+    const day3 = { a: day3Base.a + day3Ntp.a, b: day3Base.b + day3Ntp.b, base: day3Base, ntp: day3Ntp };
+
+    return {
+      totalA: day1.a + day2.a + day3.a,
+      totalB: day1.b + day2.b + day3.b,
+      day1, day2, day3
+    };
+  }
+
+  /* ── HOMEPAGE PHASE (issue #203) ──
+     Which of countdown/live/final index.html's ribbon should show, from
+     a Melbourne-local calendar date -- pure so it's unit-testable
+     without mocking Date/timezone at the environment level. Reuses the
+     same TOURNAMENT_DAY_DATES lookup defaultDay() already keys off. */
+  function phaseFor(date) {
+    if (defaultDay(date) !== null) return 'live';
+    const melbourneDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Australia/Melbourne', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(date);
+    return melbourneDate < '2026-08-07' ? 'countdown' : 'final';
+  }
+
+  // Whole calendar days from `date` (Melbourne-local) until Day 1 --
+  // diffs two Y-M-D calendar dates as UTC midnights specifically to stay
+  // clear of DST/offset arithmetic entirely (Melbourne is UTC+10 in
+  // August, but this file must not assume that holds on the date the
+  // countdown is actually being read).
+  function daysUntilDay1(date) {
+    const melbourneToday = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Australia/Melbourne', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(date);
+    const todayUTC = Date.parse(melbourneToday + 'T00:00:00Z');
+    const targetUTC = Date.parse('2026-08-07T00:00:00Z');
+    return Math.ceil((targetUTC - todayUTC) / 86400000);
+  }
+
   /* ── TEAM ASSIGNMENT SYNC ── */
 
   // Moves one player between team sets, returning fresh Sets rather than
@@ -963,6 +1102,10 @@
     scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
     POS_PTS, computeStableford, sumStablefordPoints,
     resolveOverallWinner,
+    day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor,
+    teamOfSets, ntpPointsFor,
+    day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
+    computeSeasonTotals, phaseFor, daysUntilDay1,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
     parseIntOrNull, applyUpdateToState,
     UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,

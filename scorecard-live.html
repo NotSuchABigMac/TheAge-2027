@@ -814,6 +814,7 @@ body{padding-top:58px;padding-bottom:52px}
 <script src="theme.js?v=__CACHEBUST__"></script>
 <script src="scoring.js?v=__CACHEBUST__"></script>
 <script src="courses.js?v=__CACHEBUST__"></script>
+<script src="players.js?v=__CACHEBUST__"></script>
 <script src="qrcode-vendor.js?v=__CACHEBUST__"></script>
 <script>
 /* ─────────────────────────────────────
@@ -896,22 +897,10 @@ const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,fi
 /* ─────────────────────────────────────
    DATA
 ───────────────────────────────────── */
-const PLAYERS = [
-  { id:0,  name:'Brendan Cunningham', short:'B. Cunningham', hcp:'10.0', seed:2,  friday:true  },
-  { id:1,  name:'Gary King',          short:'G. King',       hcp:'8.0',  seed:1,  friday:true  },
-  { id:2,  name:'Matthew Smith',      short:'M. Smith',      hcp:'16.0', seed:3,  friday:true  },
-  { id:3,  name:'James McIntyre',     short:'J. McIntyre',   hcp:'19.0', seed:5,  friday:true  },
-  { id:4,  name:'Cayden Woods',       short:'C. Woods',      hcp:'23.0', seed:7,  friday:false },
-  { id:5,  name:'Scott Rumbelow',     short:'S. Rumbelow',   hcp:'23.0', seed:8,  friday:true  },
-  { id:6,  name:'Matthew Freestun',   short:'M. Freestun',   hcp:'26.0', seed:9,  friday:true  },
-  { id:7,  name:'Nathan Freestun',    short:'N. Freestun',   hcp:'26.0', seed:10, friday:true  },
-  { id:8,  name:'Steve Koenig',       short:'S. Koenig',     hcp:'29.0', seed:11, friday:true  },
-  { id:9,  name:'Jimmy Hepburn',      short:'J. Hepburn',    hcp:'30.0', seed:12, friday:true  },
-  { id:10, name:'Robert Hughes',      short:'R. Hughes',     hcp:'39.0', seed:13, friday:true  },
-  { id:11, name:'Ben Lepore',         short:'B. Lepore',     hcp:'44.0', seed:14, friday:false },
-  { id:12, name:'Terrence Hie',      short:'T. Hie',        hcp:'20.0', seed:6,  friday:true  },
-  { id:13, name:'Liam Cannel',       short:'L. Cannel',     hcp:'18.0', seed:4,  friday:true  }
-];
+// Issue #203: moved to players.js so index.html's season-totals
+// computation reads the exact same roster/handicaps this page scores
+// against, rather than a second, driftable copy.
+const PLAYERS = WongaPlayers.PLAYERS;
 
 // TEST TEAMS — replace with real draft outcome before go-live
 const DEFAULT_A = new Set([0, 2, 4, 6, 8, 10, 12]); // even-indexed IDs → Team A
@@ -950,14 +939,20 @@ const {
   defaultDay,
   matchPoints, sumMatchPoints,
   DAY1_GROSS_MIN, DAY1_GROSS_MAX,
-  matchStrokes, holeResult, nineStatus, effectiveNines,
-  ntpTeamPoints,
+  holeResult, nineStatus,
   parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
-  scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
-  anthemAdjustedHandicap,
+  groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
   POS_PTS, computeStableford, sumStablefordPoints,
   resolveOverallWinner,
+  // Issue #203: the season-totals glue (which player has which handicap,
+  // a match's/scramble group's *effective* result once hole-by-hole data
+  // exists) is shared with index.html's live-score ribbon -- these are
+  // the parameterized versions; the local functions of the same name
+  // below are now thin wrappers passing this page's PLAYERS/COURSES/state.
+  day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor,
+  ntpPointsFor: ntpPointsForTeams,
+  day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
   UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
@@ -974,7 +969,7 @@ function teamOf(playerId) {
 }
 
 function ntpPointsFor(ntpState, holeKeys) {
-  return ntpTeamPoints(holeKeys.map(k => teamOf(ntpState[k])));
+  return ntpPointsForTeams(ntpState, holeKeys, state.teamA, state.teamB);
 }
 
 // Shared rendering helpers for anywhere a player's team drives styling —
@@ -1366,17 +1361,13 @@ function playerOptions(team, matchIdx, slot, currentId) {
 // so a missing script tag degrades to "no strokes allocated" rather than
 // throwing partway through render.
 function day1StrokeIndexes() {
-  const course = COURSES && COURSES[1];
-  return course ? course.holes.map(h => h.si) : Array.from({ length: 18 }, (_, i) => i + 1);
+  return day1StrokeIndexesFor(COURSES);
 }
 
 // Handicap strokes for one match, from the two assigned players' hcp —
 // {receiver: null, a: 18 zeros, b: 18 zeros} until both are assigned.
 function matchStrokesFor(match) {
-  const pA = PLAYERS.find(p => p.id === match.pA[0]);
-  const pB = PLAYERS.find(p => p.id === match.pB[0]);
-  if (!pA || !pB) return { receiver: null, a: Array(18).fill(0), b: Array(18).fill(0) };
-  return matchStrokes(pA.hcp, pB.hcp, day1StrokeIndexes());
+  return matchStrokesForPlayers(match, PLAYERS, day1StrokeIndexes());
 }
 
 // The front9/back9 that actually feed matchPoints() for this match: derived
@@ -1385,8 +1376,7 @@ function matchStrokesFor(match) {
 // point totals are computed from, so automatic and manual scoring can never
 // disagree with what the scoreboard shows (issue #124).
 function effectiveMatch(match) {
-  const eff = effectiveNines(match, matchStrokesFor(match));
-  return { front9: eff.front9, back9: eff.back9 };
+  return effectiveMatchFor(match, PLAYERS, day1StrokeIndexes());
 }
 
 function nineStatusLabel(nineResults) {
@@ -1913,22 +1903,14 @@ function groupOf(playerId) {
 // somehow isn't loaded, matching day1StrokeIndexes()'s degrade-gracefully
 // approach.
 function day2CourseHoles() {
-  const course = COURSES && COURSES[2];
-  return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
+  return day2CourseHolesFor(COURSES);
 }
 
 // National anthem house rule (issue #149, Day 2 only): each player's own
 // handicap is adjusted (-1 sang, +2 didn't sing) before it goes into the
 // team handicap calc, per the confirmed "individual, not team-wide" scope.
 function day2GroupHandicap(code) {
-  const ids = state.day2.groups[code];
-  const anthem = state.day2.anthem || {};
-  const hcps = ids.map(id => {
-    const p = PLAYERS.find(p => p.id === id);
-    return p === undefined ? undefined : anthemAdjustedHandicap(p.hcp, anthem[id]);
-  }).filter(h => h !== undefined);
-  if (hcps.length !== ids.length) return null; // stale id no longer a real player
-  return scrambleTeamHandicap(hcps);
+  return day2GroupHandicapFor(code, state.day2, PLAYERS);
 }
 
 function renderDay2Groups() {
@@ -2134,22 +2116,11 @@ function clearDay2GroupHoles(code) {
 // incomplete or absent-hole-data group falls back to the manual value,
 // same precedence rule as effectiveMatch() for Day 1 (issue #124/#128).
 function effectiveDay2Field(code) {
-  const holes = state.day2.holes[code];
-  if (!holes.some(h => h !== null)) return state.day2[code];
-  if (!scrambleRoundComplete(holes)) return null;
-  const handicap = day2GroupHandicap(code);
-  if (handicap === null) return null;
-  const courseHoles = day2CourseHoles();
-  const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
-  const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
-  return netToPar === null ? null : String(netToPar);
+  return effectiveDay2FieldFor(code, state.day2, PLAYERS, COURSES);
 }
 
 function effectiveDay2State() {
-  return {
-    a4: effectiveDay2Field('a4'), a3: effectiveDay2Field('a3'),
-    b4: effectiveDay2Field('b4'), b3: effectiveDay2Field('b3')
-  };
+  return effectiveDay2StateFor(state.day2, PLAYERS, COURSES);
 }
 
 // Only the box the user actually touched may be synced -- emitting all
