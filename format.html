@@ -247,17 +247,10 @@
   border: 1px solid color-mix(in srgb, var(--accent-2, #b08d4f) 35%, transparent);
   color: var(--ink-mute);
   text-decoration: none;
-  cursor: default;
-  opacity: .65;
+  cursor: pointer;
 }
-/* issue #171: aria-disabled is a screen-reader hint only -- it does
-   nothing to stop an actual mouse/touch click from following the href
-   (confirmed: clicking this exact element navigated straight through to
-   scorecard-live.html). pointer-events:none is what actually blocks it;
-   scoped to the aria-disabled state so removing that attribute once the
-   draft's done also re-enables real clicks with no other change needed. */
-.live-cta-btn[aria-disabled="true"] {
-  pointer-events: none;
+.live-cta-btn:hover {
+  background: color-mix(in srgb, var(--accent-2, #b08d4f) 20%, transparent);
 }
 </style>
 </head>
@@ -322,10 +315,10 @@
     <div class="eyebrow">A.G.E IV · Yarrawonga &amp; Mulwala G.C. · 7–9 August 2026</div>
     <h1>Teams decided by<br><em>Captain's Draft.</em></h1>
     <p class="standfirst">
-      The field is split on the morning of Day 1 via peer vote and snake draft.
-      Once the captains are picked and the teams are set, the live scorecard goes live.
+      The field is split on the morning of Day 1 via peer vote and snake draft, and the live
+      scorecard tracks every match from there through to Sunday's result.
     </p>
-    <div class="draft-badge">Live Scorecard · Available from Draft Day</div>
+    <div class="draft-badge">Live Scorecard · Live Now</div>
   </div>
 </section>
 
@@ -357,8 +350,8 @@
     </li>
     <li>
       <span>
-        <strong>Live scorecard goes live</strong>
-        <em>Once teams are confirmed, this page will link through to the full scoring tool.</em>
+        <strong>Live scorecard tracks the field</strong>
+        <em>Open now — shows the draft in progress before tee-off, then every match as it's played.</em>
       </span>
     </li>
   </ol>
@@ -483,8 +476,8 @@
 </div>
 
 <div class="live-cta-block">
-  <p>The live scoring tool will be available once the draft is complete on Friday morning.</p>
-  <a href="scorecard-live.html" class="live-cta-btn" aria-disabled="true">Live Scorecard — Coming Soon</a>
+  <p>The live scoring tool is open now — follow the draft, then every match as it happens.</p>
+  <a href="scorecard-live.html" class="live-cta-btn">Live Scorecard ↗</a>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════

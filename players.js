@@ -20,7 +20,7 @@
   const PLAYERS = [
     { id:0,  name:'Brendan Cunningham', short:'B. Cunningham', hcp:'10.0', seed:2,  friday:true  },
     { id:1,  name:'Gary King',          short:'G. King',       hcp:'8.0',  seed:1,  friday:true  },
-    { id:2,  name:'Matthew Smith',      short:'M. Smith',      hcp:'16.0', seed:3,  friday:true  },
+    { id:2,  name:'Matthew Smith',      short:'M. Smith',      hcp:'16.0', seed:3,  friday:false },
     { id:3,  name:'James McIntyre',     short:'J. McIntyre',   hcp:'19.0', seed:5,  friday:true  },
     { id:4,  name:'Cayden Woods',       short:'C. Woods',      hcp:'23.0', seed:7,  friday:false },
     { id:5,  name:'Scott Rumbelow',     short:'S. Rumbelow',   hcp:'23.0', seed:8,  friday:true  },
