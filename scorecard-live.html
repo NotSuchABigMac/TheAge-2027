@@ -382,14 +382,24 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .sync-btn:hover{background:var(--gold-light)}
 .sync-btn.sec{background:transparent;color:var(--ink-mute);border:1px solid var(--rule-strong)}
 .sync-btn.sec:hover{color:var(--ink);border-color:var(--ink-mute)}
-.save-toast{position:fixed;bottom:24px;left:24px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:12px 16px;border-radius:var(--r);opacity:0;transition:opacity .3s;pointer-events:none;z-index:100}
-.save-toast.show{opacity:1}
+/* Issue #261: one shared stacking region (bottom-center) for all 4 toast
+   types instead of 4 scattered fixed corners. --toast-offset is set per
+   element by layoutToastStack() so multiple visible toasts stack without
+   overlapping; --toast-keyboard-inset is kept live by a visualViewport
+   listener so a toast fired while the on-screen keyboard is open still
+   lands above it. .toast-slot (display) is toggled a frame before .show
+   (opacity/transform) so the fade-in still transitions instead of
+   popping straight in from display:none -- same reflow-forcing trick as
+   the sb-total .pop animation elsewhere in this file. */
+.save-toast,.undo-toast,.update-toast,.confirm-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom) + var(--toast-keyboard-inset,0px) + var(--toast-offset,0px));transform:translateX(-50%) translateY(8px);display:none;align-items:center;gap:10px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:100;max-width:calc(100vw - 48px)}
+.save-toast.toast-slot,.undo-toast.toast-slot,.update-toast.toast-slot,.confirm-toast.toast-slot{display:flex}
+.save-toast.show,.undo-toast.show,.update-toast.show,.confirm-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.save-toast{font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:12px 16px;border-radius:var(--r)}
 .save-toast.saving{background:rgba(240,180,41,.2);color:var(--gold);border:1px solid var(--gold)}
 .save-toast.success{background:rgba(68,221,136,.2);color:#44dd88;border:1px solid #44dd88}
 .save-toast.error{background:rgba(220,0,0,.2);color:#ff6b6b;border:1px solid #ff6b6b}
 .save-toast.nudge{background:rgba(240,180,41,.2);color:var(--gold);border:1px solid var(--gold)}
-.undo-toast{position:fixed;bottom:24px;right:24px;display:flex;align-items:center;gap:12px;font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 12px 10px 16px;border-radius:var(--r);background:var(--ink);color:var(--canvas);border:1px solid var(--rule-strong);opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:100;max-width:calc(100vw - 48px)}
-.undo-toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
+.undo-toast{gap:12px;font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 12px 10px 16px;border-radius:var(--r);background:var(--ink);color:var(--canvas);border:1px solid var(--rule-strong)}
 .undo-toast-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .undo-toast-btn{background:var(--gold);color:var(--ink);border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
 .undo-toast-btn:hover{background:var(--gold-light)}
@@ -403,11 +413,9 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 @media (prefers-reduced-motion: reduce){
   .entry-tick-ok{transition:none}
 }
-.update-toast{position:fixed;top:60px;right:24px;display:flex;align-items:center;gap:10px;font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 14px;border-radius:var(--r);background:var(--gold);color:var(--ink);border:1px solid var(--rule-strong);opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:101;max-width:calc(100vw - 48px)}
-.update-toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
+.update-toast{font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 14px;border-radius:var(--r);background:var(--gold);color:var(--ink);border:1px solid var(--rule-strong)}
 .update-toast-btn{background:var(--ink);color:var(--canvas);border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
-.confirm-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);display:flex;align-items:center;gap:10px;font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 14px;border-radius:var(--r);background:var(--ink);color:var(--canvas);border:1px solid var(--rule-strong);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:102;max-width:calc(100vw - 48px)}
-.confirm-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.confirm-toast{font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 14px;border-radius:var(--r);background:var(--ink);color:var(--canvas);border:1px solid var(--rule-strong)}
 .confirm-toast-btn{border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
 .confirm-toast-keep{background:var(--gold);color:var(--ink)}
 .confirm-toast-fix{background:transparent;color:var(--canvas);border:1px solid var(--canvas)}
@@ -1130,16 +1138,131 @@ async function checkForUpdate() {
   } catch (e) { /* transient network blip -- retried next poll cycle */ }
   maybeShowUpdateToast();
 }
+/* ─────────────────────────────────────
+   TOAST STACK MANAGER (issue #261)
+   The app grew 4 independent singleton toasts (save/undo/update/confirm),
+   each with its own fixed screen position and its own timer. That let two
+   showing at once crowd/overlap, and a raw bottom:24px could land under
+   the on-screen keyboard once the visual viewport shrank. This doesn't
+   rewrite what any toast says or does -- showSaveToast/showUndoToast/
+   maybeShowUpdateToast/confirmNtpChange still own their own content and
+   timers exactly as before -- it only gates *whether they're allowed to
+   occupy a stack slot yet* and *where on screen that slot renders*.
+
+   MAX_VISIBLE_TOASTS caps concurrent toasts (issue left the exact number
+   to the organiser, "e.g. 2-3" -- 3 so the routine "commit an NTP pick
+   (undo-toast) while the write is still saving (save-toast), then
+   immediately pick again (confirm-toast)" sequence never queues behind
+   itself; a single constant to retune). Anything beyond the cap queues;
+   input-tier toasts (undo/confirm/update -- ones needing a tap) jump
+   ahead of already-*queued* info-tier toasts (save-toast's
+   Saving/Saved/Offline blips) on arrival, but never preempt a toast
+   already on screen. */
+const TOAST_TIER = { 'save-toast': 'info', 'undo-toast': 'input', 'confirm-toast': 'input', 'update-toast': 'input' };
+const MAX_VISIBLE_TOASTS = 3;
+const TOAST_FADE_MS = 220; // matches the opacity/transform transition below
+const TOAST_GAP_PX = 10;
+const visibleToastIds = [];
+const toastQueue = []; // [{ id, reveal }], priority-ordered (input tier ahead of queued info tier)
+
+function toastIsVisible(id) { return visibleToastIds.includes(id); }
+
+// Toggles .toast-slot (display) a frame before .show (opacity/transform)
+// so the fade-in actually transitions instead of popping straight in from
+// display:none -- same reflow-forcing trick as the sb-total .pop animation.
+function toastReveal(id) {
+  const toast = document.getElementById(id);
+  if (!toast) return;
+  toast.classList.add('toast-slot');
+  void toast.offsetWidth;
+  toast.classList.add('show');
+}
+
+function layoutToastStack() {
+  let offset = 0;
+  visibleToastIds.forEach((id) => {
+    const toast = document.getElementById(id);
+    if (!toast) return;
+    toast.style.setProperty('--toast-offset', `${offset}px`);
+    offset += toast.getBoundingClientRect().height + TOAST_GAP_PX;
+  });
+}
+
+// Called by each show*Toast() function instead of directly flipping the
+// 'show' class. `reveal` performs that toast's own display + timer side
+// effects (each toast owns its own timer, e.g. undo's 6s window) -- it
+// only runs once a stack slot is actually free, so a toast queued behind
+// a full stack doesn't start counting down its dismiss timer before
+// anyone can see it.
+function requestToastSlot(id, reveal) {
+  const queuedIdx = toastQueue.findIndex(e => e.id === id);
+  if (queuedIdx !== -1) { toastQueue[queuedIdx].reveal = reveal; return; } // already waiting -- just refresh what it'll show
+  if (toastIsVisible(id)) { reveal(); layoutToastStack(); return; } // same slot, update in place
+  if (visibleToastIds.length < MAX_VISIBLE_TOASTS) {
+    visibleToastIds.push(id);
+    reveal();
+    layoutToastStack();
+    return;
+  }
+  const entry = { id, reveal };
+  if (TOAST_TIER[id] === 'input') {
+    const firstInfoIdx = toastQueue.findIndex(e => TOAST_TIER[e.id] === 'info');
+    if (firstInfoIdx === -1) toastQueue.push(entry); else toastQueue.splice(firstInfoIdx, 0, entry);
+  } else {
+    toastQueue.push(entry);
+  }
+}
+
+// Called by each toast's own dismiss path (timeout or explicit close).
+// Safe to call on a toast that was never shown or already gone. Frees its
+// slot for the next queued toast, if any.
+function releaseToastSlot(id) {
+  const idx = visibleToastIds.indexOf(id);
+  if (idx !== -1) visibleToastIds.splice(idx, 1);
+  const queuedIdx = toastQueue.findIndex(e => e.id === id);
+  if (queuedIdx !== -1) toastQueue.splice(queuedIdx, 1);
+  while (toastQueue.length > 0 && visibleToastIds.length < MAX_VISIBLE_TOASTS) {
+    const next = toastQueue.shift();
+    visibleToastIds.push(next.id);
+    next.reveal();
+  }
+  layoutToastStack();
+}
+
+function toastDismiss(id) {
+  const toast = document.getElementById(id);
+  if (toast) {
+    toast.classList.remove('show');
+    setTimeout(() => { if (!toast.classList.contains('show')) toast.classList.remove('toast-slot'); }, TOAST_FADE_MS);
+  }
+  releaseToastSlot(id);
+}
+
+// Issue #261: a toast fixed to a raw bottom offset can land under the
+// on-screen keyboard, since position:fixed follows the *layout* viewport
+// while the keyboard shrinks the *visual* one. Keeps a CSS var live with
+// however much of the layout viewport's bottom is currently covered.
+function updateToastKeyboardInset() {
+  const vv = window.visualViewport;
+  const inset = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+  document.documentElement.style.setProperty('--toast-keyboard-inset', `${inset}px`);
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', updateToastKeyboardInset);
+  window.visualViewport.addEventListener('scroll', updateToastKeyboardInset);
+}
+updateToastKeyboardInset();
+
 function maybeShowUpdateToast() {
   const toast = document.getElementById('update-toast');
   if (!toast) return;
-  if (!updateAvailable) { toast.classList.remove('show'); return; }
+  if (!updateAvailable) { toastDismiss('update-toast'); return; }
   // Never yank the page out from under a scorer mid-entry, and don't push
   // a reload while a write is still queued to go out -- both conditions
   // are re-checked on the next poll cycle rather than forcing the issue.
   const focusedGridIn = document.activeElement && document.activeElement.classList.contains('grid-in');
-  if (focusedGridIn || pendingWrites.length > 0) { toast.classList.remove('show'); return; }
-  toast.classList.add('show');
+  if (focusedGridIn || pendingWrites.length > 0) { toastDismiss('update-toast'); return; }
+  requestToastSlot('update-toast', () => toastReveal('update-toast'));
 }
 
 let currentUsername = null;
@@ -3348,12 +3471,15 @@ function showSaveToast(message, type) {
   const toast = document.getElementById('save-toast');
   clearTimeout(toastTimer);
   toast.textContent = message;
-  toast.className = `save-toast show ${type}`;
-  if (type !== 'saving') {
-    // The outlier nudge (issue #192) needs a beat longer than a routine
-    // save confirmation to actually be read, not just glimpsed.
-    toastTimer = setTimeout(() => toast.classList.remove('show'), type === 'nudge' ? 3200 : 2000);
-  }
+  toast.className = `save-toast ${type}`;
+  requestToastSlot('save-toast', () => {
+    toastReveal('save-toast');
+    if (type !== 'saving') {
+      // The outlier nudge (issue #192) needs a beat longer than a routine
+      // save confirmation to actually be read, not just glimpsed.
+      toastTimer = setTimeout(() => toastDismiss('save-toast'), type === 'nudge' ? 3200 : 2000);
+    }
+  });
 }
 
 // Writes that failed to reach Supabase (issue #66) — e.g. a score entered
@@ -4139,16 +4265,17 @@ function showUndoToast(newRowFields, previousValue, reaction) {
   if (!toast) return;
   const emoji = reaction ? ` ${REACTION_EMOJI[reaction]}` : '';
   toast.querySelector('.undo-toast-text').textContent = `${decoded.fieldLabel}: ${decoded.valueLabel}${emoji}`;
-  toast.classList.add('show');
-  // 6s (not the 10s in the issue's own suggestion) -- long enough to react
-  // to a fat-finger without the toast overstaying its welcome.
-  undoToastTimer = setTimeout(dismissUndoToast, 6000);
+  requestToastSlot('undo-toast', () => {
+    toastReveal('undo-toast');
+    // 6s (not the 10s in the issue's own suggestion) -- long enough to
+    // react to a fat-finger without the toast overstaying its welcome.
+    undoToastTimer = setTimeout(dismissUndoToast, 6000);
+  });
 }
 function dismissUndoToast() {
   pendingUndo = null;
   clearTimeout(undoToastTimer);
-  const toast = document.getElementById('undo-toast');
-  if (toast) toast.classList.remove('show');
+  toastDismiss('undo-toast');
 }
 // If a *different* scorer's write lands on the same field while the toast
 // is up, their change is newer than what Undo would restore -- undoing
@@ -4305,13 +4432,13 @@ function confirmNtpChange(selectId, hole, previousId, newId, commit) {
   const toast = document.getElementById('confirm-toast');
   if (!toast) { commit(); pendingNtpConfirm = null; return; } // defensive: markup missing, don't silently drop the entry
   toast.querySelector('.confirm-toast-text').textContent = `Replaces ${prevName} on ${holeNum} — sure?`;
-  toast.classList.add('show');
+  requestToastSlot('confirm-toast', () => toastReveal('confirm-toast'));
 }
 function resolveNtpConfirm(keep) {
   if (!pendingNtpConfirm) return;
   const { commit, revert } = pendingNtpConfirm;
   pendingNtpConfirm = null;
-  document.getElementById('confirm-toast').classList.remove('show');
+  toastDismiss('confirm-toast');
   if (keep) commit(); else revert();
 }
 
