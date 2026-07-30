@@ -208,14 +208,23 @@ input[type=number]:focus{outline:none;border-color:var(--gold)}
 /* ── DAY 3 ── */
 .sf-table-wrap{background:var(--canvas);border:1px solid var(--rule);border-radius:var(--rl);overflow-x:auto;-webkit-overflow-scrolling:touch}
 .sf-table{width:100%;min-width:480px;border-collapse:collapse}
-.sf-table th{background:var(--canvas-2);font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:11px 14px;text-align:left;color:var(--ink-mute);border-bottom:1px solid var(--rule-strong)}
-.sf-table td{padding:9px 14px;border-bottom:1px solid var(--rule);font-size:.9rem;color:var(--ink)}
+/* Issue #246: the shorter "F. Lastname" form still wrapped to two lines
+   in the Player column at narrow widths, quietly undoing the shorter-row
+   goal above -- nowrap lets the already-horizontally-scrollable
+   .sf-table-wrap take the overflow instead of the row growing back. */
+.sf-table td:nth-child(2){white-space:nowrap}
+.sf-table th{background:var(--canvas-2);font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:8px 14px;text-align:left;color:var(--ink-mute);border-bottom:1px solid var(--rule-strong)}
+/* Issue #246: shorter rows -- less vertical td padding and slightly
+   smaller pos/pts type. The .sf-in input below is untouched by this, so
+   its own footprint (and the native number-spinner buttons riding on it)
+   stays exactly the size it was. */
+.sf-table td{padding:4px 14px;border-bottom:1px solid var(--rule);font-size:.9rem;color:var(--ink)}
 .sf-table tr:last-child td{border-bottom:none}
-.pos-cell{font-family:var(--font-d);font-size:1.25rem;color:var(--ink-mute);text-align:center;width:44px}
+.pos-cell{font-family:var(--font-d);font-size:1.05rem;color:var(--ink-mute);text-align:center;width:44px}
 .pos-1{color:var(--gold)!important}
 .pos-2{color:#c0c0c0!important}
 .pos-3{color:#cd7f32!important}
-.pts-cell{font-family:var(--font-d);font-size:1.45rem;text-align:right}
+.pts-cell{font-family:var(--font-d);font-size:1.2rem;text-align:right}
 .row-a .pts-cell{color:var(--team-a)}
 .row-b .pts-cell{color:var(--team-b)}
 .row-unassigned .pts-cell{color:var(--ink-mute)}
@@ -2633,6 +2642,7 @@ function computeDay3() {
   const entries = PLAYERS.map(p => ({
     id:    p.id,
     name:  p.name,
+    short: p.short,
     hcp:   p.hcp,
     team:  teamOf(p.id),
     score: parseScoreToPar(state.day3.scores[p.id])
@@ -2665,7 +2675,7 @@ function renderDay3() {
     const ptsText  = p.score !== null ? (p.pts % 1 === 0 ? p.pts : p.pts.toFixed(1)) : '—';
     row.innerHTML = `
       <td class="pos-cell ${posClass}">${posText}</td>
-      <td style="color:var(--ink)">${escapeHtml(p.name)}</td>
+      <td style="color:var(--ink)">${escapeHtml(p.short)}</td>
       <td>${teamBadgeHtml(p.team)}</td>
       <td class="grey" style="font-size:.84rem">${escapeHtml(p.hcp)}</td>
       <td><input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${escapeHtml(state.day3.scores[p.id]||'')}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)"></td>
