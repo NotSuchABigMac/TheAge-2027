@@ -297,6 +297,14 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .confirm-toast-btn{border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
 .confirm-toast-keep{background:var(--gold);color:var(--ink)}
 .confirm-toast-fix{background:transparent;color:var(--canvas);border:1px solid var(--canvas)}
+.provenance-popover{position:fixed;transform:translate(-50%,-100%) translateY(-8px);background:var(--ink);color:var(--canvas);font-family:var(--font-h);font-size:.68rem;font-weight:600;padding:6px 10px;border-radius:4px;white-space:nowrap;z-index:103;opacity:0;pointer-events:none;transition:opacity .15s}
+.provenance-popover.show{opacity:1}
+/* Issue #200: long-press must not fight the browser's own text-selection
+   callout on these controls (grid-in/sf-in/select all support the
+   underlying long-press gesture already, e.g. iOS's magnifier/select-text
+   UI) -- this suppresses that so the provenance popover isn't fighting
+   it for the same gesture. */
+.grid-in,.sf-in{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .sync-spacer{flex:1}
 
 /* ── USERNAME PICKER MODAL ── */
@@ -413,6 +421,7 @@ body{padding-top:58px;padding-bottom:52px}
   <button type="button" class="confirm-toast-btn confirm-toast-fix" onclick="resolveNtpConfirm(false)">Fix</button>
   <button type="button" class="confirm-toast-btn confirm-toast-keep" onclick="resolveNtpConfirm(true)">Keep</button>
 </div>
+<div id="provenance-popover" class="provenance-popover" role="tooltip"></div>
 
 <!-- ══════════════════════════════════════
      NEW MASTHEAD
@@ -2509,6 +2518,10 @@ async function insertUpdate(updateType, fields) {
   if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername || !currentWriteToken) return;
   showSaveToast('Saving...', 'saving');
   const row = pendingWriteToRow(updateType, fields);
+  // Issue #200: optimistic local provenance -- attributed to this device's
+  // own entry immediately, rather than waiting for the next poll to fetch
+  // this same row back before "who put that in" has an answer.
+  recordProvenance({ ...row, updated_by: currentUsername, updated_at: new Date().toISOString() });
   const result = await sendUpdateRow(updateType, fields);
   if (result === 'auth') {
     currentWriteToken = null;
@@ -2611,11 +2624,18 @@ function applyUpdate(row) {
     localStorage.removeItem(LAST_SYNC_KEY);
     localStorage.removeItem(LAST_SYNC_IDS_KEY);
     localStorage.removeItem(PENDING_KEY);
+    // Issue #200: the provenance map is purely derived from the replay,
+    // same as state itself -- without wiping it here too, a rolled-back
+    // score's "who/when" would linger forever pointing at a row that no
+    // longer exists. The from-epoch replay after this reload rebuilds it
+    // from whatever rows actually survived.
+    localStorage.removeItem(PROVENANCE_KEY);
     location.reload();
     return;
   }
   dismissUndoToastIfSuperseded(row);
   applyUpdateToState(state, row);
+  recordProvenance(row);
   // Issue #194: queued rather than flashed immediately -- a poll-delivered
   // full rebuild (renderDay1()/renderDay2AllGroupCards() etc, called from
   // refreshAllDays() after every row in this batch has been applied)
@@ -3173,6 +3193,105 @@ function performUndo() {
   refreshAllDays();
   dismissUndoToast();
 }
+
+/* ─────────────────────────────────────
+   PROVENANCE — "who put that in, and when" (issue #200)
+   updated_by/updated_at are already synced to every device and already
+   decoded by describeUpdateRow() -- this just surfaces them outside the
+   Admin tab. A coordinate -> {updated_by, updated_at} map for the
+   winning (latest) row, built for free as the replay visits every row in
+   order (last write in visit order wins), plus optimistically for this
+   device's own writes so "who entered that" has an answer before the
+   next poll even runs. Persisted alongside state so it survives a reload
+   without a refetch; rebuilt from scratch after a rollback (see
+   applyUpdate()'s rollback branch) since it's purely derived, same as
+   state itself.
+───────────────────────────────────── */
+const PROVENANCE_KEY = 'wongaCup2026_provenance';
+let provenance = {};
+try { provenance = JSON.parse(localStorage.getItem(PROVENANCE_KEY) || '{}'); } catch(e) { provenance = {}; }
+function recordProvenance(row) {
+  if (!row.updated_by) return;
+  provenance[undoCoordKey(row)] = { updated_by: row.updated_by, updated_at: row.updated_at || new Date().toISOString() };
+  try { localStorage.setItem(PROVENANCE_KEY, JSON.stringify(provenance)); } catch(e) {}
+}
+
+// The inverse of elementsForUpdate() (#194): given a DOM element, resolve
+// which field coordinate it represents. Kept as its own function (rather
+// than trying to derive one from the other) since the two run in
+// opposite directions over the same small set of id conventions.
+function coordForElement(el) {
+  if (!el || !el.id) {
+    if (el && el.classList.contains('sf-in') && el.dataset.pid) {
+      return { update_type: 'day3_stableford', player_id: parseInt(el.dataset.pid, 10) };
+    }
+    return null;
+  }
+  let m = el.id.match(/^day1-in-(\d+)-([AB])-(\d+)$/);
+  if (m) return { update_type: 'day1_hole', match_idx: parseInt(m[1], 10), field_key: `${m[2]}${m[3]}` };
+  m = el.id.match(/^day2-in-(a4|a3|b4|b3)-(\d+)$/);
+  if (m) return { update_type: 'day2_hole', field_key: `${m[1]}_${m[2]}` };
+  m = el.id.match(/^(a4|a3|b4|b3)-score$/);
+  if (m) return { update_type: 'day2_score', field_key: m[1] };
+  m = el.id.match(/^ntp-(day1|day2|day3)-(h\d+)$/);
+  if (m) return { update_type: `${m[1]}_ntp`, field_key: m[2] };
+  m = el.id.match(/^anthem-row-(\d+)$/);
+  if (m) return { update_type: 'day2_anthem', player_id: parseInt(m[1], 10) };
+  return null;
+}
+
+function formatProvenanceTime(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    const mins = Math.max(0, Math.round((now - d) / 60000));
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    return `${Math.round(mins / 60)}h ago`;
+  }
+  return d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+}
+
+function showProvenancePopover(el) {
+  const coord = coordForElement(el);
+  if (!coord) return;
+  const info = provenance[undoCoordKey(coord)];
+  const popover = document.getElementById('provenance-popover');
+  if (!popover) return;
+  // Shares the "changed · name" vocabulary with the remote-flash feature
+  // (#194) rather than inventing a second phrasing for the same idea.
+  popover.textContent = info ? `${formatProvenanceTime(info.updated_at)} · ${info.updated_by}` : 'No entry yet';
+  const rect = el.getBoundingClientRect();
+  popover.style.left = Math.round(rect.left + rect.width / 2) + 'px';
+  popover.style.top = Math.round(rect.top) + 'px';
+  popover.classList.add('show');
+}
+function hideProvenancePopover() {
+  const popover = document.getElementById('provenance-popover');
+  if (popover) popover.classList.remove('show');
+}
+
+// Long-press (~500ms), not a tap -- must not fight normal tap-to-focus-
+// and-type, real scrolling, or an already-active edit. Never triggers on
+// an already-focused input (per the issue's explicit requirement) since
+// that's a scorer mid-entry, not someone asking "who set this".
+let provenanceLongPressTimer = null;
+document.addEventListener('pointerdown', e => {
+  const coord = coordForElement(e.target);
+  if (!coord) return;
+  if (document.activeElement === e.target) return;
+  clearTimeout(provenanceLongPressTimer);
+  const target = e.target;
+  provenanceLongPressTimer = setTimeout(() => showProvenancePopover(target), 500);
+}, { passive: true });
+['pointerup', 'pointercancel', 'pointermove'].forEach(evt => {
+  document.addEventListener(evt, () => clearTimeout(provenanceLongPressTimer), { passive: true });
+});
+window.addEventListener('scroll', hideProvenancePopover, { passive: true, capture: true });
+document.addEventListener('pointerdown', e => {
+  const popover = document.getElementById('provenance-popover');
+  if (popover && popover.classList.contains('show') && !popover.contains(e.target)) hideProvenancePopover();
+});
 
 /* ─────────────────────────────────────
    NTP OVERWRITE CONFIRM (issue #199)
