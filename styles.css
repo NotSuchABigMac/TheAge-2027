@@ -470,6 +470,85 @@ html[data-mode="dark"] .hero-photo {
   .hero-bottom .col { flex: 0 0 calc(50% - 12px); }
 }
 
+/* ── weather strip ── */
+.weather-strip {
+  background: var(--canvas-2);
+  border-bottom: 1px solid var(--rule);
+  padding: 26px 32px;
+}
+.weather-strip-inner { max-width: 1440px; margin: 0 auto; }
+.weather-strip-head {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 18px;
+}
+.weather-days { display: flex; gap: 32px; }
+.weather-day {
+  flex: 1;
+  padding-left: 32px;
+  border-left: 1px solid var(--rule);
+}
+.weather-day:first-child { padding-left: 0; border-left: none; }
+.weather-day .wd-date {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-mute);
+}
+.weather-day .wd-course {
+  display: block;
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 1.15rem;
+  color: var(--ink);
+  margin-top: 2px;
+}
+.weather-day .wd-temp {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 2.3rem;
+  line-height: 1;
+  color: var(--ink);
+  margin: 12px 0 10px;
+}
+.weather-day .wd-temp small {
+  font-family: var(--body);
+  font-style: normal;
+  font-size: 0.5em;
+  letter-spacing: 0;
+  color: var(--ink-mute);
+  margin-left: 4px;
+}
+.weather-day .wd-meta {
+  display: flex;
+  gap: 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+}
+.weather-day .wd-meta .v { color: var(--ink); }
+.weather-strip-note {
+  margin-top: 20px;
+  font-family: var(--body);
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--ink-mute);
+}
+@media (max-width: 640px) {
+  .weather-days { flex-direction: column; gap: 18px; }
+  .weather-day {
+    padding-left: 0;
+    border-left: none;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+  }
+  .weather-day:first-child { padding-top: 0; border-top: none; }
+}
+
 /* ── sub-hero ribbon ── */
 .tagline-strip {
   background: var(--canvas);
