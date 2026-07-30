@@ -646,6 +646,119 @@
     };
   }
 
+  /* ── PROJECTED "IF IT ENDED RIGHT NOW" (issue #260) ──
+     The real scoreboard only counts a match/round once it's decided or
+     complete -- an in-progress result contributes nothing until then,
+     so mid-round the total can look artificially low even when the
+     outcome is obvious from the hole-by-hole grid one tap away. These
+     compute a SEPARATE projection from the exact same nineStatus()/
+     scrambleNetToParThru() progress data already shown elsewhere.
+     Never called by the real scoring path (matchPoints()/
+     day2GroupPoints()/calcDay1()/calcDay2() themselves are untouched
+     by any of this), and a fully-decided/complete input always
+     projects to exactly its real score -- nothing here can override a
+     finished result, only fill in a not-yet-finished one. Day 3 has no
+     per-hole entry yet (blocked on issue #188), so nothing to project
+     there; NTP points are real-or-nothing regardless (a hole either has
+     a recorded winner or it doesn't -- no "in progress" state), so
+     they're included unprojected, same as the real total. */
+
+  // One nine's provisional points from its current tally, regardless of
+  // whether nineFromHoles() would call it "decided" -- an untouched
+  // nine (thru 0) has nothing to project and stays 0-0. A nine that IS
+  // decided projects to exactly the same points ninePoints() would give
+  // its real result, since nineStatus().leader agrees with
+  // nineFromHoles().result once fully played or mathematically over.
+  function projectedNinePoints(nineResults) {
+    const s = nineStatus(nineResults);
+    if (s.thru === 0) return { a: 0, b: 0 };
+    if (s.leader === null) return { a: 0.5, b: 0.5 };
+    return s.leader === 'A' ? { a: 1, b: 0 } : { a: 0, b: 1 };
+  }
+
+  // One match's projected points: a nine with any hole data at all
+  // projects via projectedNinePoints() above; a nine with none falls
+  // back to its manual front9/back9 value, the same fallback
+  // effectiveNines() already uses for the real score.
+  function projectedMatchPoints(match, strokes) {
+    if (!Array.isArray(match.holesA) || !Array.isArray(match.holesB)) {
+      return matchPoints({ front9: match.front9, back9: match.back9 });
+    }
+    function projectNine(start, manualVal) {
+      const holesA = match.holesA.slice(start, start + 9);
+      const holesB = match.holesB.slice(start, start + 9);
+      const hasData = holesA.some(v => v !== null) || holesB.some(v => v !== null);
+      if (!hasData) return ninePoints(manualVal);
+      const strokesA = strokes.a.slice(start, start + 9);
+      const strokesB = strokes.b.slice(start, start + 9);
+      const results = holesA.map((g, i) => holeResult(g, holesB[i], strokesA[i], strokesB[i]));
+      return projectedNinePoints(results);
+    }
+    const front = projectNine(0, match.front9);
+    const back = projectNine(9, match.back9);
+    return { a: front.a + back.a, b: front.b + back.b };
+  }
+
+  function projectedMatchPointsFor(match, players, day1StrokeIndexes) {
+    return projectedMatchPoints(match, matchStrokesForPlayers(match, players, day1StrokeIndexes));
+  }
+
+  function sumProjectedMatchPoints(matches, players, day1StrokeIndexes) {
+    let a = 0, b = 0;
+    matches.forEach(match => {
+      const pts = projectedMatchPointsFor(match, players, day1StrokeIndexes);
+      a += pts.a; b += pts.b;
+    });
+    return { a, b };
+  }
+
+  // One Day 2 group's projected net-to-par: scrambleNetToParThru() over
+  // whatever holes are entered so far, with no completeness gate
+  // (unlike effectiveDay2FieldFor(), which returns null until all 18
+  // are in) -- falls back to the manual value when no hole data exists
+  // at all, same fallback effectiveDay2FieldFor() already uses.
+  function projectedDay2Field(code, day2, players, courses) {
+    const holes = day2.holes[code];
+    if (!holes.some(h => h !== null)) return parseScoreToPar(day2[code]);
+    const handicap = day2GroupHandicapFor(code, day2, players);
+    if (handicap === null) return null;
+    const courseHoles = day2CourseHolesFor(courses);
+    const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
+    const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
+    return netToPar;
+  }
+
+  // Projected group differentials via the real day2GroupPoints()/
+  // day2Bonus() (they don't care whether their inputs came from a
+  // complete round or a thru-N projection) -- the bonus only projects
+  // once every group has at least one hole's worth of signal, mirroring
+  // calcDay2()'s own "complete" gate one level down.
+  function projectedDay2Totals(day2, players, courses) {
+    const a4 = projectedDay2Field('a4', day2, players, courses);
+    const a3 = projectedDay2Field('a3', day2, players, courses);
+    const b4 = projectedDay2Field('b4', day2, players, courses);
+    const b3 = projectedDay2Field('b3', day2, players, courses);
+    const four = day2GroupPoints(a4, b4);
+    const three = day2GroupPoints(a3, b3);
+    const allHaveSignal = a4 !== null && a3 !== null && b4 !== null && b3 !== null;
+    const bonus = allHaveSignal ? day2Bonus(a4 + a3, b4 + b3) : { a: 0, b: 0 };
+    return { a: four.a + three.a + bonus.a, b: four.b + three.b + bonus.b, four, three, bonus };
+  }
+
+  // The one function scorecard-live.html's UI actually calls for the
+  // "if everything ended right now" line.
+  function projectedTotals(state, players, courses) {
+    const day1SI = day1StrokeIndexesFor(courses);
+    const day1 = sumProjectedMatchPoints(state.day1.matches, players, day1SI);
+    const day1Ntp = ntpPointsFor(state.day1.ntp, ['h8', 'h17'], state.teamA, state.teamB);
+    const day2 = projectedDay2Totals(state.day2, players, courses);
+    const day2Ntp = ntpPointsFor(state.day2.ntp, ['h4', 'h16'], state.teamA, state.teamB);
+    return {
+      totalA: day1.a + day1Ntp.a + day2.a + day2Ntp.a,
+      totalB: day1.b + day1Ntp.b + day2.b + day2Ntp.b
+    };
+  }
+
   /* ── HOMEPAGE PHASE (issue #203) ──
      Which of countdown/live/final index.html's ribbon should show, from
      a Melbourne-local calendar date -- pure so it's unit-testable
@@ -1309,6 +1422,8 @@
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
     day3CourseHolesFor, effectiveDay3ScoreFor,
     computeSeasonTotals, phaseFor, daysUntilDay1,
+    projectedNinePoints, projectedMatchPoints, projectedMatchPointsFor, sumProjectedMatchPoints,
+    projectedDay2Field, projectedDay2Totals, projectedTotals,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
     parseIntOrNull, applyUpdateToState,
     UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
