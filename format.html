@@ -138,6 +138,89 @@
   color: var(--ink-mute);
   font-size: .88rem;
 }
+.rules-day {
+  margin: 40px 0 0;
+  padding-top: 32px;
+  border-top: 1px solid var(--rule);
+}
+.rules-day:first-of-type { border-top: none; padding-top: 0; }
+.rules-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.rules-day-badge {
+  font-family: var(--mono, 'Geist Mono', monospace);
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-2, #b08d4f);
+}
+.rules-day-head h3 {
+  font-family: var(--display, 'Cormorant Garamond', Georgia, serif);
+  font-size: 1.5rem;
+  color: var(--ink);
+  margin: 0;
+}
+.rules-day-head h3 small {
+  font-family: var(--body, 'Geist', sans-serif);
+  font-size: .8rem;
+  font-weight: 400;
+  color: var(--ink-mute);
+  margin-left: 8px;
+}
+.rules-callout {
+  margin-top: 16px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-2, #b08d4f) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-2, #b08d4f) 25%, transparent);
+}
+.rules-callout-h {
+  font-family: var(--mono, 'Geist Mono', monospace);
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-2, #b08d4f);
+  margin-bottom: 8px;
+}
+.rules-callout p { margin-bottom: 0; }
+.rules-table-wrap { overflow-x: auto; margin: 16px 0; }
+.rules-pts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--body, 'Geist', sans-serif);
+  font-size: .88rem;
+}
+.rules-pts-table th, .rules-pts-table td {
+  padding: 7px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+}
+.rules-pts-table th {
+  font-family: var(--mono, 'Geist Mono', monospace);
+  font-size: .65rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  font-weight: 600;
+}
+.rules-ntp-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+.rules-ntp-list li {
+  font-family: var(--body, 'Geist', sans-serif);
+  font-size: .95rem;
+  color: var(--ink);
+  padding: 6px 0;
+}
 .live-cta-block {
   text-align: center;
   padding: 40px 24px 64px;
@@ -283,6 +366,120 @@
     Three days of competition follow: Friday match play, Saturday scramble, Sunday Stableford.
     Points accumulate across all three rounds — the team with the most points lifts the cup.
   </p>
+</div>
+
+<hr class="draft-rule">
+
+<div class="draft-format" id="rules">
+  <h2>How the Cup is scored</h2>
+  <p>
+    Three days, three different formats, one running points total. Here's exactly how each day
+    pays points, plus the bonus and house rules that apply on top.
+  </p>
+
+  <div class="rules-day">
+    <div class="rules-day-head">
+      <span class="rules-day-badge">Day I · Friday</span>
+      <h3>Singles Match Play <small>Murray Course</small></h3>
+    </div>
+    <p>
+      Twelve players (Cayden Woods &amp; Ben Lepore join the field Saturday) across six 1v1 singles
+      matches. Each match splits into a <strong>front 9</strong> and a <strong>back 9</strong>,
+      each worth <strong>1 point</strong> to the winning team — <strong>0.5pt each</strong> if a
+      nine is halved. 12 points are up for grabs across the six matches.
+    </p>
+    <p>
+      Handicap strokes are allocated by the standard difference-in-handicap method: the
+      lower-handicap player plays off scratch, and the higher-handicap player receives one stroke
+      on every hole — plus a second stroke on the lowest-stroke-index holes — for as many holes as
+      the rounded handicap difference between the two players requires.
+    </p>
+  </div>
+
+  <div class="rules-day">
+    <div class="rules-day-head">
+      <span class="rules-day-badge">Day II · Saturday</span>
+      <h3>Team Scramble <small>Black Bull</small></h3>
+    </div>
+    <p>
+      Each team splits into a <strong>group of 4</strong> and a <strong>group of 3</strong>, each
+      playing a scramble and returning one net score to par per group. The group's team handicap
+      is worked out from its players' individual handicaps using the standard Australian Ambrose
+      percentages — 25/20/15/10 for a four, 30/20/10 for a three — applied lowest-handicap-first.
+    </p>
+    <p>
+      In each grouping — the two 4s against each other, the two 3s against each other — the team
+      with the better net score wins points equal to the <strong>stroke differential</strong>
+      between the two results. Whichever team's <strong>combined</strong> 4 + 3 score is better
+      also takes a flat <strong>5-point bonus</strong>.
+    </p>
+    <div class="rules-callout">
+      <div class="rules-callout-h">House rule · National Anthem</div>
+      <p>
+        Every player's own handicap is adjusted individually depending on how they handled the
+        national anthem before Saturday's round kicks off: <strong>+2 strokes</strong> if you
+        didn't sing it, <strong>−1 stroke</strong> if you did. It's applied per player before that
+        handicap is folded into their scramble group's team handicap above — not a flat,
+        team-wide adjustment.
+      </p>
+    </div>
+  </div>
+
+  <div class="rules-day">
+    <div class="rules-day-head">
+      <span class="rules-day-badge">Day III · Sunday</span>
+      <h3>Individual Net Stableford <small>Lake Course</small></h3>
+    </div>
+    <p>
+      All fourteen players return their own net Stableford score. Finishing position pays points
+      straight into that player's team total — highest score is 1st:
+    </p>
+    <div class="rules-table-wrap">
+      <table class="rules-pts-table">
+        <thead><tr><th>Pos</th><th>Pts</th><th>Pos</th><th>Pts</th></tr></thead>
+        <tbody>
+          <tr><td>1st</td><td>14</td><td>8th</td><td>7</td></tr>
+          <tr><td>2nd</td><td>13</td><td>9th</td><td>6</td></tr>
+          <tr><td>3rd</td><td>12</td><td>10th</td><td>5</td></tr>
+          <tr><td>4th</td><td>11</td><td>11th</td><td>4</td></tr>
+          <tr><td>5th</td><td>10</td><td>12th</td><td>3</td></tr>
+          <tr><td>6th</td><td>9</td><td>13th</td><td>2</td></tr>
+          <tr><td>7th</td><td>8</td><td>14th</td><td>1</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Players tied on score share the average of the points their tied positions cover.</p>
+  </div>
+
+  <div class="rules-day">
+    <div class="rules-day-head">
+      <span class="rules-day-badge">Bonus · Every Day</span>
+      <h3>Nearest the Pin</h3>
+    </div>
+    <p>
+      Two par-3 holes each day carry a Nearest the Pin bonus, worth <strong>1 point</strong> to
+      the winner's team — 6 points up for grabs across the weekend on top of the day scores above:
+    </p>
+    <ul class="rules-ntp-list">
+      <li><strong>Day I, Murray Course</strong> — Hole 8 &amp; Hole 17</li>
+      <li><strong>Day II, Black Bull</strong> — Hole 4 &amp; Hole 16</li>
+      <li><strong>Day III, Lake Course</strong> — Hole 7 &amp; Hole 14</li>
+    </ul>
+  </div>
+
+  <div class="rules-day">
+    <div class="rules-day-head">
+      <span class="rules-day-badge">The Cup</span>
+      <h3>Overall Result</h3>
+    </div>
+    <p>
+      Points from all three days — match play, scramble, and Stableford, plus every Nearest the
+      Pin bonus — add up to one running total per team, tracked live on the
+      <a href="scorecard-live.html">live scorecard</a>. Whichever team has more points after
+      Sunday's presentation wins the Wonga Cup. Level on points after all three days? It's settled
+      by a sudden-death putt-off on the spot.
+    </p>
+  </div>
 </div>
 
 <div class="live-cta-block">
