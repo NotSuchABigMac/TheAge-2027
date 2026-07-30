@@ -21,9 +21,8 @@
 <meta name="twitter:title" content="The Wonga Cup · MMXXVI · Yarrawonga">
 <meta name="twitter:description" content="Three days of golf, mateship, and mild chaos at Yarrawonga & Mulwala — the Wonga Cup, 7-9 August 2026.">
 <meta name="twitter:image" content="https://thewongacup.golf/images/og-card.jpg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css?v=__CACHEBUST__">
 <!-- Issue #178: the hero photo is a CSS background-image, invisible to
      the preload scanner -- without this it isn't discovered until
@@ -124,22 +123,37 @@
   <div class="weather-strip-inner">
     <div class="weather-days">
       <div class="weather-day">
-        <span class="wd-date">Fri <em>Murray</em></span>
-        <span class="wd-icon" aria-hidden="true">&#127783;&#65039;</span>
-        <span class="wd-temp">13&deg;<span class="lo">/5&deg;</span></span>
-        <span class="wd-extra"><span class="v">40%</span> <span class="v">15km/h</span><span class="wd-arrow" style="transform:rotate(45deg)" title="Blowing to the NE">&#8593;</span></span>
+        <div class="wd-top">
+          <span class="wd-date">Fri <em>Murray</em></span>
+          <span class="wd-temp">13&deg;<span class="lo">/5&deg;</span></span>
+        </div>
+        <div class="wd-bottom">
+          <span class="wd-icon" aria-hidden="true">&#127783;&#65039;</span>
+          <span class="wd-rain"><span class="v">40%</span> <span class="mm">(2mm)</span></span>
+          <span class="wd-wind"><span class="v">15km/h</span><span class="wd-arrow" style="transform:rotate(45deg)" title="Blowing to the NE">&#8593;</span></span>
+        </div>
       </div>
       <div class="weather-day">
-        <span class="wd-date">Sat <em>Black Bull</em></span>
-        <span class="wd-icon" aria-hidden="true">&#9925;&#65039;</span>
-        <span class="wd-temp">14&deg;<span class="lo">/3&deg;</span></span>
-        <span class="wd-extra"><span class="v">30%</span> <span class="v">18km/h</span><span class="wd-arrow" style="transform:rotate(90deg)" title="Blowing to the E">&#8593;</span></span>
+        <div class="wd-top">
+          <span class="wd-date">Sat <em>Black Bull</em></span>
+          <span class="wd-temp">14&deg;<span class="lo">/3&deg;</span></span>
+        </div>
+        <div class="wd-bottom">
+          <span class="wd-icon" aria-hidden="true">&#9925;&#65039;</span>
+          <span class="wd-rain"><span class="v">30%</span> <span class="mm">(1mm)</span></span>
+          <span class="wd-wind"><span class="v">18km/h</span><span class="wd-arrow" style="transform:rotate(90deg)" title="Blowing to the E">&#8593;</span></span>
+        </div>
       </div>
       <div class="weather-day">
-        <span class="wd-date">Sun <em>Lake</em></span>
-        <span class="wd-icon" aria-hidden="true">&#9728;&#65039;</span>
-        <span class="wd-temp">15&deg;<span class="lo">/5&deg;</span></span>
-        <span class="wd-extra"><span class="v">20%</span> <span class="v">12km/h</span><span class="wd-arrow" style="transform:rotate(135deg)" title="Blowing to the SE">&#8593;</span></span>
+        <div class="wd-top">
+          <span class="wd-date">Sun <em>Lake</em></span>
+          <span class="wd-temp">15&deg;<span class="lo">/5&deg;</span></span>
+        </div>
+        <div class="wd-bottom">
+          <span class="wd-icon" aria-hidden="true">&#9728;&#65039;</span>
+          <span class="wd-rain"><span class="v">20%</span> <span class="mm">(&lt;1mm)</span></span>
+          <span class="wd-wind"><span class="v">12km/h</span><span class="wd-arrow" style="transform:rotate(135deg)" title="Blowing to the SE">&#8593;</span></span>
+        </div>
       </div>
     </div>
   </div>

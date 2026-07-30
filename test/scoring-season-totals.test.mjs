@@ -25,14 +25,16 @@ const {
   day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor,
   teamOfSets, ntpPointsFor,
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
+  day3CourseHolesFor, effectiveDay3ScoreFor, stablefordPoints, day3PointsThru, groupStrokes,
   scrambleTeamHandicap, anthemAdjustedHandicap,
-  computeSeasonTotals, phaseFor
+  computeSeasonTotals, phaseFor, playersWithOverrides
 } = require('../scoring.js');
 
 const SI_ASCENDING = Array.from({ length: 18 }, (_, i) => i + 1);
 const COURSES_FIXTURE = {
   1: { holes: SI_ASCENDING.map((si) => ({ si, par: 4 })) },
-  2: { holes: SI_ASCENDING.map((si) => ({ si, par: 4 })) }
+  2: { holes: SI_ASCENDING.map((si) => ({ si, par: 4 })) },
+  3: { holes: SI_ASCENDING.map((si) => ({ si, par: 4 })) }
 };
 
 /* ── day1StrokeIndexesFor / matchStrokesForPlayers ── */
@@ -179,6 +181,75 @@ test('effectiveDay2StateFor computes all four codes independently', () => {
   assert.equal(got.a4, null); // no manual value, no hole data
 });
 
+/* ── day3CourseHolesFor / stablefordPoints / day3PointsThru / effectiveDay3ScoreFor (issue #188) ── */
+
+test('day3CourseHolesFor reads the Lake course\'s (courses[3]) holes, degrading gracefully when missing', () => {
+  assert.deepEqual(day3CourseHolesFor(COURSES_FIXTURE), COURSES_FIXTURE[3].holes);
+  assert.equal(day3CourseHolesFor(null).length, 18);
+});
+
+test('stablefordPoints: 2 = net par, +1 point per stroke better, -1 per stroke worse, floored at 0', () => {
+  assert.equal(stablefordPoints(4, 4, 0), 2); // net par
+  assert.equal(stablefordPoints(3, 4, 0), 3); // net birdie
+  assert.equal(stablefordPoints(2, 4, 0), 4); // net eagle
+  assert.equal(stablefordPoints(5, 4, 0), 1); // net bogey
+  assert.equal(stablefordPoints(6, 4, 0), 0); // net double-bogey
+  assert.equal(stablefordPoints(9, 4, 0), 0); // way over -- floored, not negative
+  assert.equal(stablefordPoints(5, 4, 1), 2); // a stroke received shifts net back to par
+});
+
+test('stablefordPoints: null gross (hole not played) is null, not 0', () => {
+  assert.equal(stablefordPoints(null, 4, 0), null);
+  assert.equal(stablefordPoints(undefined, 4, 0), null);
+});
+
+test('day3PointsThru: sums points only over holes actually played, same "thru N" shape as scrambleNetToParThru', () => {
+  const gross = [4, 3, ...Array(16).fill(null)]; // 2 holes played: par, birdie
+  const strokes = Array(18).fill(0);
+  const pars = Array(18).fill(4);
+  const result = day3PointsThru(gross, strokes, pars);
+  assert.equal(result.total, 5); // 2 (par) + 3 (birdie)
+  assert.equal(result.played, 2);
+});
+
+test('day3PointsThru: no holes played yet returns total 0, played 0 (points are additive, not gated on completeness)', () => {
+  const result = day3PointsThru(Array(18).fill(null), Array(18).fill(0), Array(18).fill(4));
+  assert.equal(result.total, 0);
+  assert.equal(result.played, 0);
+});
+
+test('effectiveDay3ScoreFor: no hole data at all falls back to the manual stored value', () => {
+  const players = [{ id: 0, hcp: '10.0' }];
+  const day3 = { scores: { 0: '38' }, holes: {} };
+  assert.equal(effectiveDay3ScoreFor(0, day3, players, COURSES_FIXTURE), 38);
+});
+
+test('effectiveDay3ScoreFor: any hole data derives a live points-thru-N total, overriding a stale manual value -- no completeness gate', () => {
+  const players = [{ id: 0, hcp: '0.0' }]; // scratch -- no strokes anywhere
+  const day3 = {
+    scores: { 0: '99' }, // stale manual value that must be fully overridden
+    holes: { 0: [4, 3, ...Array(16).fill(null)] } // par, birdie, rest unplayed
+  };
+  const got = effectiveDay3ScoreFor(0, day3, players, COURSES_FIXTURE);
+  assert.equal(got, 5); // 2 (net par) + 3 (net birdie), matches day3PointsThru directly
+});
+
+test('effectiveDay3ScoreFor: matches calling groupStrokes/day3PointsThru directly for a handicapped player', () => {
+  const players = [{ id: 0, hcp: '9.0' }]; // 9 strokes, ascending SI -- one stroke each on holes SI 1-9
+  const day3 = { scores: {}, holes: { 0: Array(18).fill(4) } }; // gross par on every hole
+  const got = effectiveDay3ScoreFor(0, day3, players, COURSES_FIXTURE);
+  const strokes = groupStrokes(9, SI_ASCENDING);
+  const want = day3PointsThru(Array(18).fill(4), strokes, Array(18).fill(4)).total;
+  assert.equal(got, want);
+  // Sanity: 9 holes get a stroke (net birdie, 3pts), 9 don't (net par, 2pts) -> 9*3 + 9*2 = 45.
+  assert.equal(got, 45);
+});
+
+test('effectiveDay3ScoreFor: an unknown player id (stale/removed) is null, not a crash', () => {
+  const day3 = { scores: {}, holes: { 99: Array(18).fill(4) } };
+  assert.equal(effectiveDay3ScoreFor(99, day3, [], COURSES_FIXTURE), null);
+});
+
 /* ── computeSeasonTotals ── */
 
 function emptyDay1() {
@@ -253,6 +324,58 @@ test('computeSeasonTotals: sums day1 + day2 + day3 exactly (cross-checked by han
   assert.ok(totals.day3.a > totals.day3.b);
   assert.equal(totals.totalA, totals.day1.a + totals.day2.a + totals.day3.a);
   assert.equal(totals.totalB, totals.day1.b + totals.day2.b + totals.day3.b);
+});
+
+test('computeSeasonTotals: Day 3 hole-by-hole data overrides a stale manual score, same precedence as Day 1/Day 2 (issue #188) -- this is the exact function index.html\'s live ribbon calls, so it must never silently disagree with the Day 3 tab', () => {
+  const players = [
+    { id: 0, hcp: '0.0' }, // team A, scratch, hole-by-hole entry
+    { id: 1, hcp: '10.0' } // team B, manual only
+  ];
+  const teamA = new Set([0]);
+  const teamB = new Set([1]);
+
+  const day1 = emptyDay1();
+  const day2 = emptyDay2();
+  const day3 = emptyDay3();
+  day3.holes = { 0: Array(18).fill(4) }; // player 0: gross par every hole, scratch -> 2pts x 18 = 36
+  day3.scores[0] = '5'; // stale manual value that must be fully overridden by the hole data
+  day3.scores[1] = '20'; // team B, manual only (no hole data)
+
+  const state = { day1, day2, day3, teamA, teamB };
+  const totals = computeSeasonTotals(state, players, COURSES_FIXTURE);
+
+  // Player 0's derived total (36) beats player 1's manual total (20), so
+  // player 0 is 1st (14pts) and player 1 is 2nd (13pts) per POS_PTS.
+  assert.equal(totals.day3.a, 14);
+  assert.equal(totals.day3.b, 13);
+});
+
+test('computeSeasonTotals: an admin handicap override (issue #206), layered via playersWithOverrides, changes the Day 1 match result exactly as if the roster itself had shipped that handicap', () => {
+  // Both players scratch (hcp 0) -- gross-only match, B is one stroke
+  // better than A on every hole, so B wins the front9 outright.
+  const players = [{ id: 0, hcp: '0.0' }, { id: 1, hcp: '0.0' }];
+  const teamA = new Set([0]);
+  const teamB = new Set([1]);
+  const day1 = emptyDay1();
+  day1.matches[0] = {
+    pA: [0], pB: [1], front9: null, back9: null,
+    holesA: [5, 5, 5, 5, 5, 5, 5, 5, 5, ...Array(9).fill(null)],
+    holesB: [4, 4, 4, 4, 4, 4, 4, 4, 4, ...Array(9).fill(null)]
+  };
+  const state = { day1, day2: emptyDay2(), day3: emptyDay3(), teamA, teamB };
+
+  const before = computeSeasonTotals(state, players, COURSES_FIXTURE);
+  assert.equal(before.day1.a, 0);
+  assert.equal(before.day1.b, 1); // B wins the front9 on gross alone
+
+  // Override player 0's handicap to 18 (SI_ASCENDING fixture -> exactly 1
+  // stroke every hole, per matchStrokes' base=1/extra=0 allocation for an
+  // 18-point difference) -- that stroke exactly cancels A's 1-gross-stroke
+  // deficit on every hole, turning the front9 into a dead-square tie.
+  const overridden = playersWithOverrides(players, { 0: '18.0' });
+  const after = computeSeasonTotals(state, overridden, COURSES_FIXTURE);
+  assert.equal(after.day1.a, 0.5);
+  assert.equal(after.day1.b, 0.5);
 });
 
 /* ── phaseFor ── */
