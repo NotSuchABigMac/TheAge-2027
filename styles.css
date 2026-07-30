@@ -4,6 +4,45 @@
    and a dark mode each. No card-grids. No icons.
    ────────────────────────────────────────────────────────────────────── */
 
+/* ── self-hosted fonts (issue #197) ──
+   Previously loaded from fonts.googleapis.com/fonts.gstatic.com -- two
+   extra render-blocking origin round-trips before any branded text could
+   paint, worst on the one-bar-of-signal case this whole app is built
+   for. All three families are variable fonts (single file covers their
+   whole weight range) and Google's own "latin" subset already excludes
+   the cyrillic/vietnamese/etc. glyph sets this site never uses, so
+   self-hosting is just these 4 files -- no further subsetting needed.
+   OFL-licensed (see fonts/OFL-*.txt); self-hosting is explicitly
+   permitted under that license. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('fonts/cormorant-garamond.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('fonts/cormorant-garamond-italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/geist.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/geist-mono.woff2') format('woff2');
+}
+
 /* ── theme tokens — palettes are applied via [data-theme] on <html> ── */
 
 /* Default tokens (resolve before any data-theme is set) */
