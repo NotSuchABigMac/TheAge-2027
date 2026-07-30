@@ -526,11 +526,51 @@
     return 'bad';
   }
 
+  // Which player id represents `sideArr` for a given nine. A plain singles
+  // side (or the lone-player side of a Captain's Challenge match) is just
+  // sideArr[0], used for both nines -- unchanged from before #256. Only the
+  // challenge match's designated 2-opponent side reads a different id for
+  // the back nine (sideArr[1], its 2nd slot) when one has actually been
+  // assigned; falls back to sideArr[0] until it has, so a challenge side
+  // with only its front9 opponent picked still resolves sensibly rather
+  // than facing a null pairing on the back 9.
+  function nineOpponentId(sideArr, isDoubleSide, isBack) {
+    if (!Array.isArray(sideArr)) return null;
+    if (isDoubleSide && isBack && sideArr[1] !== null && sideArr[1] !== undefined) return sideArr[1];
+    return sideArr[0] !== undefined ? sideArr[0] : null;
+  }
+
+  // Handicap strokes for one match. Computed independently per nine (issue
+  // #256) rather than once across all 18 holes -- for an ordinary singles
+  // match this is mathematically identical to the old single 18-hole call
+  // (matchStrokes() is a pure per-element map over whichever stroke-index
+  // array it's given; splitting the same hcp pair's computation into two 9-
+  // element slices and concatenating produces the same 18 values either
+  // way, pinned by an equivalence test in test/scoring.test.mjs). It's only
+  // for a Captain's Challenge match -- one side facing a different opponent
+  // each nine -- that the two nines can actually differ, since each is then
+  // its own handicap-difference computation against that nine's specific
+  // opponent.
   function matchStrokesForPlayers(match, players, day1StrokeIndexes) {
-    const pA = players.find(p => p.id === match.pA[0]);
-    const pB = players.find(p => p.id === match.pB[0]);
-    if (!pA || !pB) return { receiver: null, a: Array(18).fill(0), b: Array(18).fill(0) };
-    return matchStrokes(pA.hcp, pB.hcp, day1StrokeIndexes);
+    const isChallenge = match.type === 'challenge';
+    const aIsDouble = isChallenge && match.challengeSide === 'A';
+    const bIsDouble = isChallenge && match.challengeSide === 'B';
+    const frontSI = day1StrokeIndexes.slice(0, 9);
+    const backSI = day1StrokeIndexes.slice(9, 18);
+    function nineStrokes(isBack, si) {
+      const pA = players.find(p => p.id === nineOpponentId(match.pA, aIsDouble, isBack));
+      const pB = players.find(p => p.id === nineOpponentId(match.pB, bIsDouble, isBack));
+      if (!pA || !pB) return { receiver: null, a: Array(si.length).fill(0), b: Array(si.length).fill(0) };
+      return matchStrokes(pA.hcp, pB.hcp, si);
+    }
+    const front = nineStrokes(false, frontSI);
+    const back = nineStrokes(true, backSI);
+    // Both nines agree on a receiver for any ordinary singles match (same
+    // pairing both nines, by construction) -- only a genuine Captain's
+    // Challenge pairing with different opponents per nine can disagree, in
+    // which case there's no single well-defined receiver to report.
+    const receiver = front.receiver === back.receiver ? front.receiver : null;
+    return { receiver, a: [...front.a, ...back.a], b: [...front.b, ...back.b] };
   }
 
   function effectiveMatchFor(match, players, day1StrokeIndexes) {
@@ -837,11 +877,22 @@
     const changes = [];
     if (!staleField) return { matches, changes };
     const nextMatches = matches.map((m, matchIdx) => {
-      if (m[staleField][0] !== playerId) return m;
-      changes.push({ matchIdx, field: staleField, value: null });
+      const slotArr = m[staleField] || [];
+      // Issue #256: a Captain's Challenge match's 2-opponent side has 2
+      // slots (front9/back9 opponent) instead of 1 -- check both, and only
+      // null out the slot(s) that actually held this player, not the whole
+      // side (a challenge match's OTHER opponent, in the slot this player
+      // didn't occupy, is unaffected by this move).
+      const staleSlots = [];
+      slotArr.forEach((id, slot) => { if (id === playerId) staleSlots.push(slot); });
+      if (staleSlots.length === 0) return m;
+      staleSlots.forEach(slot => {
+        changes.push({ matchIdx, field: slot === 1 ? `${staleField}2` : staleField, value: null });
+      });
       if (m.front9 !== null) changes.push({ matchIdx, field: 'front9', value: null });
       if (m.back9 !== null) changes.push({ matchIdx, field: 'back9', value: null });
-      const next = { ...m, [staleField]: [null], front9: null, back9: null };
+      const nextSlotArr = slotArr.map((id, slot) => staleSlots.includes(slot) ? null : id);
+      const next = { ...m, [staleField]: nextSlotArr, front9: null, back9: null };
       // A moved player's per-hole gross scores (issue #124) are stale in
       // exactly the same way front9/back9 were -- clear them too, but only
       // for matches that actually carry hole data (older callers/tests
@@ -896,14 +947,24 @@
 
   // Whitelists which field_key values each synced update_type may touch.
   // The tournament_updates table is publicly writable, so a forged
-  // field_key (e.g. day2_score/'ntp', day1_match/'type' or '__proto__')
+  // field_key (e.g. day2_score/'ntp', day1_match/'zz' or '__proto__')
   // must not be able to overwrite a differently-shaped part of state --
   // without this, such a row replaces a whole object with a string or
   // rewrites a match's shape instead of just one of its real fields
   // (issue #120). update_types without a field_key (day3_stableford,
   // player_team, tiebreak) have no entry here and are unaffected.
+  //
+  // 'pA2'/'pB2' and 'type'/'challengeSide' (issue #256) are the Captain's
+  // Challenge fields: a match flipped to type:'challenge' gets a 2nd player
+  // slot (pA2 or pB2, whichever side challengeSide names) for its "two
+  // opponents" side -- the lone player's own slot is still just pA/pB, used
+  // for both nines same as any singles match. These carry exactly the same
+  // trust level as pA/pB already do (anyone with the shared write token can
+  // reassign a match's players today; toggling one match's format is no
+  // more sensitive than that, and it's a deliberately visitor-correctable
+  // per-match setting, not a one-way admin action).
   const UPDATE_FIELD_KEYS = {
-    day1_match: ['pA', 'pB', 'front9', 'back9'],
+    day1_match: ['pA', 'pB', 'pA2', 'pB2', 'front9', 'back9', 'type', 'challengeSide'],
     day1_ntp:   ['h8', 'h17'],
     day2_score: ['a4', 'a3', 'b4', 'b3'],
     day2_ntp:   ['h4', 'h16'],
@@ -934,8 +995,10 @@
         if (!Number.isInteger(row.match_idx) || row.match_idx < 0 || row.match_idx > 5) break;
         const match = state.day1.matches[row.match_idx];
         if (!match || !row.field_key) break;
-        if (row.field_key === 'pA' || row.field_key === 'pB') {
+        if (row.field_key === 'pA' || row.field_key === 'pB' || row.field_key === 'pA2' || row.field_key === 'pB2') {
           const id = parseIntOrNull(v);
+          const side = (row.field_key === 'pA' || row.field_key === 'pA2') ? 'pA' : 'pB';
+          const slot = (row.field_key === 'pA2' || row.field_key === 'pB2') ? 1 : 0;
           // Issue #147: the app's own UI only disables a player already
           // used in another match against *this device's* current state --
           // two devices independently assigning the same not-yet-used
@@ -948,21 +1011,30 @@
           // assignment is LATEST in log order wins, and the earlier one
           // -- plus any result already recorded against it, same fields
           // setMatchPlayer() clears on a manual reassignment -- is undone.
+          // Checks both slots of both sides (issue #256's Captain's
+          // Challenge 2nd slot included) since a player can only ever hold
+          // one seat across the whole day regardless of which slot it is.
           if (id !== null) {
             state.day1.matches.forEach((other, oi) => {
               if (oi === row.match_idx) return;
-              ['pA', 'pB'].forEach(side => {
-                if (other[side][0] === id) {
-                  other[side][0] = null;
-                  other.front9 = null;
-                  other.back9 = null;
-                  other.holesA = Array(18).fill(null);
-                  other.holesB = Array(18).fill(null);
-                }
+              ['pA', 'pB'].forEach(s => {
+                [0, 1].forEach(si => {
+                  if (other[s][si] === id) {
+                    other[s][si] = null;
+                    other.front9 = null;
+                    other.back9 = null;
+                    other.holesA = Array(18).fill(null);
+                    other.holesB = Array(18).fill(null);
+                  }
+                });
               });
             });
           }
-          (row.field_key === 'pA' ? match.pA : match.pB)[0] = id;
+          match[side][slot] = id;
+        } else if (row.field_key === 'type') {
+          match.type = v === 'challenge' ? 'challenge' : 'singles';
+        } else if (row.field_key === 'challengeSide') {
+          match.challengeSide = (v === 'A' || v === 'B') ? v : null;
         } else {
           const val = (v === null || v === 'null') ? null : v;
           match[row.field_key] = (val === 'A' || val === 'B' || val === 'T') ? val : null;
@@ -1112,7 +1184,7 @@
      deltas is exactly the corruption pattern issue #71 was about --
      restoring team membership goes through individual player_team rows. */
   const UPDATE_TYPE_DESCRIPTORS = {
-    day1_match:      { label: 'Day 1 — Match Result / Player',  addressing: 'match+field', fieldKeys: ['pA', 'pB', 'front9', 'back9'], restorable: true },
+    day1_match:      { label: 'Day 1 — Match Result / Player',  addressing: 'match+field', fieldKeys: ['pA', 'pB', 'pA2', 'pB2', 'front9', 'back9', 'type', 'challengeSide'], restorable: true },
     day1_hole:       { label: 'Day 1 — Hole Score',              addressing: 'match+hole',  restorable: true },
     day1_ntp:        { label: 'Day 1 — Nearest the Pin',         addressing: 'field',       fieldKeys: ['h8', 'h17'], restorable: true },
     day2_score:      { label: 'Day 2 — Group Net Score (manual)', addressing: 'field',      fieldKeys: ['a4', 'a3', 'b4', 'b3'], restorable: true },
@@ -1154,9 +1226,17 @@
     switch (row.update_type) {
       case 'day1_match': {
         const matchLabel = Number.isInteger(row.match_idx) ? `Match ${row.match_idx + 1}` : 'Match ?';
-        if (row.field_key === 'pA' || row.field_key === 'pB') {
-          const side = row.field_key === 'pA' ? 'Team A slot' : 'Team B slot';
+        if (row.field_key === 'pA' || row.field_key === 'pB' || row.field_key === 'pA2' || row.field_key === 'pB2') {
+          const isSecond = row.field_key === 'pA2' || row.field_key === 'pB2';
+          const teamLetter = (row.field_key === 'pA' || row.field_key === 'pA2') ? 'A' : 'B';
+          const side = `Team ${teamLetter} slot${isSecond ? ' (Captain\'s Challenge, back 9 opponent)' : ''}`;
           return { fieldLabel: `${matchLabel} · ${side}`, valueLabel: isCleared ? '(cleared)' : (playerName(v) || String(v)) };
+        }
+        if (row.field_key === 'type') {
+          return { fieldLabel: `${matchLabel} · Format`, valueLabel: v === 'challenge' ? "Captain's Challenge (1v2)" : 'Singles (1v1)' };
+        }
+        if (row.field_key === 'challengeSide') {
+          return { fieldLabel: `${matchLabel} · Captain's Challenge side`, valueLabel: isCleared ? '(cleared)' : `Team ${v}` };
         }
         const half = row.field_key === 'front9' ? 'Front 9' : row.field_key === 'back9' ? 'Back 9' : (row.field_key || '?');
         return { fieldLabel: `${matchLabel} · ${half}`, valueLabel: isCleared ? '(cleared)' : (teamName(v) || String(v)) };
@@ -1263,11 +1343,13 @@
     if (typeof state.day3 !== 'object' || state.day3 === null) {
       state.day3 = { scores: {}, ntp: { h7: null, h14: null }, locked: false };
     }
-    // Coerce every existing match into the current singles shape — a match
-    // saved during the short-lived doubles-era format (type:'doubles',
-    // 2-slot pA/pB) can otherwise survive indefinitely in a browser's cached
+    // Coerce every existing match into a known-good shape — a match saved
+    // during the short-lived doubles-era format (type:'doubles', both sides
+    // 2-slot) can otherwise survive indefinitely in a browser's cached
     // state, since this used to only pad new matches onto the end rather
-    // than fixing up what was already there.
+    // than fixing up what was already there. Only 'singles' and 'challenge'
+    // (issue #256's Captain's Challenge) are recognized types; anything
+    // else -- including the old 'doubles' -- coerces to 'singles'.
     // Pads/repairs a hole-scores array to exactly 18 entries so a
     // stale/malformed synced payload (missing holesA/holesB entirely, or an
     // array of the wrong length) can't crash the per-hole grid.
@@ -1283,17 +1365,32 @@
       }
       return out;
     }
-    state.day1.matches = state.day1.matches.map(m => ({
-      type: 'singles',
-      pA: [ (m.pA && m.pA[0] !== undefined) ? m.pA[0] : null ],
-      pB: [ (m.pB && m.pB[0] !== undefined) ? m.pB[0] : null ],
-      front9: m.front9 ?? null,
-      back9: m.back9 ?? null,
-      holesA: normalizedHoles(m.holesA),
-      holesB: normalizedHoles(m.holesB)
-    }));
+    // A 'challenge' match's designated challengeSide gets a 2nd slot (the
+    // "two opponents" side); every other side of every match -- including
+    // both sides of a plain singles match -- keeps exactly 1, same shape as
+    // before #256. `keepSecond` decides which.
+    function normalizedPlayerSlots(arr, keepSecond) {
+      const slot0 = (arr && arr[0] !== undefined) ? arr[0] : null;
+      if (!keepSecond) return [slot0];
+      const slot1 = (arr && arr[1] !== undefined) ? arr[1] : null;
+      return [slot0, slot1];
+    }
+    state.day1.matches = state.day1.matches.map(m => {
+      const type = m.type === 'challenge' ? 'challenge' : 'singles';
+      const challengeSide = (type === 'challenge' && (m.challengeSide === 'A' || m.challengeSide === 'B')) ? m.challengeSide : null;
+      return {
+        type,
+        challengeSide,
+        pA: normalizedPlayerSlots(m.pA, challengeSide === 'A'),
+        pB: normalizedPlayerSlots(m.pB, challengeSide === 'B'),
+        front9: m.front9 ?? null,
+        back9: m.back9 ?? null,
+        holesA: normalizedHoles(m.holesA),
+        holesB: normalizedHoles(m.holesB)
+      };
+    });
     while (state.day1.matches.length < 6) {
-      state.day1.matches.push({ type:'singles', pA:[null], pB:[null], front9:null, back9:null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) });
+      state.day1.matches.push({ type:'singles', challengeSide: null, pA:[null], pB:[null], front9:null, back9:null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) });
     }
     if (!state.day1.ntp) state.day1.ntp = { h8:null, h17:null };
     if (!state.day2.ntp) state.day2.ntp = { h4:null, h16:null };

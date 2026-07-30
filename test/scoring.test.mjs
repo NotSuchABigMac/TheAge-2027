@@ -9,7 +9,8 @@ const {
   ninePoints, matchPoints, sumMatchPoints,
   DAY1_GROSS_MIN, DAY1_GROSS_MAX,
   matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
-  day1CourseHolesFor, scoreToParSymbol,
+  day1CourseHolesFor, day1StrokeIndexesFor, scoreToParSymbol,
+  matchStrokesForPlayers, effectiveMatchFor,
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
   ntpTeamPoints,
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
@@ -450,6 +451,27 @@ test('reconcileMatchesAfterTeamMove is a no-op when newTeam is null (player unas
   assert.deepEqual(result.changes, []);
 });
 
+// Issue #256: a Captain's Challenge match's 2-opponent side has 2 slots --
+// moving one of those two opponents must only clear THEIR slot, leaving
+// the other opponent (and the lone player on the far side) untouched.
+test('reconcileMatchesAfterTeamMove: a challenge side\'s back-9 opponent (slot 1) moving away clears only slot 1', () => {
+  const matches = [{ type: 'challenge', challengeSide: 'A', pA: [7, 9], pB: [1], front9: 'A', back9: 'A' }];
+  const result = reconcileMatchesAfterTeamMove(matches, 9, 'B');
+  assert.deepEqual(result.matches[0].pA, [7, null]);
+  assert.deepEqual(result.changes, [
+    { matchIdx: 0, field: 'pA2', value: null },
+    { matchIdx: 0, field: 'front9', value: null },
+    { matchIdx: 0, field: 'back9', value: null }
+  ]);
+});
+
+test('reconcileMatchesAfterTeamMove: the challenge side\'s front-9 opponent (slot 0) moving away clears only slot 0', () => {
+  const matches = [{ type: 'challenge', challengeSide: 'A', pA: [7, 9], pB: [1], front9: null, back9: null }];
+  const result = reconcileMatchesAfterTeamMove(matches, 7, 'B');
+  assert.deepEqual(result.matches[0].pA, [null, 9]);
+  assert.deepEqual(result.changes, [{ matchIdx: 0, field: 'pA', value: null }]);
+});
+
 /* ── Live sync row processing (issue #63 — one bad row wedged all future polls) ── */
 
 test('processUpdateRows applies every row when none of them fail', () => {
@@ -748,12 +770,45 @@ test('applyUpdateToState: day2_score rejects an unlisted field_key (state.day2.n
   assert.deepEqual(state.day2.ntp, { h4: null, h16: null });
 });
 
-test('applyUpdateToState: day1_match rejects field_key "type" and "__proto__" (match shape untouched)', () => {
+test('applyUpdateToState: day1_match rejects field_key "__proto__" (match shape untouched)', () => {
   const state = makeState();
-  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'type', value: 'doubles' });
-  assert.equal(state.day1.matches[0].type, 'singles');
   applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: '__proto__', value: '{}' });
   assert.deepEqual(Object.keys(state.day1.matches[0]).sort(), ['back9', 'front9', 'holesA', 'holesB', 'pA', 'pB', 'type'].sort());
+});
+
+// Issue #256: 'type'/'challengeSide' are legitimate day1_match fields (the
+// Captain's Challenge toggle), unlike the historical 'doubles' era -- any
+// value other than the one recognized type still coerces safely rather
+// than being accepted verbatim.
+test('applyUpdateToState: day1_match "type" accepts "challenge", coerces anything else to "singles"', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'type', value: 'challenge' });
+  assert.equal(state.day1.matches[0].type, 'challenge');
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'type', value: 'doubles' });
+  assert.equal(state.day1.matches[0].type, 'singles');
+});
+
+test('applyUpdateToState: day1_match "challengeSide" accepts A/B, coerces anything else to null', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'challengeSide', value: 'A' });
+  assert.equal(state.day1.matches[0].challengeSide, 'A');
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'challengeSide', value: 'zz' });
+  assert.equal(state.day1.matches[0].challengeSide, null);
+});
+
+test('applyUpdateToState: day1_match pA2/pB2 assign the 2nd (back-9 opponent) slot without touching slot 0', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA', value: '2' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA2', value: '4' });
+  assert.deepEqual(state.day1.matches[0].pA, [2, 4]);
+});
+
+test('applyUpdateToState: assigning a player via pA2 evicts them from another match\'s any slot (issue #256)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'pB2', value: '9' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA2', value: '9' });
+  assert.equal(state.day1.matches[0].pA[1], 9);
+  assert.equal(state.day1.matches[1].pB[1], null);
 });
 
 test('applyUpdateToState: day2_score clamps synced values to +/-20 the same as local input', () => {
@@ -981,6 +1036,76 @@ test('effectiveNines + matchPoints: a derived result produces identical points t
   const manualMatch = { front9: derived.front9, back9: derived.back9 };
   assert.deepEqual(matchPoints({ front9: derived.front9, back9: derived.back9 }), matchPoints(manualMatch));
   assert.deepEqual(matchPoints({ front9: derived.front9, back9: derived.back9 }), { a: 0.5, b: 1.5 });
+});
+
+/* ── matchStrokesForPlayers / effectiveMatchFor (issue #256 — Captain's
+   Challenge: a match's 2-opponent side can face a different opponent each
+   nine, so strokes are now computed per-nine rather than once across all
+   18 holes). ── */
+
+const CHALLENGE_SI = Array.from({ length: 18 }, (_, i) => i + 1); // hole i -> SI i+1
+const CHALLENGE_PLAYERS = [
+  { id: 1, hcp: '8.0' },
+  { id: 2, hcp: '19.0' },
+  { id: 3, hcp: '12.0' }
+];
+
+test('matchStrokesForPlayers: an ordinary singles match is unaffected by the per-nine refactor (equivalence check)', () => {
+  const match = { type: 'singles', pA: [1], pB: [2] };
+  const result = matchStrokesForPlayers(match, CHALLENGE_PLAYERS, CHALLENGE_SI);
+  // Same worked example as the direct matchStrokes() test above: |19-8|=11,
+  // extra=11, so B receives a stroke on every hole whose SI is <= 11.
+  assert.deepEqual(result.a, Array(18).fill(0));
+  assert.deepEqual(result.b, CHALLENGE_SI.map(si => (si <= 11 ? 1 : 0)));
+});
+
+test('matchStrokesForPlayers: missing player(s) on a plain singles match yields all-zero strokes, not a throw', () => {
+  const result = matchStrokesForPlayers({ type: 'singles', pA: [null], pB: [2] }, CHALLENGE_PLAYERS, CHALLENGE_SI);
+  assert.deepEqual(result.a, Array(18).fill(0));
+  assert.deepEqual(result.b, Array(18).fill(0));
+});
+
+test('matchStrokesForPlayers: a Captain\'s Challenge match computes each nine against ITS OWN opponent', () => {
+  // Team A fields 2 opponents (challengeSide 'A'): player 1 (hcp 8) plays
+  // the front 9, player 3 (hcp 12) plays the back 9, both against the lone
+  // player 2 (hcp 19) on Team B.
+  const match = { type: 'challenge', challengeSide: 'A', pA: [1, 3], pB: [2] };
+  const result = matchStrokesForPlayers(match, CHALLENGE_PLAYERS, CHALLENGE_SI);
+  // Front 9 (SI 1-9): |19-8|=11 -> every front-9 hole (SI 1-9, all <= 11) gets a stroke.
+  assert.deepEqual(result.b.slice(0, 9), Array(9).fill(1));
+  assert.deepEqual(result.a.slice(0, 9), Array(9).fill(0));
+  // Back 9 (SI 10-18): |19-12|=7 -> no back-9 hole has SI <= 7, so zero strokes either way
+  assert.deepEqual(result.b.slice(9), Array(9).fill(0));
+  assert.deepEqual(result.a.slice(9), Array(9).fill(0));
+});
+
+test('matchStrokesForPlayers: without a back-9 opponent assigned yet, the challenge side falls back to its front-9 player for both nines', () => {
+  const match = { type: 'challenge', challengeSide: 'A', pA: [1], pB: [2] }; // no pA[1] yet
+  const withFallback = matchStrokesForPlayers(match, CHALLENGE_PLAYERS, CHALLENGE_SI);
+  const plainSingles = matchStrokesForPlayers({ type: 'singles', pA: [1], pB: [2] }, CHALLENGE_PLAYERS, CHALLENGE_SI);
+  assert.deepEqual(withFallback, plainSingles);
+});
+
+test('matchStrokesForPlayers: the lone-opponent side of a challenge match still uses the same player for both nines', () => {
+  // challengeSide 'B' -- Team B fields 2 opponents, Team A has the lone player.
+  const match = { type: 'challenge', challengeSide: 'B', pA: [2], pB: [1, 3] };
+  const result = matchStrokesForPlayers(match, CHALLENGE_PLAYERS, CHALLENGE_SI);
+  assert.deepEqual(result.a.slice(0, 9), Array(9).fill(1)); // front: |19-8|=11
+  assert.deepEqual(result.a.slice(9), Array(9).fill(0));    // back: |19-12|=7, none of SI 10-18 <= 7
+});
+
+test('effectiveMatchFor: a Captain\'s Challenge match still resolves each nine\'s winner from its own strokes', () => {
+  const match = {
+    type: 'challenge', challengeSide: 'A', pA: [1, 3], pB: [2],
+    front9: null, back9: null,
+    // Front 9: B (hcp 19) receives a stroke on every hole (SI 1-9 all <= 11)
+    // -- both gross 5, so B's net (5-1=4) beats A's net (5-0=5) every hole.
+    holesA: [5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+    holesB: [5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+  };
+  const eff = effectiveMatchFor(match, CHALLENGE_PLAYERS, CHALLENGE_SI);
+  assert.equal(eff.front9, 'B'); // B wins every front-9 hole on strokes received
+  assert.equal(eff.back9, 'T');  // back 9: no strokes either way (|19-12|=7, none of SI10-18 <=7), all-square holes
 });
 
 test('nineStatus: all square partway through reports lead 0, no leader, not dormie', () => {
@@ -1422,7 +1547,12 @@ test('describeUpdateRow: covers every update_type in UPDATE_TYPE_DESCRIPTORS wit
 // whitelist accepts a field the picker can't address. Tested behaviorally
 // through applyUpdateToState since UPDATE_FIELD_KEYS isn't exported.
 function validValueFor(updateType, fieldKey) {
-  if (updateType === 'day1_match') return (fieldKey === 'pA' || fieldKey === 'pB') ? '3' : 'A';
+  if (updateType === 'day1_match') {
+    if (fieldKey === 'pA' || fieldKey === 'pB' || fieldKey === 'pA2' || fieldKey === 'pB2') return '3';
+    if (fieldKey === 'type') return 'challenge';
+    if (fieldKey === 'challengeSide') return 'A';
+    return 'A'; // front9/back9
+  }
   if (updateType === 'day1_ntp' || updateType === 'day2_ntp' || updateType === 'day3_ntp') return '3';
   if (updateType === 'day2_score') return '-5';
   if (updateType === 'team_name') return 'Test Name';
@@ -1433,6 +1563,10 @@ function assertFieldAccepted(state, updateType, fieldKey) {
   if (updateType === 'day1_match') {
     if (fieldKey === 'pA') { assert.equal(state.day1.matches[0].pA[0], 3, `${updateType}/${fieldKey} should be accepted`); return; }
     if (fieldKey === 'pB') { assert.equal(state.day1.matches[0].pB[0], 3, `${updateType}/${fieldKey} should be accepted`); return; }
+    if (fieldKey === 'pA2') { assert.equal(state.day1.matches[0].pA[1], 3, `${updateType}/${fieldKey} should be accepted`); return; }
+    if (fieldKey === 'pB2') { assert.equal(state.day1.matches[0].pB[1], 3, `${updateType}/${fieldKey} should be accepted`); return; }
+    if (fieldKey === 'type') { assert.equal(state.day1.matches[0].type, 'challenge', `${updateType}/${fieldKey} should be accepted`); return; }
+    if (fieldKey === 'challengeSide') { assert.equal(state.day1.matches[0].challengeSide, 'A', `${updateType}/${fieldKey} should be accepted`); return; }
     assert.equal(state.day1.matches[0][fieldKey], 'A', `${updateType}/${fieldKey} should be accepted`);
     return;
   }
@@ -1545,7 +1679,7 @@ test('normalizeState: missing/malformed day1 is replaced and padded to 6 singles
   normalizeState(state);
   assert.equal(state.day1.matches.length, 6);
   state.day1.matches.forEach(m => {
-    assert.deepEqual(m, { type: 'singles', pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) });
+    assert.deepEqual(m, { type: 'singles', challengeSide: null, pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) });
   });
   assert.deepEqual(state.day1.ntp, { h8: null, h17: null });
   assert.equal(state.day1.locked, false);
@@ -1559,12 +1693,40 @@ test('normalizeState: a doubles-era match is coerced to singles, keeping only sl
   normalizeState(state);
   const m = state.day1.matches[0];
   assert.equal(m.type, 'singles');
+  assert.equal(m.challengeSide, null);
   assert.deepEqual(m.pA, [3]);
   assert.deepEqual(m.pB, [2]);
   assert.equal(m.front9, 'A');
   assert.equal(m.back9, null);
   assert.equal(m.holesA.length, 18);
   assert.equal(m.holesB.length, 18);
+});
+
+// Issue #256: a genuine 'challenge' match keeps its 2nd slot, but only on
+// the side named by challengeSide -- the other side (the lone opponent)
+// stays a normal 1-slot side, same shape as any singles match.
+test('normalizeState: a challenge match keeps its 2nd slot only on challengeSide; garbage challengeSide coerces to null and drops it', () => {
+  const good = {
+    day1: { matches: [{ type: 'challenge', challengeSide: 'A', pA: [3, 5], pB: [2], front9: null, back9: null }] },
+    day2: {}, day3: {}
+  };
+  normalizeState(good);
+  const m = good.day1.matches[0];
+  assert.equal(m.type, 'challenge');
+  assert.equal(m.challengeSide, 'A');
+  assert.deepEqual(m.pA, [3, 5]);
+  assert.deepEqual(m.pB, [2]);
+
+  const badSide = {
+    day1: { matches: [{ type: 'challenge', challengeSide: 'zz', pA: [3, 5], pB: [2, 4], front9: null, back9: null }] },
+    day2: {}, day3: {}
+  };
+  normalizeState(badSide);
+  const m2 = badSide.day1.matches[0];
+  assert.equal(m2.type, 'challenge');
+  assert.equal(m2.challengeSide, null);
+  assert.deepEqual(m2.pA, [3], 'no valid challengeSide means neither side keeps a 2nd slot');
+  assert.deepEqual(m2.pB, [2]);
 });
 
 test('normalizeState: a wrong-length/garbage holesA array is repaired to 18 clamped entries', () => {
@@ -1646,7 +1808,7 @@ test('normalizeState: an existing day3.holes entry is repaired to 18 clamped ent
 test('normalizeState: an already-normal state passes through unchanged', () => {
   const normal = {
     day1: {
-      matches: Array.from({ length: 6 }, () => ({ type: 'singles', pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) })),
+      matches: Array.from({ length: 6 }, () => ({ type: 'singles', challengeSide: null, pA: [null], pB: [null], front9: null, back9: null, holesA: Array(18).fill(null), holesB: Array(18).fill(null) })),
       ntp: { h8: null, h17: null }, locked: false
     },
     day2: {
