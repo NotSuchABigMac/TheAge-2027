@@ -60,6 +60,13 @@
 .sb-total{font-family:var(--font-d);font-size:3.2rem;line-height:1}
 .team-a .sb-team-name,.team-a .sb-total{color:var(--team-a)}
 .team-b .sb-team-name,.team-b .sb-total{color:var(--team-b)}
+/* Issue #230: mascot emoji next to the currently-leading team on the
+   pinned scoreboard -- Team A/flamingo, Team B/gorilla per this year's
+   team names (organiser's call if that ever needs to flip). Purely
+   decorative, keyed off the .leading class updateScoreboard() already
+   toggles based on totals already computed. */
+.team-a.leading .sb-team-name::after{content:' 🦩'}
+.team-b.leading .sb-team-name::after{content:' 🦍'}
 .sb-vs{font-family:var(--font-d);font-size:1.4rem;color:var(--grey);text-align:center}
 .sb-day-chips{display:flex;justify-content:center;gap:6px;margin-top:5px;flex-wrap:wrap}
 .sb-chip{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--grey)}
@@ -114,6 +121,10 @@
 .match-card.win-a{border-color:color-mix(in srgb,var(--team-a) 60%,transparent);box-shadow:0 0 20px color-mix(in srgb,var(--team-a) 15%,transparent);border-left:4px solid var(--team-a)}
 .match-card.win-b{border-color:color-mix(in srgb,var(--team-b) 60%,transparent);box-shadow:0 0 20px color-mix(in srgb,var(--team-b) 15%,transparent);border-left:4px solid var(--team-b)}
 .match-card.win-as{border-color:var(--rule-strong);border-left:4px solid var(--rule-strong)}
+/* Issue #230: mascot emoji next to a decided match's winning score --
+   same win-a/win-b class the border/glow above already keys off. */
+.match-card.win-a .msa::after{content:' 🦩'}
+.match-card.win-b .msb::after{content:' 🦍'}
 .match-header{background:var(--canvas-2);border-bottom:1px solid var(--rule);padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
 .match-title{font-family:var(--font-d);font-size:1.4rem;letter-spacing:1px;color:var(--ink)}
 .match-score-display{font-family:var(--font-d);font-size:1.7rem;display:flex;align-items:center;gap:6px}
@@ -268,6 +279,13 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .hole-grid-table td.hole-win-a{background:color-mix(in srgb, var(--team-a) 22%, transparent)}
 .hole-grid-table td.hole-win-b{background:color-mix(in srgb, var(--team-b) 22%, transparent)}
 .hole-grid-table td.hole-tie{background:color-mix(in srgb, var(--ink-mute) 16%, transparent)}
+/* Issue #230: a small mascot badge on a decided hole -- restrained on
+   purpose (a tiny corner mark, not a full emoji next to every score) so
+   it doesn't clutter the grid on a small phone screen. pointer-events:none
+   keeps it from stealing the tap that should hit the input underneath. */
+.hole-grid-table td.hole-in-cell{position:relative}
+.hole-grid-table td.hole-win-a::after{content:'🦩';position:absolute;top:-5px;right:-3px;font-size:.75rem;line-height:1;pointer-events:none}
+.hole-grid-table td.hole-win-b::after{content:'🦍';position:absolute;top:-5px;right:-3px;font-size:.75rem;line-height:1;pointer-events:none}
 /* Issue #250: traditional golf leaderboard marks -- circle for under par
    (birdie/eagle), square for over par (bogey/double-bogey-or-worse), plain
    for par itself. Applied to the score input directly so it works the same
@@ -2701,6 +2719,14 @@ function updateScoreboard() {
 
   if (fmt(totalA) !== fmt(prevA)) { sbA.classList.remove('pop'); void sbA.offsetWidth; sbA.classList.add('pop'); }
   if (fmt(totalB) !== fmt(prevB)) { sbB.classList.remove('pop'); void sbB.offsetWidth; sbB.classList.add('pop'); }
+
+  // Issue #230: mascot emoji next to the currently-leading team (CSS
+  // ::after on .leading, see the .team-a/.team-b rules near the top of
+  // the stylesheet) -- purely decorative, no scoring change.
+  const teamAPin = document.querySelector('.scoreboard-pin .team-a');
+  const teamBPin = document.querySelector('.scoreboard-pin .team-b');
+  if (teamAPin) teamAPin.classList.toggle('leading', totalA > totalB);
+  if (teamBPin) teamBPin.classList.toggle('leading', totalB > totalA);
 
   document.getElementById('sb-chips-a').innerHTML =
     `<span class="sb-chip">D1: ${fmt(d1.a)}</span><span class="sb-chip">D2: ${fmt(d2.a)}</span><span class="sb-chip">D3: ${fmt(d3.a)}</span>`;
