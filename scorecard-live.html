@@ -378,6 +378,23 @@ body{padding-top:58px;padding-bottom:52px}
 #page-scorecard .section-header { padding: 48px 0 24px; border-bottom: 1px solid color-mix(in srgb, var(--gold) 22%, transparent); margin-bottom: 32px; }
 #page-scorecard .section-label { font-family: var(--font-h); font-size: .72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
 #page-scorecard .section-title { font-family: var(--font-d); font-size: clamp(2.4rem,5vw,3.8rem); line-height: 1; letter-spacing: 1px; }
+
+/* ── PRINT (issue #210) ── the day panels already render the draw and
+   scores; on paper, everything here is either live-app chrome (nothing
+   to click) or a status readout with no meaning once printed. Only the
+   currently active .sc-panel prints -- .sc-panel/.sc-panel.active
+   already handle that in every media, nothing extra needed there. */
+@media print {
+  #username-badge, #offline-banner, .mini-sb, .sync-bar, .sc-tabs,
+  #save-toast, #undo-toast, #update-toast, #confirm-toast,
+  #provenance-popover, .username-modal, .countdown-bar {
+    display: none !important;
+  }
+  input[type=number], .hole-grid-table input {
+    border: none;
+    background: transparent;
+  }
+}
 </style>
 </head>
 <body>

@@ -1394,3 +1394,25 @@ html[data-mode="dark"] .hero-photo {
 }
 .music-no:hover { opacity: .7; }
 .center { text-align: center; }
+
+/* ── PRINT (issue #210) ──────────────────────────────────────────────
+   "Paper is the disaster plan": if Supabase, the wifi, or a phone
+   battery dies mid-tournament, these pages should fall back to paper in
+   thirty seconds rather than collapsing into arithmetic-by-group-chat.
+   Sitewide chrome, hero photos and the footer add nothing on a printed
+   page, and full-bleed hero photography in particular is pure toner. */
+@media print {
+  .masthead, .mobile-menu, .music-modal, .theme-switcher, .hamburger,
+  .hero-photo, .hero-scrim, .photo, .skip-link, .foot,
+  .live-cta-block, .live-strip {
+    display: none !important;
+  }
+  body { background: #fff; color: #000; }
+  a { color: #000; text-decoration: underline; }
+  .h-section { font-size: 2rem; }
+  .h-large { font-size: 1.4rem; }
+  .course, .kit-col, .ll, .signature, table, tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
