@@ -64,7 +64,7 @@ test('deploy.yml assembles an explicit _site/ directory instead of uploading the
 
 test('deploy.yml never assembles _site/ from repo-internal directories', () => {
   const workflow = readFileSync(path.join(ROOT, '.github/workflows/deploy.yml'), 'utf8');
-  for (const internal of ['test/', 'supabase/', '.github/']) {
+  for (const internal of ['test/', 'supabase/', '.github/', 'snapshots/', 'scripts/']) {
     assert.ok(!workflow.includes(`cp -r ${internal}`), `expected deploy.yml to never copy ${internal} into _site/`);
   }
 });

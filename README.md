@@ -78,6 +78,29 @@ See `ARCHITECTURE.md` for why this shape (transaction log + `app_secrets`
 + `SECURITY DEFINER` functions) exists, and the history of what didn't
 work before it.
 
+## Backup & restore (issue #207)
+
+Supabase's free tier gives ~7 days of point-in-time recovery at best.
+`.github/workflows/snapshot.yml` runs `scripts/snapshot-tournament-updates.mjs`
+on a schedule (daily year-round, every 2 hours during 7-9 Aug) and commits
+`snapshots/tournament-updates.json` whenever it's actually changed —
+a free, offsite, versioned, diffable backup of the whole log, using
+only the anon key every device already has. Run it manually any time
+via the Actions tab → "Nightly log snapshot" → Run workflow.
+
+**To restore** a fresh Supabase project from a snapshot: run migrations
+001-004 against it first (see above), then replay
+`snapshots/tournament-updates.json` as a batch `INSERT` into
+`tournament_updates` (any tool that can POST JSON works — the Supabase
+dashboard's SQL editor with a generated `INSERT` statement, or a small
+script hitting `/rest/v1/tournament_updates` with the **service-role**
+key, since anon can't backfill historical `updated_at` values through
+RLS the way a live client can). This works because the app's state is
+a pure function of the log — `normalizeState`/`applyUpdateToState` in
+`scoring.js` rebuild identical state from any complete row set, in any
+order, replayed on any device. After the tournament weekend, the final
+snapshot becomes the permanent 2026 archive.
+
 ## More
 
 `ARCHITECTURE.md` covers the data model in depth: the transaction-log
