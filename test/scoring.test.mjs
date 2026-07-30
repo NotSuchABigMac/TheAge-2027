@@ -9,6 +9,7 @@ const {
   ninePoints, matchPoints, sumMatchPoints,
   DAY1_GROSS_MIN, DAY1_GROSS_MAX,
   matchStrokes, holeResult, nineFromHoles, nineStatus, effectiveNines,
+  day1CourseHolesFor, scoreToParSymbol,
   ntpTeamPoints,
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
@@ -1556,4 +1557,34 @@ test('defaultDay: outside the tournament dates returns null so the caller falls 
   assert.equal(defaultDay(new Date('2026-08-06T00:00:00Z')), null);
   assert.equal(defaultDay(new Date('2026-08-10T00:00:00Z')), null);
   assert.equal(defaultDay(new Date('2025-08-07T00:00:00Z')), null);
+});
+
+/* ── scoreToParSymbol / day1CourseHolesFor (issue #250 — golf leaderboard
+   scoring symbols on entered hole scores) ── */
+test('scoreToParSymbol: maps gross-vs-par to the standard leaderboard marks', () => {
+  assert.equal(scoreToParSymbol(2, 4), 'eagle');   // -2 or better
+  assert.equal(scoreToParSymbol(1, 4), 'eagle');   // -3, still eagle-or-better
+  assert.equal(scoreToParSymbol(3, 4), 'birdie');  // -1
+  assert.equal(scoreToParSymbol(4, 4), 'par');      // even
+  assert.equal(scoreToParSymbol(5, 4), 'bogey');   // +1
+  assert.equal(scoreToParSymbol(6, 4), 'double-bogey'); // +2
+  assert.equal(scoreToParSymbol(9, 4), 'double-bogey'); // +5, still double-bogey-or-worse
+});
+
+test('scoreToParSymbol: null whenever the gross score or par is missing (no score entered yet)', () => {
+  assert.equal(scoreToParSymbol(null, 4), null);
+  assert.equal(scoreToParSymbol(undefined, 4), null);
+  assert.equal(scoreToParSymbol(4, null), null);
+});
+
+test('day1CourseHolesFor: returns the Murray Course par/SI per hole', () => {
+  const courses = { 1: { holes: [{ hole: 1, par: 4, si: 6 }, { hole: 2, par: 3, si: 18 }] } };
+  assert.deepEqual(day1CourseHolesFor(courses), courses[1].holes);
+});
+
+test('day1CourseHolesFor: degrades to a flat par-4 fallback if courses.js somehow failed to load', () => {
+  const fallback = day1CourseHolesFor(null);
+  assert.equal(fallback.length, 18);
+  assert.equal(fallback[0].par, 4);
+  assert.equal(fallback[0].si, 1);
 });

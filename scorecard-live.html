@@ -41,6 +41,10 @@
   --gold-light:#c9a96a;
   /* team A is pink; team B stays blue */
   --team-a:#f472b6; --team-b:#6ab8f7;
+  /* traditional golf scoring-symbol colors (issue #250): circle marks for
+     under par, square marks for over par -- fixed hex like the team
+     colors above, so they read the same regardless of light/dark theme */
+  --birdie:#2f9e56; --eagle:#1f7a3f; --bogey:#c0392b; --worse:#8e2419;
   /* typography from design system */
   --font-d:var(--display,'Cormorant Garamond',Georgia,serif);
   --font-h:var(--mono,'Geist Mono',monospace);
@@ -137,6 +141,9 @@ select option{background:var(--canvas)}
 .nine-toggle button.is-active-b{background:var(--team-b);color:#fff}
 .nine-toggle button.is-active-b .rt-pts{color:rgba(255,255,255,.75)}
 @media(max-width:600px){.nine-block{flex-direction:column;align-items:stretch;gap:6px}.nine-label{min-width:0}}
+/* ── ADMIN: RELOCATED FRONT9/BACK9 + NET-TO-PAR OVERRIDES (issues #248, #252) ── */
+.admin-override-match{padding:10px 0;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:10px}
+.admin-override-match:last-child{border-bottom:0}
 
 /* ── DAY 2: NATIONAL ANTHEM HOUSE RULE (issue #149) ── */
 .anthem-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--rule)}
@@ -253,6 +260,22 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .hole-grid-table .dots{font-size:.55rem;letter-spacing:-1px;color:var(--gold);min-height:1em}
 .hole-grid-table input{width:100%;min-height:44px;text-align:center;font-family:var(--font-h);font-size:.7rem;border:1px solid var(--rule-strong);border-radius:3px;background:var(--canvas);color:var(--ink);padding:8px 0}
 .hole-grid-table input:disabled{opacity:.4}
+.hole-grid-table .par-cell{color:var(--ink-mute)}
+/* Issue #249: color-code each hole's score cell by which team won it,
+   using the same holeResult() the nine-status line is already derived
+   from -- fixed team-tinted background, legible in both themes since
+   --team-a/--team-b are already fixed hex (not theme-swapped). */
+.hole-grid-table td.hole-win-a{background:color-mix(in srgb, var(--team-a) 22%, transparent)}
+.hole-grid-table td.hole-win-b{background:color-mix(in srgb, var(--team-b) 22%, transparent)}
+.hole-grid-table td.hole-tie{background:color-mix(in srgb, var(--ink-mute) 16%, transparent)}
+/* Issue #250: traditional golf leaderboard marks -- circle for under par
+   (birdie/eagle), square for over par (bogey/double-bogey-or-worse), plain
+   for par itself. Applied to the score input directly so it works the same
+   way in both Day 1's and Day 2's grids without extra markup. */
+.hole-grid-table input.mark-birdie{border-radius:50%;border-color:var(--birdie);border-width:2px}
+.hole-grid-table input.mark-eagle{border-radius:50%;border-color:var(--eagle);border-width:2px;box-shadow:inset 0 0 0 2px var(--eagle)}
+.hole-grid-table input.mark-bogey{border-color:var(--bogey);border-width:2px}
+.hole-grid-table input.mark-double-bogey{border-color:var(--worse);border-width:2px;box-shadow:inset 0 0 0 2px var(--worse)}
 .nine-status-line{font-size:.72rem;color:var(--ink-mute);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .nine-status-line .clear-btn{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:3px;padding:2px 8px;cursor:pointer}
 /* ── Day 2 scramble groups + hole-by-hole entry (issue #128) ── */
@@ -607,7 +630,7 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Groups</div>
         <div class="section-title" style="font-size:1.3rem">Assign Scramble Groups</div>
       </div>
-      <div class="info-box">Assign each player to their team's group of 4 or group of 3 — needed to compute the group's automatic team handicap. <strong>Once assigned, enter gross scores hole-by-hole below and the net score to par is worked out automatically</strong> (handicap strokes allocated by Black Bull's stroke index). No hole scores yet? The manual net-to-par box still works.</div>
+      <div class="info-box">Assign each player to their team's group of 4 or group of 3 — needed to compute the group's automatic team handicap. <strong>Enter gross scores hole-by-hole below and the net score to par is worked out automatically</strong> (handicap strokes allocated by Black Bull's stroke index). No hole scores yet? See the Admin tab for the manual net-to-par fallback (issue #252).</div>
       <div id="day2-groups"></div>
       <div class="scramble-grid">
         <div class="scramble-team-card scramble-team-a">
@@ -615,7 +638,7 @@ body{padding-top:58px;padding-bottom:52px}
           <div class="sig">
             <label>Group of 4 — Net Score to Par</label>
             <div id="a4-manual" class="sig-row">
-              <input type="number" id="a4-score" min="-20" max="20" placeholder="0" oninput="updateDay2('a4')">
+              <span id="a4-manual-display" class="grey" style="font-size:.85rem">Not started</span>
               <div class="pts-badge" id="a4-pts">— pts</div>
             </div>
             <div id="a4-derived" class="derived-score" style="display:none"></div>
@@ -624,7 +647,7 @@ body{padding-top:58px;padding-bottom:52px}
           <div class="sig">
             <label>Group of 3 — Net Score to Par</label>
             <div id="a3-manual" class="sig-row">
-              <input type="number" id="a3-score" min="-20" max="20" placeholder="0" oninput="updateDay2('a3')">
+              <span id="a3-manual-display" class="grey" style="font-size:.85rem">Not started</span>
               <div class="pts-badge" id="a3-pts">— pts</div>
             </div>
             <div id="a3-derived" class="derived-score" style="display:none"></div>
@@ -637,7 +660,7 @@ body{padding-top:58px;padding-bottom:52px}
           <div class="sig">
             <label>Group of 4 — Net Score to Par</label>
             <div id="b4-manual" class="sig-row">
-              <input type="number" id="b4-score" min="-20" max="20" placeholder="0" oninput="updateDay2('b4')">
+              <span id="b4-manual-display" class="grey" style="font-size:.85rem">Not started</span>
               <div class="pts-badge" id="b4-pts">— pts</div>
             </div>
             <div id="b4-derived" class="derived-score" style="display:none"></div>
@@ -646,7 +669,7 @@ body{padding-top:58px;padding-bottom:52px}
           <div class="sig">
             <label>Group of 3 — Net Score to Par</label>
             <div id="b3-manual" class="sig-row">
-              <input type="number" id="b3-score" min="-20" max="20" placeholder="0" oninput="updateDay2('b3')">
+              <span id="b3-manual-display" class="grey" style="font-size:.85rem">Not started</span>
               <div class="pts-badge" id="b3-pts">— pts</div>
             </div>
             <div id="b3-derived" class="derived-score" style="display:none"></div>
@@ -793,6 +816,51 @@ body{padding-top:58px;padding-bottom:52px}
         </div>
         <div class="info-box">Populates sample teams, a Day 1 match, and a few holes of scores so the sandbox isn't empty on first open — real writes, synced to every device currently practicing. "Rollback Scores" below doubles as the sandbox's reset button (it's scoped to this practice tournament only, same as everything else here).</div>
         <button class="username-btn" style="max-width:280px" onclick="seedDemoData()">Seed Sample Data</button>
+      </div>
+
+      <div class="section-header" style="padding-top:32px">
+        <div class="section-label">Admin · Day 1</div>
+        <div class="section-title">Manual Front9/Back9 Override</div>
+      </div>
+      <div class="info-box">Only used when a nine has no hole-by-hole scores at all — as soon as any hole is entered on the main Day 1 tab, that nine's result is derived automatically and this control is replaced by a read-only note. Moved here from the main scorecard so the main tab is hole-by-hole entry only (issue #248).</div>
+      <div id="admin-day1-overrides"></div>
+
+      <div class="section-header" style="padding-top:32px">
+        <div class="section-label">Admin · Day 2</div>
+        <div class="section-title">Manual Net-to-Par Override</div>
+      </div>
+      <div class="info-box">Only used when a scramble group has no hole-by-hole scores at all — same precedence rule as the Day 1 override above. Moved here from the main scorecard so the main Day 2 tab is hole-by-hole entry only (issue #252).</div>
+      <div id="admin-day2-overrides">
+        <div class="admin-override-match">
+          <div class="section-label" style="margin-top:18px" id="admin-scramble-title-a">Team Beer</div>
+          <div class="sig">
+            <label>Group of 4 — Net Score to Par</label>
+            <div class="sig-row">
+              <input type="number" id="a4-score" min="-20" max="20" placeholder="0" oninput="updateDay2('a4')">
+            </div>
+          </div>
+          <div class="sig">
+            <label>Group of 3 — Net Score to Par</label>
+            <div class="sig-row">
+              <input type="number" id="a3-score" min="-20" max="20" placeholder="0" oninput="updateDay2('a3')">
+            </div>
+          </div>
+        </div>
+        <div class="admin-override-match">
+          <div class="section-label" style="margin-top:18px" id="admin-scramble-title-b">Team Golf</div>
+          <div class="sig">
+            <label>Group of 4 — Net Score to Par</label>
+            <div class="sig-row">
+              <input type="number" id="b4-score" min="-20" max="20" placeholder="0" oninput="updateDay2('b4')">
+            </div>
+          </div>
+          <div class="sig">
+            <label>Group of 3 — Net Score to Par</label>
+            <div class="sig-row">
+              <input type="number" id="b3-score" min="-20" max="20" placeholder="0" oninput="updateDay2('b3')">
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="section-header" style="padding-top:32px">
@@ -1034,8 +1102,8 @@ const {
   // exists) is shared with index.html's live-score ribbon -- these are
   // the parameterized versions; the local functions of the same name
   // below are now thin wrappers passing this page's PLAYERS/COURSES/state.
-  day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor,
-  ntpPointsFor: ntpPointsForTeams,
+  day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
+  ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
@@ -1448,6 +1516,11 @@ function day1StrokeIndexes() {
   return day1StrokeIndexesFor(COURSES);
 }
 
+// Murray Course par per hole, in hole order (issue #250).
+function day1CourseHoles() {
+  return day1CourseHolesFor(COURSES);
+}
+
 // Handicap strokes for one match, from the two assigned players' hcp —
 // {receiver: null, a: 18 zeros, b: 18 zeros} until both are assigned.
 function matchStrokesFor(match) {
@@ -1479,39 +1552,67 @@ function nineStatusLabel(nineResults) {
   return `${escapeHtml(teamName)} ${s.lead}UP thru ${s.thru}`;
 }
 
-// One 9-hole block of the entry grid: hole numbers (with NTP marker),
-// stroke dots for whichever player is receiving strokes, and one gross
-// score input row per player. Two of these (front/back) avoid any
-// horizontal scrolling, same approach as the #122 course card.
-function holeGridNineHtml(mi, match, strokes, startIdx) {
+// Main-tab (read-only) nine status: derived hole-by-hole result when any
+// hole data exists (same as nineStatusLabel()), otherwise whatever an
+// admin set manually via the Admin tab's override (issue #248) -- named
+// explicitly as "(admin-entered)" so a scorer reading this tab always
+// knows why a nine already has a result despite no holes being entered.
+function nineDisplayLabel(match, half, nineHoleResults, hasData) {
+  if (hasData) return nineStatusLabel(nineHoleResults);
+  const val = match[half];
+  if (val === 'A') return `${escapeHtml(state.teamNameA)} won (admin-entered)`;
+  if (val === 'B') return `${escapeHtml(state.teamNameB)} won (admin-entered)`;
+  if (val === 'T') return 'Halved (admin-entered)';
+  return 'Not started';
+}
+
+// One 9-hole block of the entry grid: one row per hole (hole number, par,
+// stroke dots, then both teams' gross score inputs side by side) so the
+// natural tab/auto-advance order interleaves the two teams per hole
+// (issue #251) instead of running through one team's whole nine first.
+// Each input is color-coded by which team won that hole (issue #249, via
+// the same holeResult() the nine-status line already uses) and marked
+// with a birdie/bogey-style symbol against par (issue #250).
+function holeGridNineHtml(mi, match, strokes, courseHoles, startIdx) {
   const holeIndexes = Array.from({ length: 9 }, (_, i) => startIdx + i);
   const ntpHoles = NTP_HOLES[1] || [];
   const dotsFor = n => n > 0 ? '●'.repeat(n) : '';
-  const headerCells = holeIndexes.map(i => {
+  function inputCell(team, i) {
+    const holeNum = i + 1;
+    const arr = team === 'A' ? match.holesA : match.holesB;
+    const val = arr[i];
+    const result = holeResultFor(match, strokes, i);
+    const winClass = result === team ? ` hole-win-${team.toLowerCase()}` : (result === 'T' ? ' hole-tie' : '');
+    const par = courseHoles[i] ? courseHoles[i].par : null;
+    const symbol = scoreToParSymbol(val, par);
+    const markClass = symbol && symbol !== 'par' ? ` mark-${symbol}` : '';
+    return `<td class="hole-in-cell${winClass}"><input id="day1-in-${mi}-${team}-${holeNum}" class="grid-in${markClass}" type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
+      value="${val === null ? '' : val}"
+      onchange="setHoleScore(${mi},'${team}',${holeNum},this.value)"
+      oninput="handleGridInputAdvance(event)"
+      onfocus="this.scrollIntoView({block:'center'})"></td>`;
+  }
+  const rows = holeIndexes.map(i => {
     const holeNum = i + 1;
     const isNtp = ntpHoles.includes(holeNum);
-    return `<th class="${isNtp ? 'ntp' : ''}">${holeNum}${isNtp ? ' 📍' : ''}</th>`;
+    const dots = dotsFor(strokes.a[i]) || dotsFor(strokes.b[i]);
+    const par = courseHoles[i] ? courseHoles[i].par : '';
+    return `<tr>
+      <td class="rlab${isNtp ? ' ntp' : ''}">${holeNum}${isNtp ? ' 📍' : ''}</td>
+      <td class="par-cell">${par}</td>
+      <td class="dots">${dots}</td>
+      ${inputCell('A', i)}
+      ${inputCell('B', i)}
+    </tr>`;
   }).join('');
-  const dotsRow = holeIndexes.map(i => `<td class="dots">${dotsFor(strokes.a[i])}${dotsFor(strokes.a[i]) ? '' : dotsFor(strokes.b[i])}</td>`).join('');
-  function inputRow(team, arr) {
-    return holeIndexes.map(i => {
-      const holeNum = i + 1;
-      const val = arr[i];
-      return `<td><input id="day1-in-${mi}-${team}-${holeNum}" class="grid-in" type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
-        value="${val === null ? '' : val}"
-        onchange="setHoleScore(${mi},'${team}',${holeNum},this.value)"
-        oninput="handleGridInputAdvance(event)"
-        onfocus="this.scrollIntoView({block:'center'})"></td>`;
-    }).join('');
-  }
   return `
     <table class="hole-grid-table">
-      <thead><tr><th class="rlab">Hole</th>${headerCells}</tr></thead>
-      <tbody>
-        <tr><td class="rlab">Strokes</td>${dotsRow}</tr>
-        <tr><td class="rlab">${escapeHtml(state.teamNameA)}</td>${inputRow('A', match.holesA)}</tr>
-        <tr><td class="rlab">${escapeHtml(state.teamNameB)}</td>${inputRow('B', match.holesB)}</tr>
-      </tbody>
+      <colgroup><col style="width:14%"><col style="width:10%"><col style="width:16%"><col style="width:30%"><col style="width:30%"></colgroup>
+      <thead><tr>
+        <th class="rlab">Hole</th><th>Par</th><th>Strokes</th>
+        <th>${escapeHtml(state.teamNameA)}</th><th>${escapeHtml(state.teamNameB)}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
     </table>`;
 }
 
@@ -1527,10 +1628,14 @@ function renderDay1() {
   // starts closed, so without this every commit that falls through to a
   // full rebuild (see setHoleScore()'s patch path below) would slam the
   // panel shut on the scorer mid-round.
+  // Issue #248/#251: the hole-by-hole grid is now the only way to enter a
+  // Day 1 result on this tab, so it defaults open the first time a match
+  // card exists (rather than the old "collapsed, optional" default) --
+  // still honors an explicit collapse a scorer made afterwards.
   const wasOpen = state.day1.matches.map((_, mi) => {
     const prev = document.getElementById(`match-card-${mi}`);
     const d = prev ? prev.querySelector('.hole-grid-details') : null;
-    return d ? d.open : false;
+    return d ? d.open : true;
   });
   container.innerHTML = '';
   // Every match dropdown otherwise just offers "— pick player —" with
@@ -1543,6 +1648,7 @@ function renderDay1() {
     container.appendChild(notice);
   }
   const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Singles (1v1)', 'Match 3 — Singles (1v1)', 'Match 4 — Singles (1v1)', 'Match 5 — Singles (1v1)', 'Match 6 — Singles (1v1)'];
+  const day1Holes = day1CourseHoles();
 
   state.day1.matches.forEach((match, mi) => {
     const { pA, pB, type } = match;
@@ -1588,10 +1694,12 @@ function renderDay1() {
     card.appendChild(pr);
 
     // Result entry — front 9 / back 9, each worth 1pt (0.5 each if tied).
-    // As soon as any hole in a nine has a gross score entered, that nine's
-    // manual toggle is replaced by its derived status (issue #124) --
-    // entering hole scores and tapping the manual result for the same nine
-    // would be two competing sources of truth, so only one is ever active.
+    // Issue #248: the manual front9/back9 toggle used to live here too --
+    // it's now Admin-only (renderDay1AdminOverrides()); this tab is
+    // read-only and always reflects whichever value is actually feeding
+    // matchPoints() right now (hole data once any exists, else whatever
+    // an admin set manually), so a scorer here always knows why the score
+    // is what it is, without being able to touch it two different ways.
     const playersAssigned = pA[0] !== null && pB[0] !== null;
     const strokes = playersAssigned ? matchStrokesFor(match) : null;
     const re = document.createElement('div');
@@ -1604,48 +1712,29 @@ function renderDay1() {
         const nineHoleResults = Array.from({ length: 9 }, (_, i) => holeResultFor(match, strokes, start + i));
         const hasData = match.holesA.slice(start, start + 9).some(v => v !== null) ||
                          match.holesB.slice(start, start + 9).some(v => v !== null);
-        const val = match[half];
         const label = hi === 0 ? 'Front 9' : 'Back 9';
-        if (hasData) {
-          return `
-          <div class="nine-block">
-            <div class="nine-label">${label}</div>
-            <div class="nine-status-line">
-              <span id="nine-status-${mi}-${half}">${nineStatusLabel(nineHoleResults)}</span>
-              <button type="button" class="clear-btn" onclick="clearNineHoles(${mi}, ${start})">Clear hole scores to enter manually</button>
-            </div>
-          </div>`;
-        }
         return `
         <div class="nine-block">
-          <div class="nine-label" id="${half}-label-${mi}">${label}</div>
-          <div class="match-toggle nine-toggle" role="radiogroup" aria-labelledby="${half}-label-${mi}">
-            <button role="radio" aria-checked="${val==='A'}" class="${val==='A'?'is-active is-active-a':''}" onclick="setNineResult(${mi},'${half}','A')">
-              <span class="rt-lab">${escapeHtml(state.teamNameA)}</span><span class="rt-pts">1pt</span>
-            </button>
-            <button role="radio" aria-checked="${val==='T'}" class="${val==='T'?'is-active':''}" onclick="setNineResult(${mi},'${half}','T')">
-              <span class="rt-lab">Tie</span><span class="rt-pts">0.5 each</span>
-            </button>
-            <button role="radio" aria-checked="${val==='B'}" class="${val==='B'?'is-active is-active-b':''}" onclick="setNineResult(${mi},'${half}','B')">
-              <span class="rt-lab">${escapeHtml(state.teamNameB)}</span><span class="rt-pts">1pt</span>
-            </button>
+          <div class="nine-label">${label}</div>
+          <div class="nine-status-line">
+            <span id="nine-status-${mi}-${half}">${nineDisplayLabel(match, half, nineHoleResults, hasData)}</span>
           </div>
         </div>`;
       }).join('');
     }
     card.appendChild(re);
 
-    // Hole-by-hole gross score entry -- collapsed by default (6 matches x
-    // 36 cells is too much to show open at once); only usable once both
-    // players are assigned, since stroke allocation needs both handicaps.
+    // Hole-by-hole gross score entry -- the only way to enter a Day 1
+    // result on this tab now (issue #248); only usable once both players
+    // are assigned, since stroke allocation needs both handicaps.
     if (playersAssigned) {
       const hg = document.createElement('details');
       hg.className = 'hole-grid-details';
       hg.open = wasOpen[mi];
       hg.innerHTML = `
         <summary class="hole-grid-summary">Hole-by-hole entry</summary>
-        ${holeGridNineHtml(mi, match, strokes, 0)}
-        ${holeGridNineHtml(mi, match, strokes, 9)}`;
+        ${holeGridNineHtml(mi, match, strokes, day1Holes, 0)}
+        ${holeGridNineHtml(mi, match, strokes, day1Holes, 9)}`;
       card.appendChild(hg);
     }
 
@@ -1653,6 +1742,7 @@ function renderDay1() {
   });
 
   renderDay1Ntp();
+  renderDay1AdminOverrides();
 }
 
 // holeResult() needs each hole's gross scores + that hole's strokes --
@@ -1679,22 +1769,38 @@ function advanceToNextHole(el) {
   const next = document.getElementById(`${m[1]}-${parseInt(m[2], 10) + 1}`);
   if (next) { next.focus(); next.select(); } else { el.blur(); }
 }
+// Issue #251: Day 1's grid is laid out one row per hole with both teams'
+// inputs side by side, so a single scorer can enter both teams' scores for
+// a hole before moving to the next one -- Hole 1 A -> Hole 1 B -> Hole 2 A
+// -> ... -- rather than all of Team A's holes then all of Team B's. Day
+// 2's ids (one row per group, no team dimension) keep using the generic
+// advanceToNextHole() above unchanged.
+function advanceDay1Hole(el) {
+  const m = el.id.match(/^day1-in-(\d+)-([AB])-(\d+)$/);
+  if (!m) { el.blur(); return; }
+  const [, mi, team, holeStr] = m;
+  const holeNum = parseInt(holeStr, 10);
+  const nextId = team === 'A' ? `day1-in-${mi}-B-${holeNum}` : `day1-in-${mi}-A-${holeNum + 1}`;
+  const next = document.getElementById(nextId);
+  if (next) { next.focus(); next.select(); } else { el.blur(); }
+}
 function handleGridInputAdvance(e) {
   clearTimeout(holeAdvanceTimer);
   const el = e.target;
   const val = el.value;
   if (val.length === 0) return;
-  if (val.length >= 2) { advanceToNextHole(el); return; }
+  const advance = el.id.startsWith('day1-in-') ? advanceDay1Hole : advanceToNextHole;
+  if (val.length >= 2) { advance(el); return; }
   if (val === '1') {
     // Wait for a possible second digit (10-15) -- re-check at fire time
     // that this input is still focused and still reads exactly "1", so a
     // scorer who's already tabbed elsewhere (or kept typing, which would
     // have cleared this timer already) never gets their focus yanked back.
     holeAdvanceTimer = setTimeout(() => {
-      if (document.activeElement === el && el.value === '1') advanceToNextHole(el);
+      if (document.activeElement === el && el.value === '1') advance(el);
     }, 400);
   } else if (val !== '0') {
-    advanceToNextHole(el);
+    advance(el);
   }
 }
 
@@ -1720,6 +1826,38 @@ function notifyIfOutlierScore(clamped) {
 // has no `nine-status-${mi}-${half}` element yet (it's still showing the
 // manual toggle, not the derived line) -- that swap is structural and
 // still needs a full renderDay1().
+// Issue #249/#250: patches just this hole's two score cells' win-color and
+// birdie/bogey-symbol classes directly, without touching the rest of the
+// grid -- needed because setHoleScore()'s patch path (below) deliberately
+// skips a full renderDay1() rebuild while the grid still has focus (so
+// typing through 18 holes via auto-advance doesn't get its own keystrokes
+// or focus disrupted), which would otherwise leave color/symbol feedback
+// stale until the scorer tabs out of the whole grid.
+function patchHoleCellClasses(matchIdx, strokes, holeNum, courseHoles) {
+  const match = state.day1.matches[matchIdx];
+  const i = holeNum - 1;
+  const result = holeResultFor(match, strokes, i);
+  const par = courseHoles[i] ? courseHoles[i].par : null;
+  ['A', 'B'].forEach(team => {
+    const input = document.getElementById(`day1-in-${matchIdx}-${team}-${holeNum}`);
+    if (!input) return;
+    // classList add/remove of just the known win/mark classes -- not a
+    // wholesale className overwrite -- so this never clobbers the
+    // unrelated entry-tick-ok/entry-tick-queued sync-status classes
+    // showEntryTick() toggles on this same input independently.
+    const td = input.parentElement;
+    if (td) {
+      td.classList.remove('hole-win-a', 'hole-win-b', 'hole-tie');
+      const winClass = result === team ? `hole-win-${team.toLowerCase()}` : (result === 'T' ? 'hole-tie' : null);
+      if (winClass) td.classList.add(winClass);
+    }
+    const val = team === 'A' ? match.holesA[i] : match.holesB[i];
+    const symbol = scoreToParSymbol(val, par);
+    input.classList.remove('mark-eagle', 'mark-birdie', 'mark-bogey', 'mark-double-bogey');
+    if (symbol && symbol !== 'par') input.classList.add(`mark-${symbol}`);
+  });
+}
+
 function patchDay1HoleFeedback(matchIdx, team, holeNum, clamped) {
   const input = document.getElementById(`day1-in-${matchIdx}-${team}-${holeNum}`);
   if (input) input.value = clamped === null ? '' : clamped;
@@ -1727,6 +1865,7 @@ function patchDay1HoleFeedback(matchIdx, team, holeNum, clamped) {
   const match = state.day1.matches[matchIdx];
   if (match.pA[0] === null || match.pB[0] === null) return false;
   const strokes = matchStrokesFor(match);
+  patchHoleCellClasses(matchIdx, strokes, holeNum, day1CourseHoles());
   const eff = effectiveMatch(match);
   const pts = matchPoints(eff);
   const msa = document.getElementById(`msa-${matchIdx}`);
@@ -1745,7 +1884,15 @@ function patchDay1HoleFeedback(matchIdx, team, holeNum, clamped) {
   const statusEl = document.getElementById(`nine-status-${matchIdx}-${half}`);
   if (!statusEl) return false;
   const nineHoleResults = Array.from({ length: 9 }, (_, i) => holeResultFor(match, strokes, start + i));
-  statusEl.textContent = nineStatusLabel(nineHoleResults);
+  const hasData = match.holesA.slice(start, start + 9).some(v => v !== null) ||
+                   match.holesB.slice(start, start + 9).some(v => v !== null);
+  statusEl.textContent = nineDisplayLabel(match, half, nineHoleResults, hasData);
+  // Keep the Admin tab's override panel in sync too -- it lives in a
+  // different tab-panel (not the grid-in the scorer is typing in), so
+  // refreshing it here never disturbs focus, and without this it would
+  // otherwise only catch up once the scorer's whole grid loses focus (the
+  // condition that lets the caller fall through to a full renderDay1()).
+  renderDay1AdminOverrides();
   return true;
 }
 
@@ -1846,6 +1993,64 @@ function setNineResult(matchIdx, half, result) {
     renderDay1();
     updateScoreboard();
   });
+}
+
+// Issue #248: the front9/back9 manual toggle, relocated here from the main
+// Day 1 tab -- organiser-only now. Same precedence rule as before (only
+// usable while a nine has no hole-by-hole scores at all; setNineResult()/
+// clearNineHoles() are unchanged, just no longer rendered on the main
+// scorecard). Called from renderDay1() so it always mirrors current state.
+function renderDay1AdminOverrides() {
+  const container = document.getElementById('admin-day1-overrides');
+  if (!container) return;
+  const titles = ['Match 1', 'Match 2', 'Match 3', 'Match 4', 'Match 5', 'Match 6'];
+  let html = '';
+  state.day1.matches.forEach((match, mi) => {
+    const playersAssigned = match.pA[0] !== null && match.pB[0] !== null;
+    if (!playersAssigned) return;
+    const pAName = (PLAYERS.find(p => p.id === match.pA[0]) || {}).short || '?';
+    const pBName = (PLAYERS.find(p => p.id === match.pB[0]) || {}).short || '?';
+    const strokes = matchStrokesFor(match);
+    const nineBlocks = ['front9', 'back9'].map((half, hi) => {
+      const start = hi === 0 ? 0 : 9;
+      const nineHoleResults = Array.from({ length: 9 }, (_, i) => holeResultFor(match, strokes, start + i));
+      const hasData = match.holesA.slice(start, start + 9).some(v => v !== null) ||
+                       match.holesB.slice(start, start + 9).some(v => v !== null);
+      const val = match[half];
+      const label = hi === 0 ? 'Front 9' : 'Back 9';
+      if (hasData) {
+        return `
+        <div class="nine-block">
+          <div class="nine-label">${label}</div>
+          <div class="nine-status-line">
+            <span>${nineStatusLabel(nineHoleResults)} (from hole scores)</span>
+            <button type="button" class="clear-btn" onclick="clearNineHoles(${mi}, ${start})">Clear hole scores to enter manually</button>
+          </div>
+        </div>`;
+      }
+      return `
+      <div class="nine-block">
+        <div class="nine-label" id="admin-${half}-label-${mi}">${label}</div>
+        <div class="match-toggle nine-toggle" role="radiogroup" aria-labelledby="admin-${half}-label-${mi}">
+          <button role="radio" aria-checked="${val==='A'}" class="${val==='A'?'is-active is-active-a':''}" onclick="setNineResult(${mi},'${half}','A')">
+            <span class="rt-lab">${escapeHtml(state.teamNameA)}</span><span class="rt-pts">1pt</span>
+          </button>
+          <button role="radio" aria-checked="${val==='T'}" class="${val==='T'?'is-active':''}" onclick="setNineResult(${mi},'${half}','T')">
+            <span class="rt-lab">Tie</span><span class="rt-pts">0.5 each</span>
+          </button>
+          <button role="radio" aria-checked="${val==='B'}" class="${val==='B'?'is-active is-active-b':''}" onclick="setNineResult(${mi},'${half}','B')">
+            <span class="rt-lab">${escapeHtml(state.teamNameB)}</span><span class="rt-pts">1pt</span>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+    html += `
+    <div class="admin-override-match">
+      <div class="section-label" style="margin-top:18px">${titles[mi]} — ${escapeHtml(pAName)} vs ${escapeHtml(pBName)}</div>
+      ${nineBlocks}
+    </div>`;
+  });
+  container.innerHTML = html || '<div class="grey" style="font-size:.82rem">No matches with both players assigned yet.</div>';
 }
 
 /* ─────────────────────────────────────
@@ -2060,6 +2265,8 @@ function renderDay2Derived(code) {
   if (!hasData) {
     manualEl.style.display = '';
     derivedEl.style.display = 'none';
+    const displayEl = document.getElementById(code + '-manual-display');
+    if (displayEl) displayEl.textContent = day2ManualDisplayLabel(code);
     return;
   }
   manualEl.style.display = 'none';
@@ -2072,6 +2279,18 @@ function renderDay2Derived(code) {
     <span class="dv-big">${ntpStr}</span> to par ${complete ? '' : `(thru ${played})`}
     ${handicap !== null ? ` · Team HCP ${handicap}` : ' · assign players to compute handicap'}
     <button type="button" class="clear-btn" onclick="clearDay2GroupHoles('${code}')">Clear hole scores to enter manually</button>`;
+}
+
+// Main-tab (read-only) display for a group with no hole data yet -- the
+// actual manual net-to-par input now lives Admin-only (issue #252), same
+// relocation as Day 1's front9/back9 override.
+function day2ManualDisplayLabel(code) {
+  const val = state.day2[code];
+  if (val === null || val === undefined || val === '') return 'Not started';
+  const n = parseInt(val, 10);
+  if (isNaN(n)) return 'Not started';
+  const str = n > 0 ? '+' + n : String(n);
+  return `${str} to par (admin-entered)`;
 }
 
 function renderDay2GroupCard(code) {
@@ -2129,7 +2348,12 @@ function day2HoleGridNineHtml(code, holes, strokes, courseHoles, startIdx) {
   const inputRow = holeIndexes.map(i => {
     const holeNum = i + 1;
     const val = holes[i];
-    return `<td><input id="day2-in-${code}-${holeNum}" class="grid-in" type="number" inputmode="numeric" min="${DAY2_HOLE_GROSS_MIN}" max="${DAY2_HOLE_GROSS_MAX}"
+    // Issue #250: birdie/bogey-style leaderboard mark against this hole's
+    // par, same convention as Day 1's grid.
+    const par = courseHoles[i] ? courseHoles[i].par : null;
+    const symbol = scoreToParSymbol(val, par);
+    const markClass = symbol && symbol !== 'par' ? ` mark-${symbol}` : '';
+    return `<td><input id="day2-in-${code}-${holeNum}" class="grid-in${markClass}" type="number" inputmode="numeric" min="${DAY2_HOLE_GROSS_MIN}" max="${DAY2_HOLE_GROSS_MAX}"
       value="${val === null ? '' : val}"
       onchange="setDay2HoleScore('${code}',${holeNum},this.value)"
       oninput="handleGridInputAdvance(event)"
@@ -2173,11 +2397,32 @@ function setDay2HoleScore(code, holeNum, rawVal) {
     // Deferring one tick lets the pending focus event land first.
     setTimeout(() => {
       const gridHasFocus = document.activeElement && document.activeElement.classList.contains('grid-in');
-      if (gridHasFocus) renderDay2Derived(code);
-      else renderDay2GroupCard(code);
+      if (gridHasFocus) {
+        // Issue #250: patch this cell's own birdie/bogey mark directly,
+        // same reasoning as Day 1's patchHoleCellClasses() -- a full grid
+        // rebuild is skipped here on purpose while the scorer is still
+        // typing through the grid, so the symbol would otherwise go stale.
+        patchDay2HoleMark(code, holeNum);
+        renderDay2Derived(code);
+      } else {
+        renderDay2GroupCard(code);
+      }
     }, 0);
     _doUpdateDay2();
   });
+}
+
+function patchDay2HoleMark(code, holeNum) {
+  const input = document.getElementById(`day2-in-${code}-${holeNum}`);
+  if (!input) return;
+  const courseHoles = day2CourseHoles();
+  const par = courseHoles[holeNum - 1] ? courseHoles[holeNum - 1].par : null;
+  const val = state.day2.holes[code][holeNum - 1];
+  const symbol = scoreToParSymbol(val, par);
+  // Same classList add/remove approach as Day 1's patchHoleCellClasses() --
+  // preserves showEntryTick()'s independent sync-status classes.
+  input.classList.remove('mark-eagle', 'mark-birdie', 'mark-bogey', 'mark-double-bogey');
+  if (symbol && symbol !== 'par') input.classList.add(`mark-${symbol}`);
 }
 
 function clearDay2GroupHoles(code) {
@@ -2215,6 +2460,11 @@ function updateDay2(changedId) {
   requireUsername(() => {
     const before = state.day2[changedId];
     _doUpdateDay2();
+    // Issue #252: the manual score input itself now lives Admin-only --
+    // refresh the main tab's read-only display span so it doesn't go stale
+    // while an admin is typing (renderDay2Derived() is a no-op for groups
+    // that already have hole data, same precedence as everywhere else).
+    renderDay2Derived(changedId);
     if (state.day2[changedId] !== before) {
       const fields = { field_key: changedId, value: state.day2[changedId] };
       insertUpdate('day2_score', fields);
@@ -3993,6 +4243,7 @@ function updateTeamNames() {
     'sb-team-name-a': a, 'sb-team-name-b': b,
     'team-col-h-a': a,   'team-col-h-b': b,
     'scramble-title-a': a, 'scramble-title-b': b,
+    'admin-scramble-title-a': a, 'admin-scramble-title-b': b,
     'mini-name-a': a,    'mini-name-b': b,
     'tn-input-a': null,  'tn-input-b': null
   };
