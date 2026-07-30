@@ -1,0 +1,41 @@
+name: Nightly log snapshot
+
+on:
+  schedule:
+    # Once daily year-round (a few minutes past the hour, per GitHub's
+    # own advice to avoid the on-the-hour pile-up).
+    - cron: '23 15 * * *'
+    # Every 2 hours during the tournament itself (7-9 Aug, day-of-month
+    # 7-9 in August, any day-of-week) -- the whole point of this
+    # snapshot is disaster recovery, and once a day isn't enough
+    # coverage for a live 3-day event.
+    - cron: '0 */2 7-9 8 *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch tournament_updates and write snapshots/tournament-updates.json
+        run: node scripts/snapshot-tournament-updates.mjs
+
+      - name: Commit only if the snapshot actually changed
+        run: |
+          if git diff --quiet -- snapshots/tournament-updates.json; then
+            echo "No changes since the last snapshot -- nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add snapshots/tournament-updates.json
+          git commit -m "Snapshot tournament_updates ($(date -u +%Y-%m-%dT%H:%MZ)) [skip ci]"
+          git push
