@@ -292,6 +292,11 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .update-toast{position:fixed;top:60px;right:24px;display:flex;align-items:center;gap:10px;font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 14px;border-radius:var(--r);background:var(--gold);color:var(--ink);border:1px solid var(--rule-strong);opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:101;max-width:calc(100vw - 48px)}
 .update-toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
 .update-toast-btn{background:var(--ink);color:var(--canvas);border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
+.confirm-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);display:flex;align-items:center;gap:10px;font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 14px;border-radius:var(--r);background:var(--ink);color:var(--canvas);border:1px solid var(--rule-strong);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:102;max-width:calc(100vw - 48px)}
+.confirm-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.confirm-toast-btn{border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
+.confirm-toast-keep{background:var(--gold);color:var(--ink)}
+.confirm-toast-fix{background:transparent;color:var(--canvas);border:1px solid var(--canvas)}
 .sync-spacer{flex:1}
 
 /* ── USERNAME PICKER MODAL ── */
@@ -402,6 +407,11 @@ body{padding-top:58px;padding-bottom:52px}
 <div id="update-toast" class="update-toast" role="status">
   <span>Site updated —</span>
   <button type="button" class="update-toast-btn" onclick="location.reload()">Tap to refresh</button>
+</div>
+<div id="confirm-toast" class="confirm-toast" role="alertdialog">
+  <span class="confirm-toast-text"></span>
+  <button type="button" class="confirm-toast-btn confirm-toast-fix" onclick="resolveNtpConfirm(false)">Fix</button>
+  <button type="button" class="confirm-toast-btn confirm-toast-keep" onclick="resolveNtpConfirm(true)">Keep</button>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -1745,12 +1755,15 @@ function setDay1Ntp(hole, val) {
   requireUsername(() => {
     const id = val === '' ? null : parseInt(val, 10);
     const previous = state.day1.ntp[hole];
-    state.day1.ntp[hole] = id;
-    saveState();
-    const fields = { field_key: hole, value: id };
-    insertUpdate('day1_ntp', fields);
-    if (id !== previous) showUndoToast({ update_type: 'day1_ntp', ...fields }, previous);
-    updateScoreboard();
+    const commit = () => {
+      state.day1.ntp[hole] = id;
+      saveState();
+      const fields = { field_key: hole, value: id };
+      insertUpdate('day1_ntp', fields);
+      if (id !== previous) showUndoToast({ update_type: 'day1_ntp', ...fields }, previous);
+      updateScoreboard();
+    };
+    confirmNtpChange('ntp-day1-' + hole, hole, previous, id, commit);
   });
 }
 
@@ -1764,12 +1777,15 @@ function setDay2Ntp(hole, val) {
   requireUsername(() => {
     const id = val === '' ? null : parseInt(val, 10);
     const previous = state.day2.ntp[hole];
-    state.day2.ntp[hole] = id;
-    saveState();
-    const fields = { field_key: hole, value: id };
-    insertUpdate('day2_ntp', fields);
-    if (id !== previous) showUndoToast({ update_type: 'day2_ntp', ...fields }, previous);
-    updateScoreboard();
+    const commit = () => {
+      state.day2.ntp[hole] = id;
+      saveState();
+      const fields = { field_key: hole, value: id };
+      insertUpdate('day2_ntp', fields);
+      if (id !== previous) showUndoToast({ update_type: 'day2_ntp', ...fields }, previous);
+      updateScoreboard();
+    };
+    confirmNtpChange('ntp-day2-' + hole, hole, previous, id, commit);
   });
 }
 
@@ -1823,12 +1839,15 @@ function setDay3Ntp(hole, val) {
   requireUsername(() => {
     const id = val === '' ? null : parseInt(val, 10);
     const previous = state.day3.ntp[hole];
-    state.day3.ntp[hole] = id;
-    saveState();
-    const fields = { field_key: hole, value: id };
-    insertUpdate('day3_ntp', fields);
-    if (id !== previous) showUndoToast({ update_type: 'day3_ntp', ...fields }, previous);
-    updateScoreboard();
+    const commit = () => {
+      state.day3.ntp[hole] = id;
+      saveState();
+      const fields = { field_key: hole, value: id };
+      insertUpdate('day3_ntp', fields);
+      if (id !== previous) showUndoToast({ update_type: 'day3_ntp', ...fields }, previous);
+      updateScoreboard();
+    };
+    confirmNtpChange('ntp-day3-' + hole, hole, previous, id, commit);
   });
 }
 
@@ -3153,6 +3172,44 @@ function performUndo() {
   insertUpdate(payload.update_type, toInsertFields(payload));
   refreshAllDays();
   dismissUndoToast();
+}
+
+/* ─────────────────────────────────────
+   NTP OVERWRITE CONFIRM (issue #199)
+   Someone genuinely will re-tap the wrong name in a crowded dropdown --
+   this is a confirm, never a validation failure, and deliberately not
+   window.confirm() (blocks the thread). Only fires when genuinely
+   REPLACING one already-recorded winner with a different one, never on
+   the first-ever pick or on clearing it back to blank. Until answered,
+   the value stays local-only: the select already shows the new pick (a
+   plain <select> can't be held back from that), but state/insertUpdate()
+   are untouched until Keep is pressed.
+───────────────────────────────────── */
+let pendingNtpConfirm = null;
+function confirmNtpChange(selectId, hole, previousId, newId, commit) {
+  const isGenuineReplacement = previousId !== null && newId !== null && newId !== previousId;
+  if (!isGenuineReplacement) { commit(); return; }
+  const prevPlayer = PLAYERS.find(p => p.id === previousId);
+  const prevName = prevPlayer ? prevPlayer.short : `Player #${previousId}`;
+  const holeNum = String(hole).replace(/^h/, '');
+  pendingNtpConfirm = {
+    commit,
+    revert: () => {
+      const el = document.getElementById(selectId);
+      if (el) el.value = previousId === null ? '' : String(previousId);
+    }
+  };
+  const toast = document.getElementById('confirm-toast');
+  if (!toast) { commit(); pendingNtpConfirm = null; return; } // defensive: markup missing, don't silently drop the entry
+  toast.querySelector('.confirm-toast-text').textContent = `Replaces ${prevName} on ${holeNum} — sure?`;
+  toast.classList.add('show');
+}
+function resolveNtpConfirm(keep) {
+  if (!pendingNtpConfirm) return;
+  const { commit, revert } = pendingNtpConfirm;
+  pendingNtpConfirm = null;
+  document.getElementById('confirm-toast').classList.remove('show');
+  if (keep) commit(); else revert();
 }
 
 function restoreHistoryRow(index) {
