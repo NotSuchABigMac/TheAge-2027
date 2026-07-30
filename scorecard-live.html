@@ -1122,6 +1122,7 @@ const {
   // below are now thin wrappers passing this page's PLAYERS/COURSES/state.
   day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
   ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
+  REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
@@ -1926,7 +1927,13 @@ function setHoleScore(matchIdx, team, holeNum, rawVal) {
     saveState();
     const fields = { match_idx: matchIdx, field_key: `${team}${holeNum}`, value: clamped };
     insertUpdate('day1_hole', fields);
-    if (clamped !== previous) showUndoToast({ update_type: 'day1_hole', ...fields }, previous);
+    if (clamped !== previous) {
+      // Issue #228: net-to-par reaction emoji on the undo toast.
+      const strokesForReaction = matchStrokesFor(match);
+      const strokesReceived = (team === 'A' ? strokesForReaction.a : strokesForReaction.b)[holeNum - 1];
+      const par = day1CourseHoles()[holeNum - 1].par;
+      showUndoToast({ update_type: 'day1_hole', ...fields }, previous, holeScoreReaction(clamped, par, strokesReceived));
+    }
     notifyIfOutlierScore(clamped);
     updateScoreboard();
     const patched = patchDay1HoleFeedback(matchIdx, team, holeNum, clamped);
@@ -2398,7 +2405,13 @@ function setDay2HoleScore(code, holeNum, rawVal) {
     saveState();
     const fields = { field_key: `${code}_${holeNum}`, value: clamped };
     insertUpdate('day2_hole', fields);
-    if (clamped !== previous) showUndoToast({ update_type: 'day2_hole', ...fields }, previous);
+    if (clamped !== previous) {
+      // Issue #228: net-to-par reaction emoji on the undo toast.
+      const handicap = day2GroupHandicap(code);
+      const courseHoles = day2CourseHoles();
+      const strokes = handicap === null ? Array(18).fill(0) : groupStrokes(handicap, courseHoles.map(h => h.si));
+      showUndoToast({ update_type: 'day2_hole', ...fields }, previous, holeScoreReaction(clamped, courseHoles[holeNum - 1].par, strokes[holeNum - 1]));
+    }
     notifyIfOutlierScore(clamped);
     // Issue #143: a full renderDay2GroupCard() rebuilds gridEl.innerHTML --
     // including the input that just fired and whatever cell the scorer
@@ -2630,7 +2643,9 @@ function setStableford(pid, val) {
     saveState();
     const fields = { player_id: pid, value: stored };
     insertUpdate('day3_stableford', fields);
-    if (stored !== previous) showUndoToast({ update_type: 'day3_stableford', ...fields }, previous ?? null);
+    // Issue #228: reaction emoji bucketed off the 18-hole total (no
+    // per-hole Stableford entry yet -- see #188).
+    if (stored !== previous) showUndoToast({ update_type: 'day3_stableford', ...fields }, previous ?? null, stablefordTotalReaction(stored));
     const { sorted } = computeDay3();
     const player = sorted.find(p => p.id === pid);
     if (player) {
@@ -3543,7 +3558,11 @@ function undoCoordKey(row) {
 // the NEW value) -- used to label the toast via the same describeUpdateRow()
 // vocabulary Field History already uses. `previousValue` is what the field
 // held before this change; it's what Undo restores.
-function showUndoToast(newRowFields, previousValue) {
+// `reaction` (issue #228) is one of REACTION_EMOJI's keys ('great'/'ok'/
+// 'bad') or null/omitted -- only day1_hole/day2_hole/day3_stableford ever
+// pass one (computed by the caller, which already has the par/strokes or
+// total in scope), so every other update type's toast is unchanged.
+function showUndoToast(newRowFields, previousValue, reaction) {
   const decoded = describeUpdateRow(newRowFields, PLAYERS, { A: state.teamNameA, B: state.teamNameB });
   pendingUndo = {
     coordKey: undoCoordKey(newRowFields),
@@ -3553,7 +3572,8 @@ function showUndoToast(newRowFields, previousValue) {
   clearTimeout(undoToastTimer);
   const toast = document.getElementById('undo-toast');
   if (!toast) return;
-  toast.querySelector('.undo-toast-text').textContent = `${decoded.fieldLabel}: ${decoded.valueLabel}`;
+  const emoji = reaction ? ` ${REACTION_EMOJI[reaction]}` : '';
+  toast.querySelector('.undo-toast-text').textContent = `${decoded.fieldLabel}: ${decoded.valueLabel}${emoji}`;
   toast.classList.add('show');
   // 6s (not the 10s in the issue's own suggestion) -- long enough to react
   // to a fat-finger without the toast overstaying its welcome.
