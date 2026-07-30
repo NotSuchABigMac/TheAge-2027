@@ -422,6 +422,29 @@
     return course ? course.holes.map(h => h.si) : Array.from({ length: 18 }, (_, i) => i + 1);
   }
 
+  // Murray Course par/stroke index per hole, same degrade-gracefully
+  // fallback as day1StrokeIndexesFor() (issue #250 — needed to mark up
+  // entered gross scores with a birdie/bogey symbol against par).
+  function day1CourseHolesFor(courses) {
+    const course = courses && courses[1];
+    return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
+  }
+
+  // Traditional golf leaderboard marking for one hole's entered gross score
+  // relative to par — circle marks (birdie/eagle) for under par, square
+  // marks (bogey/double-bogey-or-worse) for over par, none for par itself.
+  // Pure and course-agnostic (par is passed in) so it works for both Day 1
+  // (Murray) and Day 2 (Black Bull) grids (issue #250).
+  function scoreToParSymbol(gross, par) {
+    if (gross === null || gross === undefined || par === null || par === undefined) return null;
+    const rel = gross - par;
+    if (rel <= -2) return 'eagle';
+    if (rel === -1) return 'birdie';
+    if (rel === 0) return 'par';
+    if (rel === 1) return 'bogey';
+    return 'double-bogey';
+  }
+
   function matchStrokesForPlayers(match, players, day1StrokeIndexes) {
     const pA = players.find(p => p.id === match.pA[0]);
     const pB = players.find(p => p.id === match.pB[0]);
@@ -1102,8 +1125,8 @@
     scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
     POS_PTS, computeStableford, sumStablefordPoints,
     resolveOverallWinner,
-    day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor,
-    teamOfSets, ntpPointsFor,
+    day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
+    teamOfSets, ntpPointsFor, scoreToParSymbol,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
     computeSeasonTotals, phaseFor, daysUntilDay1,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
