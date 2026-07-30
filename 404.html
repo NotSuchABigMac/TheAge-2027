@@ -5,32 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#efe7d3">
-<title>Format · The Wonga Cup · MMXXVI</title>
-<meta name="description" content="How teams are picked and how the Wonga Cup is scored across three days of golf.">
-<link rel="canonical" href="https://thewongacup.golf/format.html">
+<title>Lost Ball · The Wonga Cup · MMXXVI</title>
+<meta name="description" content="That page doesn't exist. Head back to the Wonga Cup.">
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="The Wonga Cup">
-<meta property="og:title" content="Format · The Wonga Cup · MMXXVI">
-<meta property="og:description" content="How teams are picked and how the Wonga Cup is scored across three days of golf.">
-<meta property="og:url" content="https://thewongacup.golf/format.html">
-<meta property="og:image" content="https://thewongacup.golf/images/og-card.jpg">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Format · The Wonga Cup · MMXXVI">
-<meta name="twitter:description" content="How teams are picked and how the Wonga Cup is scored across three days of golf.">
-<meta name="twitter:image" content="https://thewongacup.golf/images/og-card.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=__CACHEBUST__">
 <style>
-.draft-hero {
-  padding: 96px 0 64px;
+/* Issue #180: GitHub Pages serves this for any unmatched path -- a
+   branded page with a way home beats the platform's bare default. */
+.lost-ball-hero {
+  padding: 140px 24px 96px;
   text-align: center;
 }
-.draft-hero .eyebrow {
+.lost-ball-hero .eyebrow {
   font-family: var(--mono, 'Geist Mono', monospace);
   font-size: .72rem;
   font-weight: 600;
@@ -39,7 +30,7 @@
   color: var(--ink-mute);
   margin-bottom: 18px;
 }
-.draft-hero h1 {
+.lost-ball-hero h1 {
   font-family: var(--display, 'Cormorant Garamond', Georgia, serif);
   font-size: clamp(2.6rem, 6vw, 4.4rem);
   font-weight: 600;
@@ -47,111 +38,15 @@
   line-height: 1.1;
   margin-bottom: 20px;
 }
-.draft-hero h1 em {
-  font-style: italic;
-  color: var(--accent-2, #b08d4f);
-}
-.draft-hero .standfirst {
+.lost-ball-hero .standfirst {
   font-family: var(--body, 'Geist', sans-serif);
   font-size: 1.1rem;
   color: var(--ink-mute);
-  max-width: 560px;
+  max-width: 520px;
   margin: 0 auto 40px;
   line-height: 1.65;
 }
-.draft-badge {
-  display: inline-block;
-  font-family: var(--mono, 'Geist Mono', monospace);
-  font-size: .68rem;
-  font-weight: 600;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  padding: 6px 16px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-2, #b08d4f) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent-2, #b08d4f) 40%, transparent);
-  color: var(--accent-2, #b08d4f);
-  margin-bottom: 40px;
-}
-.draft-rule {
-  border: none;
-  border-top: 1px solid var(--rule);
-  margin: 48px auto;
-  max-width: 720px;
-}
-.draft-format {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 0 24px 64px;
-}
-.draft-format h2 {
-  font-family: var(--display, 'Cormorant Garamond', Georgia, serif);
-  font-size: 1.9rem;
-  color: var(--ink);
-  margin-bottom: 16px;
-}
-.draft-format p {
-  font-family: var(--body, 'Geist', sans-serif);
-  font-size: .95rem;
-  color: var(--ink-mute);
-  line-height: 1.7;
-  margin-bottom: 14px;
-}
-.draft-steps {
-  list-style: none;
-  padding: 0;
-  margin: 24px 0 32px;
-  counter-reset: step;
-}
-.draft-steps li {
-  counter-increment: step;
-  display: flex;
-  gap: 18px;
-  align-items: flex-start;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--rule);
-}
-.draft-steps li:last-child {
-  border-bottom: none;
-}
-.draft-steps li::before {
-  content: counter(step, decimal-leading-zero);
-  font-family: var(--mono, 'Geist Mono', monospace);
-  font-size: .75rem;
-  font-weight: 600;
-  color: var(--accent-2, #b08d4f);
-  min-width: 28px;
-  padding-top: 2px;
-}
-.draft-steps li span {
-  font-family: var(--body, 'Geist', sans-serif);
-  font-size: .95rem;
-  color: var(--ink);
-  line-height: 1.6;
-}
-.draft-steps li span strong {
-  display: block;
-  margin-bottom: 2px;
-}
-.draft-steps li span em {
-  font-style: normal;
-  color: var(--ink-mute);
-  font-size: .88rem;
-}
-.live-cta-block {
-  text-align: center;
-  padding: 40px 24px 64px;
-  max-width: 560px;
-  margin: 0 auto;
-}
-.live-cta-block p {
-  font-family: var(--body, 'Geist', sans-serif);
-  font-size: .9rem;
-  color: var(--ink-mute);
-  margin-bottom: 20px;
-  line-height: 1.6;
-}
-.live-cta-btn {
+.lost-ball-btn {
   display: inline-block;
   font-family: var(--mono, 'Geist Mono', monospace);
   font-size: .75rem;
@@ -160,22 +55,12 @@
   text-transform: uppercase;
   padding: 12px 28px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--accent-2, #b08d4f) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent-2, #b08d4f) 35%, transparent);
-  color: var(--ink-mute);
+  background: color-mix(in srgb, var(--accent-2, #b08d4f) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-2, #b08d4f) 40%, transparent);
+  color: var(--ink);
   text-decoration: none;
-  cursor: default;
-  opacity: .65;
 }
-/* issue #171: aria-disabled is a screen-reader hint only -- it does
-   nothing to stop an actual mouse/touch click from following the href
-   (confirmed: clicking this exact element navigated straight through to
-   scorecard-live.html). pointer-events:none is what actually blocks it;
-   scoped to the aria-disabled state so removing that attribute once the
-   draft's done also re-enables real clicks with no other change needed. */
-.live-cta-btn[aria-disabled="true"] {
-  pointer-events: none;
-}
+.lost-ball-btn:hover { background: color-mix(in srgb, var(--accent-2, #b08d4f) 25%, transparent); }
 </style>
 </head>
 <body>
@@ -232,63 +117,16 @@
 </nav>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
-     DRAFT PLACEHOLDER
+     404
 ═══════════════════════════════════════════════════════════════════════ -->
-<section class="draft-hero" id="main-content">
+<section class="lost-ball-hero" id="main-content">
   <div class="shell">
-    <div class="eyebrow">A.G.E IV · Yarrawonga &amp; Mulwala G.C. · 7–9 August 2026</div>
-    <h1>Teams decided by<br><em>Captain's Draft.</em></h1>
-    <p class="standfirst">
-      The field is split on the morning of Day 1 via peer vote and snake draft.
-      Once the captains are picked and the teams are set, the live scorecard goes live.
-    </p>
-    <div class="draft-badge">Live Scorecard · Available from Draft Day</div>
+    <div class="eyebrow">404 · Out of Bounds</div>
+    <h1>Lost <em class="serif--italic">ball.</em></h1>
+    <p class="standfirst">That page doesn't exist — or your ball's found the one hazard that isn't on any of the three courses. Drop and re-tee from the homepage.</p>
+    <a href="index.html" class="lost-ball-btn">Back to the Clubhouse ↗</a>
   </div>
 </section>
-
-<hr class="draft-rule">
-
-<div class="draft-format">
-  <h2>How the draft works</h2>
-  <p>
-    Instead of preset teams, captains are chosen by the field on the Friday morning — whoever the group votes for leads a side. The two captains then alternate picks in a snake draft until all 14 players are allocated.
-  </p>
-  <ol class="draft-steps">
-    <li>
-      <span>
-        <strong>Peer vote for captains</strong>
-        <em>Friday morning, before tee-off — players nominate and vote for two captains.</em>
-      </span>
-    </li>
-    <li>
-      <span>
-        <strong>Snake draft</strong>
-        <em>Captains alternate picks (1-2-2-2-…-1) until all 14 players are assigned to a team.</em>
-      </span>
-    </li>
-    <li>
-      <span>
-        <strong>Team names chosen by captains</strong>
-        <em>Each captain names their side — bragging rights on the line from the first pick.</em>
-      </span>
-    </li>
-    <li>
-      <span>
-        <strong>Live scorecard goes live</strong>
-        <em>Once teams are confirmed, this page will link through to the full scoring tool.</em>
-      </span>
-    </li>
-  </ol>
-  <p>
-    Three days of competition follow: Friday match play, Saturday scramble, Sunday Stableford.
-    Points accumulate across all three rounds — the team with the most points lifts the cup.
-  </p>
-</div>
-
-<div class="live-cta-block">
-  <p>The live scoring tool will be available once the draft is complete on Friday morning.</p>
-  <a href="scorecard-live.html" class="live-cta-btn" aria-disabled="true">Live Scorecard — Coming Soon</a>
-</div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
      FOOTER
