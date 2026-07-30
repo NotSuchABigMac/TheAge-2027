@@ -279,6 +279,11 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .undo-toast-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .undo-toast-btn{background:var(--gold);color:var(--ink);border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
 .undo-toast-btn:hover{background:var(--gold-light)}
+.remote-flash{background-color:rgba(240,180,41,.5);transition:background-color 1.8s ease}
+.remote-flash.remote-flash-out{background-color:transparent}
+@media (prefers-reduced-motion: reduce){
+  .remote-flash{transition:none}
+}
 .sync-spacer{flex:1}
 
 /* ── USERNAME PICKER MODAL ── */
@@ -755,6 +760,12 @@ const SUPABASE_CONFIG = {
   sessionKey: 'wonga-cup-2026'
 };
 const LAST_SYNC_KEY = 'wongaCup2026_lastSync';
+
+// Issue #194: a from-epoch replay (first load, or the full replay after a
+// rollback wipe) must not light up every cell on the page as "just
+// changed" -- only rows genuinely newer than this page load are real-time
+// remote changes worth flashing.
+const PAGE_LOAD_ISO = new Date().toISOString();
 
 let currentUsername = null;
 let currentWriteToken = null;
@@ -1724,7 +1735,7 @@ function renderDay2Anthem() {
   const anthem = state.day2.anthem || {};
   container.innerHTML = PLAYERS.map(p => {
     const val = anthem[p.id];
-    return `<div class="anthem-row">
+    return `<div class="anthem-row" id="anthem-row-${p.id}">
       <span class="anthem-name">${escapeHtml(p.short)}</span>
       <div class="match-toggle" role="radiogroup" aria-label="${escapeHtml(p.name)} sang the national anthem">
         <button type="button" role="radio" aria-checked="${val === true}" class="${val === true ? 'is-active' : ''}" onclick="setDay2Anthem(${p.id}, true)">Sang <span class="rt-pts">-1</span></button>
@@ -2510,6 +2521,98 @@ function applyUpdate(row) {
   }
   dismissUndoToastIfSuperseded(row);
   applyUpdateToState(state, row);
+  // Issue #194: queued rather than flashed immediately -- a poll-delivered
+  // full rebuild (renderDay1()/renderDay2AllGroupCards() etc, called from
+  // refreshAllDays() after every row in this batch has been applied)
+  // destroys and recreates the very nodes a row here might reference, so
+  // resolving elements now would just flash nodes about to be thrown away.
+  // flushRemoteFlashes() (called after refreshAllDays() in pollOnce())
+  // resolves against the fresh DOM instead.
+  if (row.updated_by && row.updated_by !== currentUsername && row.updated_at > PAGE_LOAD_ISO) {
+    pendingRemoteFlashes.push(row);
+  }
+}
+
+/* ─────────────────────────────────────
+   REMOTE-CHANGE FLASH (issue #194)
+   Converts "the site is broken, a value just changed under me" into
+   "Davo corrected hole 9" -- a brief highlight plus a title/aria-label
+   naming who made the change, scoped to the same v1 field set as the
+   undo toast (#198): hole scores, manual day scores, stableford, NTP,
+   anthem. Team/group moves are out of scope for the same reason (#147
+   cascades deserve their own treatment).
+───────────────────────────────────── */
+let pendingRemoteFlashes = [];
+function elementsForUpdate(row) {
+  switch (row.update_type) {
+    case 'day1_hole': {
+      const m = /^([AB])(\d{1,2})$/.exec(row.field_key || '');
+      if (!m) return [];
+      const el = document.getElementById(`day1-in-${row.match_idx}-${m[1]}-${m[2]}`);
+      return el ? [el] : [];
+    }
+    case 'day2_hole': {
+      const m = /^(a4|a3|b4|b3)_(\d{1,2})$/.exec(row.field_key || '');
+      if (!m) return [];
+      const el = document.getElementById(`day2-in-${m[1]}-${m[2]}`);
+      return el ? [el] : [];
+    }
+    case 'day2_score': {
+      const el = document.getElementById(`${row.field_key}-score`);
+      return el ? [el] : [];
+    }
+    case 'day1_ntp': {
+      const el = document.getElementById(`ntp-day1-${row.field_key}`);
+      return el ? [el] : [];
+    }
+    case 'day2_ntp': {
+      const el = document.getElementById(`ntp-day2-${row.field_key}`);
+      return el ? [el] : [];
+    }
+    case 'day3_ntp': {
+      const el = document.getElementById(`ntp-day3-${row.field_key}`);
+      return el ? [el] : [];
+    }
+    case 'day3_stableford': {
+      const el = document.querySelector(`.sf-in[data-pid="${row.player_id}"]`);
+      return el ? [el] : [];
+    }
+    case 'day2_anthem': {
+      const el = document.getElementById(`anthem-row-${row.player_id}`);
+      return el ? [el] : [];
+    }
+    default:
+      return [];
+  }
+}
+// The double-rAF forces the browser to actually paint the bright
+// background from adding .remote-flash before .remote-flash-out changes
+// it back to transparent -- adding both classes in the same tick would
+// collapse into one style recalculation and never visibly animate.
+function flashElement(el, row) {
+  // safeSetInput() already refuses to overwrite a focused input, so its
+  // value didn't visibly change here -- nothing to flash.
+  if (document.activeElement === el) return;
+  el.classList.remove('remote-flash-out');
+  el.classList.add('remote-flash');
+  const label = `changed · ${row.updated_by}`;
+  el.title = label;
+  el.setAttribute('aria-label', label);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.classList.add('remote-flash-out');
+  }));
+  const cleanup = () => el.classList.remove('remote-flash', 'remote-flash-out');
+  el.addEventListener('transitionend', cleanup, { once: true });
+  // prefers-reduced-motion sets transition:none on .remote-flash, so
+  // transitionend never fires there -- this fallback still tidies up the
+  // classes (the title/aria-label deliberately stays, since that's the
+  // reduced-motion user's only signal that anything changed at all).
+  setTimeout(cleanup, 2000);
+}
+function flushRemoteFlashes() {
+  const rows = pendingRemoteFlashes;
+  pendingRemoteFlashes = [];
+  rows.forEach(row => elementsForUpdate(row).forEach(el => flashElement(el, row)));
 }
 
 // Ids already applied at the exact LAST_SYNC_KEY timestamp -- needed
@@ -3298,7 +3401,12 @@ async function pollOnce() {
   syncInFlight = true;
   try {
     const ok = await loadFromSupabase();
-    if (ok) refreshAllDays();
+    if (ok) {
+      refreshAllDays();
+      // Must run after refreshAllDays(), not inside applyUpdate() per-row --
+      // see pendingRemoteFlashes' own comment for why (rebuilt nodes).
+      flushRemoteFlashes();
+    }
     syncStatus = isOffline ? 'offline' : 'live';
   } catch(e) {
     console.error('Poll load error:', e);
