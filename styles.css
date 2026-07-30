@@ -597,14 +597,75 @@ html[data-mode="dark"] .hero-photo {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ── weather ticker (below 700px): the 3-column table doesn't fit a
+   phone width with this much info per day, so it becomes a single
+   slow-scrolling line instead. The track holds the day list twice
+   back-to-back and animates exactly one list-width to the left, so
+   the loop point is invisible. The second copy is aria-hidden -- a
+   screen reader only needs the data once. */
+.weather-ticker { display: none; }
 @media (max-width: 700px) {
-  .weather-days { flex-direction: column; }
-  .weather-day {
-    border-left: none;
-    padding: 8px 0;
-    border-top: 1px solid var(--rule);
+  .weather-days { display: none; }
+  .weather-ticker {
+    display: block;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+            mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
   }
-  .weather-day:first-child { padding-top: 0; border-top: none; }
+  .weather-ticker-track {
+    display: flex;
+    width: max-content;
+    animation: weather-ticker-scroll 32s linear infinite;
+  }
+  .weather-ticker-group { display: flex; align-items: center; flex-shrink: 0; }
+  .wt-item { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; padding: 10px 0; }
+  .wt-sep { color: var(--rule-strong); margin: 0 18px; }
+  .wt-date {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    color: var(--ink-mute);
+  }
+  .wt-date em {
+    font-style: italic;
+    font-family: var(--display);
+    color: var(--ink);
+    font-size: 1.15em;
+  }
+  .wt-icon { font-size: 0.9rem; line-height: 1; }
+  .wt-temp {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 1.05rem;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .wt-temp .lo {
+    font-family: var(--body);
+    font-style: normal;
+    font-size: 0.7em;
+    color: var(--ink-mute);
+    margin-left: 1px;
+  }
+  .wt-rain, .wt-wind {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    color: var(--ink-mute);
+  }
+  .wt-rain .v, .wt-wind .v { color: var(--ink); }
+  .wt-wind { display: inline-flex; align-items: center; gap: 3px; }
+  .wt-arrow { display: inline-block; color: var(--accent); font-weight: 600; }
+  @keyframes weather-ticker-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+}
+@media (max-width: 700px) and (prefers-reduced-motion: reduce) {
+  .weather-ticker { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+  .weather-ticker-track { animation: none; }
+  .weather-ticker-group[aria-hidden="true"] { display: none; }
 }
 
 /* ── sub-hero ribbon ── */
