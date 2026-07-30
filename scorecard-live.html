@@ -1566,53 +1566,53 @@ function nineDisplayLabel(match, half, nineHoleResults, hasData) {
   return 'Not started';
 }
 
-// One 9-hole block of the entry grid: one row per hole (hole number, par,
-// stroke dots, then both teams' gross score inputs side by side) so the
-// natural tab/auto-advance order interleaves the two teams per hole
-// (issue #251) instead of running through one team's whole nine first.
-// Each input is color-coded by which team won that hole (issue #249, via
-// the same holeResult() the nine-status line already uses) and marked
-// with a birdie/bogey-style symbol against par (issue #250).
+// One 9-hole block of the entry grid: hole numbers (with NTP marker) and
+// par across the top, stroke dots for whichever player is receiving
+// strokes, then one gross-score input row per team -- same two-row shape
+// as before #251, so a scorer still reads a whole nine left-to-right per
+// team. What #251 actually changed is the auto-advance order (see
+// advanceDay1Hole() below): after Team A's hole N it moves DOWN to Team
+// B's hole N (same column), then RIGHT to Team A's hole N+1 -- not the
+// layout. Each input is color-coded by which team won that hole (issue
+// #249, via the same holeResult() the nine-status line already uses) and
+// marked with a birdie/bogey-style symbol against par (issue #250).
 function holeGridNineHtml(mi, match, strokes, courseHoles, startIdx) {
   const holeIndexes = Array.from({ length: 9 }, (_, i) => startIdx + i);
   const ntpHoles = NTP_HOLES[1] || [];
   const dotsFor = n => n > 0 ? '●'.repeat(n) : '';
-  function inputCell(team, i) {
-    const holeNum = i + 1;
-    const arr = team === 'A' ? match.holesA : match.holesB;
-    const val = arr[i];
-    const result = holeResultFor(match, strokes, i);
-    const winClass = result === team ? ` hole-win-${team.toLowerCase()}` : (result === 'T' ? ' hole-tie' : '');
-    const par = courseHoles[i] ? courseHoles[i].par : null;
-    const symbol = scoreToParSymbol(val, par);
-    const markClass = symbol && symbol !== 'par' ? ` mark-${symbol}` : '';
-    return `<td class="hole-in-cell${winClass}"><input id="day1-in-${mi}-${team}-${holeNum}" class="grid-in${markClass}" type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
-      value="${val === null ? '' : val}"
-      onchange="setHoleScore(${mi},'${team}',${holeNum},this.value)"
-      oninput="handleGridInputAdvance(event)"
-      onfocus="this.scrollIntoView({block:'center'})"></td>`;
-  }
-  const rows = holeIndexes.map(i => {
+  const headerCells = holeIndexes.map(i => {
     const holeNum = i + 1;
     const isNtp = ntpHoles.includes(holeNum);
-    const dots = dotsFor(strokes.a[i]) || dotsFor(strokes.b[i]);
-    const par = courseHoles[i] ? courseHoles[i].par : '';
-    return `<tr>
-      <td class="rlab${isNtp ? ' ntp' : ''}">${holeNum}${isNtp ? ' 📍' : ''}</td>
-      <td class="par-cell">${par}</td>
-      <td class="dots">${dots}</td>
-      ${inputCell('A', i)}
-      ${inputCell('B', i)}
-    </tr>`;
+    return `<th class="${isNtp ? 'ntp' : ''}">${holeNum}${isNtp ? ' 📍' : ''}</th>`;
   }).join('');
+  const parRow = holeIndexes.map(i => `<td class="par-cell">${courseHoles[i] ? courseHoles[i].par : ''}</td>`).join('');
+  const dotsRow = holeIndexes.map(i => `<td class="dots">${dotsFor(strokes.a[i])}${dotsFor(strokes.a[i]) ? '' : dotsFor(strokes.b[i])}</td>`).join('');
+  function inputRow(team) {
+    const arr = team === 'A' ? match.holesA : match.holesB;
+    return holeIndexes.map(i => {
+      const holeNum = i + 1;
+      const val = arr[i];
+      const result = holeResultFor(match, strokes, i);
+      const winClass = result === team ? ` hole-win-${team.toLowerCase()}` : (result === 'T' ? ' hole-tie' : '');
+      const par = courseHoles[i] ? courseHoles[i].par : null;
+      const symbol = scoreToParSymbol(val, par);
+      const markClass = symbol && symbol !== 'par' ? ` mark-${symbol}` : '';
+      return `<td class="hole-in-cell${winClass}"><input id="day1-in-${mi}-${team}-${holeNum}" class="grid-in${markClass}" type="number" inputmode="numeric" min="${DAY1_GROSS_MIN}" max="${DAY1_GROSS_MAX}"
+        value="${val === null ? '' : val}"
+        onchange="setHoleScore(${mi},'${team}',${holeNum},this.value)"
+        oninput="handleGridInputAdvance(event)"
+        onfocus="this.scrollIntoView({block:'center'})"></td>`;
+    }).join('');
+  }
   return `
     <table class="hole-grid-table">
-      <colgroup><col style="width:14%"><col style="width:10%"><col style="width:16%"><col style="width:30%"><col style="width:30%"></colgroup>
-      <thead><tr>
-        <th class="rlab">Hole</th><th>Par</th><th>Strokes</th>
-        <th>${escapeHtml(state.teamNameA)}</th><th>${escapeHtml(state.teamNameB)}</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
+      <thead><tr><th class="rlab">Hole</th>${headerCells}</tr></thead>
+      <tbody>
+        <tr><td class="rlab">Par</td>${parRow}</tr>
+        <tr><td class="rlab">Strokes</td>${dotsRow}</tr>
+        <tr><td class="rlab">${escapeHtml(state.teamNameA)}</td>${inputRow('A')}</tr>
+        <tr><td class="rlab">${escapeHtml(state.teamNameB)}</td>${inputRow('B')}</tr>
+      </tbody>
     </table>`;
 }
 
@@ -1769,12 +1769,13 @@ function advanceToNextHole(el) {
   const next = document.getElementById(`${m[1]}-${parseInt(m[2], 10) + 1}`);
   if (next) { next.focus(); next.select(); } else { el.blur(); }
 }
-// Issue #251: Day 1's grid is laid out one row per hole with both teams'
-// inputs side by side, so a single scorer can enter both teams' scores for
-// a hole before moving to the next one -- Hole 1 A -> Hole 1 B -> Hole 2 A
-// -> ... -- rather than all of Team A's holes then all of Team B's. Day
-// 2's ids (one row per group, no team dimension) keep using the generic
-// advanceToNextHole() above unchanged.
+/// Issue #251: Day 1's grid still has one row per team (holes across the
+// top as columns), but auto-advance now moves DOWN a column before it
+// moves RIGHT -- Team A's hole N -> Team B's hole N -> Team A's hole N+1
+// -> ... -- so a single scorer enters both teams' scores for a hole
+// before moving on, instead of running through all of Team A's holes
+// then all of Team B's. Day 2's ids (one row per group, no team
+// dimension) keep using the generic advanceToNextHole() above unchanged.
 function advanceDay1Hole(el) {
   const m = el.id.match(/^day1-in-(\d+)-([AB])-(\d+)$/);
   if (!m) { el.blur(); return; }
