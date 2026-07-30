@@ -43,10 +43,23 @@ jobs:
         # against its own baked-in version (same SHA, same sed above).
         run: echo "{\"v\":\"${GITHUB_SHA::8}\"}" > version.json
 
+      - name: Assemble _site/
+        # Issue #179: uploading the repo root used to publish the entire
+        # repo -- test/, supabase/migrations/, README.md,
+        # ARCHITECTURE.md, this workflow file, all of it, served publicly
+        # at wongacup URLs. Nothing secret in any of it, but none of it
+        # is site content either. An explicit copy list makes "what's on
+        # the live site" something you can read here, rather than
+        # "whatever happens to be in the repo root".
+        run: |
+          mkdir _site
+          cp *.html *.js *.css *.mp3 CNAME version.json _site/
+          cp -r images _site/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
 
       - name: Deploy to GitHub Pages
         id: deployment
