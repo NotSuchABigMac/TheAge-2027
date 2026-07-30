@@ -295,6 +295,23 @@
     return n;
   }
 
+  // Admin-entered handicap overrides (issue #206): players.js ships the
+  // handicaps as of when the roster was built, but a real change (a card
+  // submitted late, a data-entry fix) needs to reach every derived score
+  // without a code deploy. `hcpOverrides` is state.hcp -- a sparse object
+  // keyed by player id, synced the same way every other field is -- and
+  // this is the one substitution point every match/scramble/Stableford
+  // calculation reads players through, so a single override lookup here
+  // reaches Day 1 match strokes, Day 2 scramble handicaps and Day 3
+  // individual strokes alike rather than needing one at each call site.
+  function playersWithOverrides(players, hcpOverrides) {
+    if (!hcpOverrides) return players;
+    return players.map(p => {
+      const override = hcpOverrides[p.id];
+      return (override === undefined || override === null || override === '') ? p : { ...p, hcp: override };
+    });
+  }
+
   // Allocates one absolute team handicap across 18 holes via stroke index
   // -- same difference-in-handicap wraparound formula matchStrokes() uses
   // for a two-way difference, but here every hole gets the base allocation
@@ -759,6 +776,10 @@
   }
 
   const DAY3_SCORE_MIN = 0, DAY3_SCORE_MAX = 60;
+  // Handicap index bounds (issue #206) -- 0 covers a scratch player, 54 is
+  // the WHS maximum, wide enough to never reject a real card while still
+  // catching a fat-fingered admin entry (e.g. "190" instead of "19.0").
+  const HCP_MIN = 0, HCP_MAX = 54;
 
   // Whitelists which field_key values each synced update_type may touch.
   // The tournament_updates table is publicly writable, so a forged
@@ -917,6 +938,20 @@
       case 'day3_ntp':
         if (row.field_key) state.day3.ntp[row.field_key] = parseIntOrNull(v);
         break;
+      case 'player_hcp': {
+        // An admin-entered override on top of the players.js default
+        // (issue #206) -- read via playersWithOverrides() at every call
+        // site that used to pass the raw roster straight into a
+        // handicap-dependent calculation. Clearing (empty/unparseable
+        // value) removes the override entirely, reverting to the shipped
+        // default rather than storing an empty string as if it were one.
+        if (typeof row.player_id !== 'number' || row.player_id < 0 || row.player_id >= 14) break;
+        if (!state.hcp) state.hcp = {};
+        const n = parseFloat(v);
+        if (isNaN(n)) delete state.hcp[row.player_id];
+        else state.hcp[row.player_id] = String(Math.max(HCP_MIN, Math.min(HCP_MAX, n)));
+        break;
+      }
       case 'tiebreak':
         state.tiebreak = (v === 'A' || v === 'B') ? v : null;
         break;
@@ -979,6 +1014,7 @@
     team_name:       { label: 'Team Name',                       addressing: 'field',       fieldKeys: ['A', 'B'], restorable: true },
     team_assign:     { label: 'Team Roster (legacy snapshot)',   addressing: 'field',       fieldKeys: ['A', 'B'], restorable: false },
     player_team:     { label: 'Player Team Assignment',          addressing: 'player',      restorable: true, cascadeWarning: 'May also clear Day 1 match assignments for this player.' },
+    player_hcp:      { label: 'Player Handicap (override)',      addressing: 'player',      restorable: true, cascadeWarning: 'Retroactively changes every derived match/scramble/Stableford score for this player.' },
     day_lock:        { label: 'Day Lock',                        addressing: 'field',       fieldKeys: ['day1', 'day2', 'day3'], restorable: true }
   };
 
@@ -1049,6 +1085,8 @@
         return { fieldLabel: `Team ${row.field_key || '?'} Roster (legacy snapshot)`, valueLabel: isCleared ? '(cleared)' : String(v) };
       case 'player_team':
         return { fieldLabel: `Player Team · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(cleared)' : (teamName(v) || String(v)) };
+      case 'player_hcp':
+        return { fieldLabel: `Handicap · ${playerName(row.player_id) || `Player #${row.player_id}`}`, valueLabel: isCleared ? '(reverted to default)' : String(v) };
       case 'day_lock': {
         const dayLabel = { day1: 'Day 1', day2: 'Day 2', day3: 'Day 3' }[row.field_key] || row.field_key || '?';
         return { fieldLabel: `Day Lock · ${dayLabel}`, valueLabel: isCleared ? '(cleared)' : (v === 'true' ? 'Locked' : 'Unlocked') };
@@ -1203,6 +1241,18 @@
         state.day3.holes[id] = normalizedHoles(state.day3.holes[id], DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX);
       });
     }
+    // Admin handicap overrides (issue #206) -- sparse object keyed by
+    // player id, same shape/repair philosophy as day2.anthem above: only a
+    // value parseFloat() can actually use survives, anything else (a
+    // stray object, NaN string, etc.) is dropped rather than silently
+    // corrupting every downstream stroke calculation.
+    if (typeof state.hcp !== 'object' || state.hcp === null) {
+      state.hcp = {};
+    } else {
+      Object.keys(state.hcp).forEach(id => {
+        if (isNaN(parseFloat(state.hcp[id]))) delete state.hcp[id];
+      });
+    }
     // Lock flags (issue #168) -- only `true` survives a stale/forged saved or
     // synced payload; anything else (missing, a string, etc.) normalizes to
     // unlocked rather than accidentally locking a day out from under everyone.
@@ -1248,7 +1298,7 @@
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
     SCRAMBLE_HANDICAP_PCT, scrambleTeamHandicap, groupStrokes,
-    ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap,
+    ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap, HCP_MIN, HCP_MAX, playersWithOverrides,
     scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
     POS_PTS, computeStableford, sumStablefordPoints,
     DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints, day3PointsThru,

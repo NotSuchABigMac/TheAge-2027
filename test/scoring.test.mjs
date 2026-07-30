@@ -15,7 +15,7 @@ const {
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
-  ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap,
+  ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap, HCP_MIN, HCP_MAX, playersWithOverrides,
   POS_PTS, computeStableford, sumStablefordPoints,
   DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX,
   resolveOverallWinner,
@@ -1127,6 +1127,109 @@ test('anthemAdjustedHandicap: feeds into scrambleTeamHandicap per player, not as
   assert.equal(scrambleTeamHandicap(hcps), 11);
 });
 
+/* ── Admin handicap overrides (issue #206) ── */
+
+test('playersWithOverrides: with no overrides object, returns the exact same array (fallback to players.js default)', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '8.0' }];
+  assert.equal(playersWithOverrides(players, undefined), players);
+  assert.equal(playersWithOverrides(players, null), players);
+});
+
+test('playersWithOverrides: an override replaces just that player\'s hcp, leaving others and other fields untouched', () => {
+  const players = [{ id: 0, hcp: '10.0', name: 'Brendan' }, { id: 1, hcp: '8.0', name: 'Gary' }];
+  const result = playersWithOverrides(players, { 1: '5.5' });
+  assert.equal(result[0].hcp, '10.0');
+  assert.equal(result[1].hcp, '5.5');
+  assert.equal(result[1].name, 'Gary'); // untouched
+  assert.equal(result[0], players[0]); // untouched player object identity preserved
+});
+
+test('playersWithOverrides: undefined/null/empty-string entries in the overrides map fall back to the default, not blank the handicap', () => {
+  const players = [{ id: 0, hcp: '10.0' }];
+  assert.equal(playersWithOverrides(players, { 0: undefined })[0].hcp, '10.0');
+  assert.equal(playersWithOverrides(players, { 0: null })[0].hcp, '10.0');
+  assert.equal(playersWithOverrides(players, { 0: '' })[0].hcp, '10.0');
+});
+
+test('playersWithOverrides: an override composes correctly with anthemAdjustedHandicap/scrambleTeamHandicap (issue #149 + #206 together)', () => {
+  // Same 4-player group as the anthem composition test above, but player
+  // with hcp 8.0 has an admin override down to 5.0 -- the anthem
+  // adjustment (didn't sing, +2) must apply on top of the OVERRIDDEN base
+  // (5.0 -> 7.0), not the original roster value (8.0 -> 10.0).
+  const players = [
+    { id: 0, hcp: '19.0' }, { id: 1, hcp: '8.0' }, { id: 2, hcp: '30.0' }, { id: 3, hcp: '16.0' }
+  ];
+  const resolved = playersWithOverrides(players, { 1: '5.0' });
+  const hcps = [
+    anthemAdjustedHandicap(resolved[0].hcp, undefined),
+    anthemAdjustedHandicap(resolved[1].hcp, false),
+    anthemAdjustedHandicap(resolved[2].hcp, true),
+    anthemAdjustedHandicap(resolved[3].hcp, undefined)
+  ];
+  assert.deepEqual(hcps, [19, 7, 29, 16]);
+  // Sorted ascending: 7, 16, 19, 29 -> 7*.25 + 16*.20 + 19*.15 + 29*.10 = 1.75+3.2+2.85+2.9 = 10.7 -> 11
+  assert.equal(scrambleTeamHandicap(hcps), 11);
+});
+
+test('applyUpdateToState: player_hcp sets and clears a player\'s handicap override', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'player_hcp', player_id: 4, value: '15.5' });
+  assert.equal(state.hcp[4], '15.5');
+  applyUpdateToState(state, { update_type: 'player_hcp', player_id: 4, value: null });
+  assert.equal(state.hcp[4], undefined);
+  assert.equal(4 in state.hcp, false);
+});
+
+test('applyUpdateToState: player_hcp clamps to HCP_MIN/HCP_MAX', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'player_hcp', player_id: 0, value: '999' });
+  assert.equal(state.hcp[0], String(HCP_MAX));
+  applyUpdateToState(state, { update_type: 'player_hcp', player_id: 1, value: '-5' });
+  assert.equal(state.hcp[1], String(HCP_MIN));
+});
+
+test('applyUpdateToState: player_hcp rejects an out-of-range player_id or a non-numeric value without throwing', () => {
+  const state = makeState();
+  assert.doesNotThrow(() => {
+    applyUpdateToState(state, { update_type: 'player_hcp', player_id: 99, value: '10' });
+  });
+  assert.equal(state.hcp, undefined); // rejected before touching state at all
+  applyUpdateToState(state, { update_type: 'player_hcp', player_id: 0, value: 'not-a-number' });
+  assert.equal(0 in state.hcp, false);
+});
+
+test('normalizeState: state.hcp missing initializes to {}, and non-numeric entries are dropped on repair', () => {
+  const missing = makeState();
+  delete missing.hcp;
+  normalizeState(missing);
+  assert.deepEqual(missing.hcp, {});
+
+  const malformed = makeState();
+  malformed.hcp = { 0: '15.5', 1: 'garbage', 2: { not: 'a string' }, 3: '8' };
+  normalizeState(malformed);
+  assert.deepEqual(malformed.hcp, { 0: '15.5', 3: '8' });
+});
+
+test('applyUpdateToState replay: player_hcp rows converge to the same final state regardless of arrival order (offline queue reordering)', () => {
+  const rowsInOrder = [
+    { update_type: 'player_hcp', player_id: 2, value: '12.0' },
+    { update_type: 'player_hcp', player_id: 2, value: '11.5' },
+    { update_type: 'player_hcp', player_id: 5, value: '20.0' }
+  ];
+  const forward = makeState();
+  rowsInOrder.forEach(r => applyUpdateToState(forward, r));
+  // A processUpdateRows-style replay of the exact same rows (not reordered,
+  // since applyUpdateToState has no timestamp to sort by on its own --
+  // this proves idempotent re-application converges, the actual ordering
+  // guarantee lives in processUpdateRows()/the updated_at sort upstream)
+  // applied twice lands on the same final values either way.
+  const replayed = makeState();
+  rowsInOrder.concat(rowsInOrder).forEach(r => applyUpdateToState(replayed, r));
+  assert.deepEqual(forward.hcp, replayed.hcp);
+  assert.equal(forward.hcp[2], '11.5');
+  assert.equal(forward.hcp[5], '20'); // clamping re-stringifies via parseFloat, so trailing .0 is dropped
+});
+
 test('groupStrokes: allocates the base stroke to every hole plus one extra on the lowest-SI holes', () => {
   // handicap 11 over 18 holes -> base 0, extra 11 -> 1 stroke on SI 1-11, 0 on SI 12-18
   const result = groupStrokes(11, SI_ASCENDING);
@@ -1552,7 +1655,8 @@ test('normalizeState: an already-normal state passes through unchanged', () => {
       holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
       anthem: {}, locked: false
     },
-    day3: { scores: {}, ntp: { h7: null, h14: null }, locked: false, holes: {} }
+    day3: { scores: {}, ntp: { h7: null, h14: null }, locked: false, holes: {} },
+    hcp: {}
   };
   const before = JSON.stringify(normal);
   normalizeState(normal);

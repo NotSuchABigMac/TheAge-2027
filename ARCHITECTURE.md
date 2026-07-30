@@ -131,6 +131,7 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 | `team_name` | `A` / `B` | team display name |
 | `team_assign` | `A` / `B` | JSON array of player ids on that team — only emitted by the "Clear Teams" reset; individual moves use `player_team` below so two concurrent moves of different players don't clobber each other |
 | `player_team` | — (uses `player_id`) | `'A'` or `'B'` — the team that player was just moved to |
+| `player_hcp` | — (uses `player_id`) | an admin-entered handicap override, or `null`/unparseable to clear it and revert to the `players.js` default (issue #206) |
 | `rollback` | — | ISO timestamp of the rollback cutoff — a synced marker (issue #140, page-layer-only, not in `applyUpdateToState`) telling every device to wipe its local cache and reload after an admin rollback, since a server-side `DELETE` alone produces no sync signal a normal replay could act on |
 
 - **Save:** insert one row per change (no PATCH/GET logic needed).
@@ -274,6 +275,50 @@ using hole-by-hole entry only counts once `scrambleRoundComplete()` confirms
 all 18 holes are in, not the moment they enter their first hole — conflating
 the two would have ended the tournament as soon as all 14 players had played
 just one hole each.
+
+## Admin-editable player handicaps (issue #206)
+
+`players.js` ships each player's handicap as of when the roster was built —
+a value that occasionally needs correcting later (a late card, a data-entry
+fix) without a code deploy. `state.hcp` is a sparse object keyed by player
+id (synced via `player_hcp`, `addressing: 'player'` like `day2_anthem`/
+`player_team`, so it gets Admin History/Restore for free); an entry there
+overrides that player's `players.js` handicap everywhere, an absent/cleared
+entry falls back to the shipped default.
+
+The one substitution point is `playersWithOverrides(players, hcpOverrides)`
+in `scoring.js` — a pure function that returns a players array with any
+overridden `.hcp` values swapped in. Every match/scramble/Stableford
+calculation already just reads `.hcp` off whatever players array it's
+handed (`matchStrokesForPlayers`, `effectiveMatchFor`, `day2GroupHandicapFor`,
+`effectiveDay3ScoreFor`, and `computeSeasonTotals` itself), so overrides
+reach all of them by passing `playersWithOverrides(PLAYERS, state.hcp)`
+(scorecard-live.html's `currentPlayers()` helper) in place of the raw
+roster at each call site, rather than threading a new parameter through
+scoring.js's function signatures. `ribbon-status.js` does the same after
+replaying `state.hcp` from the transaction log, so index.html's live score
+never silently disagrees with the scorecard over a corrected handicap.
+Composes correctly with issue #149's anthem adjustment: `anthemAdjustedHandicap()`
+is applied to whatever `.hcp` value it's given, override or not, so an
+overridden base handicap still gets its per-round anthem nudge on top.
+
+Editing is gated behind the Admin tab (organiser-only) *and* the same
+admin-PIN prompt (`requireAdminToken()`) Rollback Scores uses — a bad
+handicap silently changes every derived score rather than failing loudly
+like a bad hole score would, so it gets the stronger gate even though it
+isn't destructive.
+
+**Mid-tournament change semantics** (a question the issue left open,
+resolved here rather than blocked on, per the organiser's explicit go-ahead
+to pick a default and document it): there's no reliable way to *block* an
+edit once Day 1 has teed off — the organiser is the only actor who could
+enforce that, and a genuine late correction should still be possible even
+mid-tournament. Instead, `renderAdminHandicaps()` swaps in a stronger
+warning (rather than disabling the field) once `daysUntilDay1(new Date())
+<= 0` — the same calendar-day granularity `phaseFor()`/`defaultDay()`
+already use elsewhere, not the exact tee time. This is the "simplest
+honest rule" the issue itself suggested: allow it, but make the organiser
+stop and think before saving a retroactive change.
 
 ## Admin: field history + restore (issues #129, #132)
 

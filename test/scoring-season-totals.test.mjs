@@ -27,7 +27,7 @@ const {
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   day3CourseHolesFor, effectiveDay3ScoreFor, stablefordPoints, day3PointsThru, groupStrokes,
   scrambleTeamHandicap, anthemAdjustedHandicap,
-  computeSeasonTotals, phaseFor
+  computeSeasonTotals, phaseFor, playersWithOverrides
 } = require('../scoring.js');
 
 const SI_ASCENDING = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -348,6 +348,34 @@ test('computeSeasonTotals: Day 3 hole-by-hole data overrides a stale manual scor
   // player 0 is 1st (14pts) and player 1 is 2nd (13pts) per POS_PTS.
   assert.equal(totals.day3.a, 14);
   assert.equal(totals.day3.b, 13);
+});
+
+test('computeSeasonTotals: an admin handicap override (issue #206), layered via playersWithOverrides, changes the Day 1 match result exactly as if the roster itself had shipped that handicap', () => {
+  // Both players scratch (hcp 0) -- gross-only match, B is one stroke
+  // better than A on every hole, so B wins the front9 outright.
+  const players = [{ id: 0, hcp: '0.0' }, { id: 1, hcp: '0.0' }];
+  const teamA = new Set([0]);
+  const teamB = new Set([1]);
+  const day1 = emptyDay1();
+  day1.matches[0] = {
+    pA: [0], pB: [1], front9: null, back9: null,
+    holesA: [5, 5, 5, 5, 5, 5, 5, 5, 5, ...Array(9).fill(null)],
+    holesB: [4, 4, 4, 4, 4, 4, 4, 4, 4, ...Array(9).fill(null)]
+  };
+  const state = { day1, day2: emptyDay2(), day3: emptyDay3(), teamA, teamB };
+
+  const before = computeSeasonTotals(state, players, COURSES_FIXTURE);
+  assert.equal(before.day1.a, 0);
+  assert.equal(before.day1.b, 1); // B wins the front9 on gross alone
+
+  // Override player 0's handicap to 18 (SI_ASCENDING fixture -> exactly 1
+  // stroke every hole, per matchStrokes' base=1/extra=0 allocation for an
+  // 18-point difference) -- that stroke exactly cancels A's 1-gross-stroke
+  // deficit on every hole, turning the front9 into a dead-square tie.
+  const overridden = playersWithOverrides(players, { 0: '18.0' });
+  const after = computeSeasonTotals(state, overridden, COURSES_FIXTURE);
+  assert.equal(after.day1.a, 0.5);
+  assert.equal(after.day1.b, 0.5);
 });
 
 /* ── phaseFor ── */

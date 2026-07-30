@@ -971,6 +971,13 @@ body{padding-top:58px;padding-bottom:52px}
 
       <div class="section-header" style="padding-top:32px">
         <div class="section-label">Admin</div>
+        <div class="section-title">Player Handicaps</div>
+      </div>
+      <div class="info-box" id="admin-hcp-warning">Overrides the handicap shipped in the roster for one player — every Day 1 match, Day 2 scramble, and Day 3 Stableford score derives from whatever's set here. Requires the admin PIN to save (issue #206).</div>
+      <div id="admin-handicaps"></div>
+
+      <div class="section-header" style="padding-top:32px">
+        <div class="section-label">Admin</div>
         <div class="section-title">Rollback Scores</div>
       </div>
       <div class="info-box">Deletes every scoring update recorded in the chosen window, on every device. Use this to undo a batch of bad entries. This cannot be undone.</div>
@@ -1160,6 +1167,16 @@ const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,fi
 // against, rather than a second, driftable copy.
 const PLAYERS = WongaPlayers.PLAYERS;
 
+// Admin-entered handicap overrides layered on top of the players.js roster
+// (issue #206) -- every match/scramble/Stableford calculation that used to
+// read PLAYERS directly for a player's .hcp now goes through this instead,
+// so a synced state.hcp value reaches every derived score without a code
+// deploy. Recomputed on each call rather than cached: state.hcp can change
+// mid-session via sync, and 14 players is cheap to remap every time.
+function currentPlayers() {
+  return playersWithOverrides(PLAYERS, state.hcp);
+}
+
 // TEST TEAMS — replace with real draft outcome before go-live
 const DEFAULT_A = new Set([0, 2, 4, 6, 8, 10, 12]); // even-indexed IDs → Team A
 const DEFAULT_B = new Set([1, 3, 5, 7, 9, 11, 13]); // odd-indexed IDs → Team B
@@ -1188,7 +1205,8 @@ const state = {
     locked: false
   },
   day3: { scores:{}, holes:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string; holes: id -> 18-entry gross array (issue #188)
-  tiebreak: null // null | 'A' | 'B' — sudden-death putt-off winner
+  tiebreak: null, // null | 'A' | 'B' — sudden-death putt-off winner
+  hcp: {} // player id -> admin-overridden handicap string, absent = players.js default (issue #206)
 };
 
 // Pure scoring math lives in scoring.js (shared with the Node test suite)
@@ -1201,6 +1219,7 @@ const {
   parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
+  HCP_MIN, HCP_MAX, playersWithOverrides, daysUntilDay1,
   POS_PTS, computeStableford, sumStablefordPoints,
   DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints,
   resolveOverallWinner,
@@ -1456,7 +1475,7 @@ function renderTeams() {
   if (uList) uList.innerHTML = '';
 
   let unassignedCount = 0;
-  PLAYERS.forEach(p => {
+  currentPlayers().forEach(p => {
     const t = teamOf(p.id);
     const el = document.createElement('div');
     el.className = 'team-player-item';
@@ -1587,7 +1606,7 @@ function resetTeams() {
    DAY 1 — MATCH PLAY
 ───────────────────────────────────── */
 function fridayPlayers(team) {
-  return PLAYERS.filter(p => p.friday && (team === 'A' ? state.teamA : state.teamB).has(p.id));
+  return currentPlayers().filter(p => p.friday && (team === 'A' ? state.teamA : state.teamB).has(p.id));
 }
 
 function playerOptions(team, matchIdx, slot, currentId) {
@@ -1633,7 +1652,7 @@ function day1CourseHoles() {
 // Handicap strokes for one match, from the two assigned players' hcp —
 // {receiver: null, a: 18 zeros, b: 18 zeros} until both are assigned.
 function matchStrokesFor(match) {
-  return matchStrokesForPlayers(match, PLAYERS, day1StrokeIndexes());
+  return matchStrokesForPlayers(match, currentPlayers(), day1StrokeIndexes());
 }
 
 // The front9/back9 that actually feed matchPoints() for this match: derived
@@ -1642,7 +1661,7 @@ function matchStrokesFor(match) {
 // point totals are computed from, so automatic and manual scoring can never
 // disagree with what the scoreboard shows (issue #124).
 function effectiveMatch(match) {
-  return effectiveMatchFor(match, PLAYERS, day1StrokeIndexes());
+  return effectiveMatchFor(match, currentPlayers(), day1StrokeIndexes());
 }
 
 function nineStatusLabel(nineResults) {
@@ -2170,6 +2189,73 @@ function renderDay1AdminOverrides() {
 }
 
 /* ─────────────────────────────────────
+   ADMIN — PLAYER HANDICAPS (issue #206)
+   players.js ships each player's handicap as of when the roster was
+   built; this lets the organiser correct one later -- a late card, a
+   data-entry fix -- without a code deploy, synced via a `player_hcp` row
+   the same way every other field is. currentPlayers() (near the top of
+   this script) is the one place every match/scramble/Stableford
+   calculation actually reads a player's handicap from, so setting an
+   override here reaches all of them without touching that math itself.
+───────────────────────────────────── */
+function renderAdminHandicaps() {
+  const container = document.getElementById('admin-handicaps');
+  if (!container) return;
+  const warningEl = document.getElementById('admin-hcp-warning');
+  if (warningEl) {
+    // Mid-tournament change semantics (issue #206): there's no reliable
+    // way to *block* an admin from editing after Day 1 tees off, and a
+    // genuine late correction should still be possible -- so this only
+    // warns, once the tournament calendar has actually started, rather
+    // than disabling the field. Calendar-day granularity (same as
+    // phaseFor()/defaultDay() elsewhere) rather than the exact tee time:
+    // simple, and the warning only needs to be roughly right to make an
+    // admin stop and think before saving.
+    const started = daysUntilDay1(new Date()) <= 0;
+    warningEl.textContent = started
+      ? "The tournament has started — changing a handicap now retroactively changes every Day 1/2/3 score already recorded for this player. Only do this to fix a genuine data-entry error, not to reflect a new round of golf."
+      : 'Overrides the handicap shipped in the roster for one player — every Day 1 match, Day 2 scramble, and Day 3 Stableford score derives from whatever\'s set here.';
+  }
+  container.innerHTML = PLAYERS.map(p => {
+    const override = state.hcp[p.id];
+    const hasOverride = override !== undefined && override !== null && override !== '';
+    return `
+    <div class="sig" style="display:flex;align-items:flex-end;gap:8px;margin-top:10px" id="admin-hcp-row-${p.id}">
+      <div style="flex:1">
+        <label for="admin-hcp-${p.id}">${escapeHtml(p.short)}${hasOverride ? ` <span class="grey" style="font-size:.78rem">(roster default ${escapeHtml(p.hcp)})</span>` : ''}</label>
+        <div class="sig-row">
+          <input type="number" step="0.1" min="${HCP_MIN}" max="${HCP_MAX}" id="admin-hcp-${p.id}" value="${escapeHtml(hasOverride ? override : p.hcp)}" onchange="setPlayerHandicap(${p.id}, this.value)">
+        </div>
+      </div>
+      ${hasOverride ? `<button type="button" class="clear-btn" onclick="setPlayerHandicap(${p.id}, '')">Reset to default</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// Gated the same way as Rollback Scores: the Admin tab is already
+// organiser-only, but this additionally prompts for the separate admin
+// PIN (cached in sessionStorage, requireAdminToken()) since a bad
+// handicap silently changes every derived score rather than failing
+// loudly the way a bad hole score would. An empty/unparseable input
+// clears the override, reverting to the players.js default.
+function setPlayerHandicap(playerId, rawVal) {
+  if (!isAdmin()) return;
+  const adminToken = requireAdminToken();
+  if (!adminToken) { renderAdminHandicaps(); return; }
+  const trimmed = String(rawVal).trim();
+  if (trimmed !== '' && isNaN(parseFloat(trimmed))) { renderAdminHandicaps(); return; }
+  const previous = state.hcp[playerId] === undefined ? null : state.hcp[playerId];
+  const value = trimmed === '' ? null : trimmed;
+  if (value === null) delete state.hcp[playerId];
+  else state.hcp[playerId] = value;
+  saveState();
+  const fields = { player_id: playerId, value };
+  insertUpdate('player_hcp', fields);
+  if (value !== previous) showUndoToast({ update_type: 'player_hcp', ...fields }, previous);
+  refreshAllDays();
+}
+
+/* ─────────────────────────────────────
    NEAREST THE PIN (shared UI helper)
 ───────────────────────────────────── */
 function ntpPlayerOptions(pool, currentId) {
@@ -2315,7 +2401,7 @@ function day2CourseHoles() {
 // handicap is adjusted (-1 sang, +2 didn't sing) before it goes into the
 // team handicap calc, per the confirmed "individual, not team-wide" scope.
 function day2GroupHandicap(code) {
-  return day2GroupHandicapFor(code, state.day2, PLAYERS);
+  return day2GroupHandicapFor(code, state.day2, currentPlayers());
 }
 
 // Lake Course par/stroke index per hole (issue #188), same
@@ -2339,7 +2425,7 @@ function day3StrokesFor(player) {
 // hole has a score, otherwise the manual 18-hole total exactly as before
 // -- see effectiveDay3ScoreFor()'s own comment for the precedence rule.
 function effectiveDay3Score(playerId) {
-  return effectiveDay3ScoreFor(playerId, state.day3, PLAYERS, COURSES);
+  return effectiveDay3ScoreFor(playerId, state.day3, currentPlayers(), COURSES);
 }
 
 // Issue #244: one visual bucket per (team, size) combination, each
@@ -2356,14 +2442,14 @@ function renderDay2Groups() {
   if (!container) return;
   const prevDetails = container.querySelector('.day2-groups-details');
   const teamLabel = { A: state.teamNameA, B: state.teamNameB };
-  const draftedPlayers = PLAYERS.filter(p => teamOf(p.id) !== null);
+  const draftedPlayers = currentPlayers().filter(p => teamOf(p.id) !== null);
   const assignedCount = draftedPlayers.filter(p => groupOf(p.id) !== null).length;
   const allAssigned = draftedPlayers.length > 0 && assignedCount === draftedPlayers.length;
   const isOpen = prevDetails ? prevDetails.open : !allAssigned;
 
   let bucketsHtml = '';
   ['A', 'B'].forEach(team => {
-    const teamPlayers = PLAYERS.filter(p => teamOf(p.id) === team);
+    const teamPlayers = currentPlayers().filter(p => teamOf(p.id) === team);
     if (teamPlayers.length === 0) {
       bucketsHtml += `<div class="day2-bucket"><div class="day2-bucket-head"><span class="day2-bucket-team" style="color:var(--team-${team.toLowerCase()})">${escapeHtml(teamLabel[team])}</span></div><div class="grey" style="font-size:.82rem">No players drafted to this team yet.</div></div>`;
       return;
@@ -2625,11 +2711,11 @@ function clearDay2GroupHoles(code) {
 // incomplete or absent-hole-data group falls back to the manual value,
 // same precedence rule as effectiveMatch() for Day 1 (issue #124/#128).
 function effectiveDay2Field(code) {
-  return effectiveDay2FieldFor(code, state.day2, PLAYERS, COURSES);
+  return effectiveDay2FieldFor(code, state.day2, currentPlayers(), COURSES);
 }
 
 function effectiveDay2State() {
-  return effectiveDay2StateFor(state.day2, PLAYERS, COURSES);
+  return effectiveDay2StateFor(state.day2, currentPlayers(), COURSES);
 }
 
 // Only the box the user actually touched may be synced -- emitting all
@@ -2747,7 +2833,7 @@ function restoreDay2() {
 const DAY3_SCORE_MIN = 0, DAY3_SCORE_MAX = 60;
 
 function computeDay3() {
-  const entries = PLAYERS.map(p => ({
+  const entries = currentPlayers().map(p => ({
     id:    p.id,
     name:  p.name,
     short: p.short,
@@ -2896,7 +2982,7 @@ function renderDay3HoleEntries() {
   if (document.activeElement && document.activeElement.classList.contains('grid-in')) return;
   const courseHoles = day3CourseHoles();
   let html = '';
-  PLAYERS.forEach(p => {
+  currentPlayers().forEach(p => {
     const holes = state.day3.holes[p.id] || Array(18).fill(null);
     const strokes = day3StrokesFor(p);
     // Issue #148: carry the previous open/closed state across the rebuild
@@ -2946,7 +3032,7 @@ function setDay3HoleScore(playerId, holeNum, rawVal) {
       // stablefordPoints()'s own par/strokes inputs, fed through the same
       // holeScoreReaction() boundaries (net birdie-or-better/par-or-bogey/
       // double-bogey-or-worse), not a new bucket function.
-      const player = PLAYERS.find(p => p.id === playerId);
+      const player = currentPlayers().find(p => p.id === playerId);
       const courseHoles = day3CourseHoles();
       const strokes = day3StrokesFor(player);
       showUndoToast({ update_type: 'day3_hole', ...fields }, previous, holeScoreReaction(clamped, courseHoles[holeNum - 1].par, strokes[holeNum - 1]));
@@ -3011,7 +3097,7 @@ function renderDay3PointsTable() {
   const courseHoles = day3CourseHoles();
   const pars = courseHoles.map(h => h.par);
 
-  const rows = PLAYERS.map(p => {
+  const rows = currentPlayers().map(p => {
     const holes = state.day3.holes[p.id];
     if (!Array.isArray(holes) || !holes.some(h => h !== null)) return null;
     const strokes = day3StrokesFor(p);
@@ -3511,6 +3597,10 @@ function elementsForUpdate(row) {
     }
     case 'day2_anthem': {
       const el = document.getElementById(`anthem-row-${row.player_id}`);
+      return el ? [el] : [];
+    }
+    case 'player_hcp': {
+      const el = document.getElementById(`admin-hcp-${row.player_id}`);
       return el ? [el] : [];
     }
     default:
@@ -4096,6 +4186,8 @@ function coordForElement(el) {
   if (m) return { update_type: `${m[1]}_ntp`, field_key: m[2] };
   m = el.id.match(/^anthem-row-(\d+)$/);
   if (m) return { update_type: 'day2_anthem', player_id: parseInt(m[1], 10) };
+  m = el.id.match(/^admin-hcp-(\d+)$/);
+  if (m) return { update_type: 'player_hcp', player_id: parseInt(m[1], 10) };
   return null;
 }
 
@@ -4527,6 +4619,7 @@ try {
   updateScoreboard();
   renderAllDayLocks();
   updateTeamsLockUI();
+  renderAdminHandicaps();
 } catch (e) {
   console.error('Init failed:', e);
   document.getElementById('page-scorecard').innerHTML =
@@ -4551,6 +4644,7 @@ function refreshAllDays() {
     console.log('Scoreboard updated');
     renderAllDayLocks();
     updateTeamsLockUI();
+    renderAdminHandicaps();
   } catch(e) {
     console.error('Error rendering days:', e);
   }
