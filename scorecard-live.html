@@ -274,6 +274,11 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .save-toast.success{background:rgba(68,221,136,.2);color:#44dd88;border:1px solid #44dd88}
 .save-toast.error{background:rgba(220,0,0,.2);color:#ff6b6b;border:1px solid #ff6b6b}
 .save-toast.nudge{background:rgba(240,180,41,.2);color:var(--gold);border:1px solid var(--gold)}
+.undo-toast{position:fixed;bottom:24px;right:24px;display:flex;align-items:center;gap:12px;font-family:var(--font-h);font-size:.72rem;font-weight:600;padding:10px 12px 10px 16px;border-radius:var(--r);background:var(--ink);color:var(--canvas);border:1px solid var(--rule-strong);opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:100;max-width:calc(100vw - 48px)}
+.undo-toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
+.undo-toast-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.undo-toast-btn{background:var(--gold);color:var(--ink);border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
+.undo-toast-btn:hover{background:var(--gold-light)}
 .sync-spacer{flex:1}
 
 /* ── USERNAME PICKER MODAL ── */
@@ -377,6 +382,10 @@ body{padding-top:58px;padding-bottom:52px}
 </div>
 
 <div id="save-toast" class="save-toast"></div>
+<div id="undo-toast" class="undo-toast" role="status">
+  <span class="undo-toast-text"></span>
+  <button type="button" class="undo-toast-btn" onclick="performUndo()">Undo</button>
+</div>
 
 <!-- ══════════════════════════════════════
      NEW MASTHEAD
@@ -1558,9 +1567,12 @@ function setHoleScore(matchIdx, team, holeNum, rawVal) {
     const arr = team === 'A' ? match.holesA : match.holesB;
     const n = parseIntOrNull(rawVal);
     const clamped = n === null ? null : Math.max(DAY1_GROSS_MIN, Math.min(DAY1_GROSS_MAX, n));
+    const previous = arr[holeNum - 1];
     arr[holeNum - 1] = clamped;
     saveState();
-    insertUpdate('day1_hole', { match_idx: matchIdx, field_key: `${team}${holeNum}`, value: clamped });
+    const fields = { match_idx: matchIdx, field_key: `${team}${holeNum}`, value: clamped };
+    insertUpdate('day1_hole', fields);
+    if (clamped !== previous) showUndoToast({ update_type: 'day1_hole', ...fields }, previous);
     notifyIfOutlierScore(clamped);
     updateScoreboard();
     const patched = patchDay1HoleFeedback(matchIdx, team, holeNum, clamped);
@@ -1672,9 +1684,12 @@ function renderDay1Ntp() {
 function setDay1Ntp(hole, val) {
   requireUsername(() => {
     const id = val === '' ? null : parseInt(val, 10);
+    const previous = state.day1.ntp[hole];
     state.day1.ntp[hole] = id;
     saveState();
-    insertUpdate('day1_ntp', { field_key: hole, value: id });
+    const fields = { field_key: hole, value: id };
+    insertUpdate('day1_ntp', fields);
+    if (id !== previous) showUndoToast({ update_type: 'day1_ntp', ...fields }, previous);
     updateScoreboard();
   });
 }
@@ -1688,9 +1703,12 @@ function renderDay2Ntp() {
 function setDay2Ntp(hole, val) {
   requireUsername(() => {
     const id = val === '' ? null : parseInt(val, 10);
+    const previous = state.day2.ntp[hole];
     state.day2.ntp[hole] = id;
     saveState();
-    insertUpdate('day2_ntp', { field_key: hole, value: id });
+    const fields = { field_key: hole, value: id };
+    insertUpdate('day2_ntp', fields);
+    if (id !== previous) showUndoToast({ update_type: 'day2_ntp', ...fields }, previous);
     updateScoreboard();
   });
 }
@@ -1720,10 +1738,14 @@ function renderDay2Anthem() {
 function setDay2Anthem(playerId, sang) {
   requireUsername(() => {
     if (!state.day2.anthem) state.day2.anthem = {};
+    const previous = state.day2.anthem[playerId] === undefined ? null : String(state.day2.anthem[playerId]);
     if (sang === null) delete state.day2.anthem[playerId];
     else state.day2.anthem[playerId] = sang;
     saveState();
-    insertUpdate('day2_anthem', { player_id: playerId, value: sang === null ? null : String(sang) });
+    const newValue = sang === null ? null : String(sang);
+    const fields = { player_id: playerId, value: newValue };
+    insertUpdate('day2_anthem', fields);
+    if (newValue !== previous) showUndoToast({ update_type: 'day2_anthem', ...fields }, previous);
     renderDay2Anthem();
     renderDay2Groups();
     renderDay2AllGroupCards();
@@ -1740,9 +1762,12 @@ function renderDay3Ntp() {
 function setDay3Ntp(hole, val) {
   requireUsername(() => {
     const id = val === '' ? null : parseInt(val, 10);
+    const previous = state.day3.ntp[hole];
     state.day3.ntp[hole] = id;
     saveState();
-    insertUpdate('day3_ntp', { field_key: hole, value: id });
+    const fields = { field_key: hole, value: id };
+    insertUpdate('day3_ntp', fields);
+    if (id !== previous) showUndoToast({ update_type: 'day3_ntp', ...fields }, previous);
     updateScoreboard();
   });
 }
@@ -1936,9 +1961,12 @@ function setDay2HoleScore(code, holeNum, rawVal) {
   requireUsername(() => {
     const n = parseIntOrNull(rawVal);
     const clamped = n === null ? null : Math.max(DAY2_HOLE_GROSS_MIN, Math.min(DAY2_HOLE_GROSS_MAX, n));
+    const previous = state.day2.holes[code][holeNum - 1];
     state.day2.holes[code][holeNum - 1] = clamped;
     saveState();
-    insertUpdate('day2_hole', { field_key: `${code}_${holeNum}`, value: clamped });
+    const fields = { field_key: `${code}_${holeNum}`, value: clamped };
+    insertUpdate('day2_hole', fields);
+    if (clamped !== previous) showUndoToast({ update_type: 'day2_hole', ...fields }, previous);
     notifyIfOutlierScore(clamped);
     // Issue #143: a full renderDay2GroupCard() rebuilds gridEl.innerHTML --
     // including the input that just fired and whatever cell the scorer
@@ -2010,7 +2038,9 @@ function updateDay2(changedId) {
     const before = state.day2[changedId];
     _doUpdateDay2();
     if (state.day2[changedId] !== before) {
-      insertUpdate('day2_score', { field_key: changedId, value: state.day2[changedId] });
+      const fields = { field_key: changedId, value: state.day2[changedId] };
+      insertUpdate('day2_score', fields);
+      showUndoToast({ update_type: 'day2_score', ...fields }, before);
     }
   });
 }
@@ -2148,9 +2178,12 @@ function setStableford(pid, val) {
       const n = parseInt(val, 10);
       stored = isNaN(n) ? '' : String(Math.max(DAY3_SCORE_MIN, Math.min(DAY3_SCORE_MAX, n)));
     }
+    const previous = state.day3.scores[pid];
     state.day3.scores[pid] = stored;
     saveState();
-    insertUpdate('day3_stableford', { player_id: pid, value: stored });
+    const fields = { player_id: pid, value: stored };
+    insertUpdate('day3_stableford', fields);
+    if (stored !== previous) showUndoToast({ update_type: 'day3_stableford', ...fields }, previous ?? null);
     const { sorted } = computeDay3();
     const player = sorted.find(p => p.id === pid);
     if (player) {
@@ -2475,6 +2508,7 @@ function applyUpdate(row) {
     location.reload();
     return;
   }
+  dismissUndoToastIfSuperseded(row);
   applyUpdateToState(state, row);
 }
 
@@ -2854,6 +2888,75 @@ function toInsertFields(payload) {
   if (payload.player_id !== null && payload.player_id !== undefined) fields.player_id = payload.player_id;
   if (payload.field_key !== null && payload.field_key !== undefined) fields.field_key = payload.field_key;
   return fields;
+}
+
+/* ─────────────────────────────────────
+   UNDO TOAST (issue #198)
+   Fat fingers on the course are a certainty, and the only existing
+   recovery path (Admin -> Field History -> Restore) is something only the
+   organiser will ever navigate to. Undo is deliberately NOT a new
+   mechanism: it's the exact same forward-write restore path #132's Admin
+   Restore button already uses (buildRestoreRow() + applyUpdateToState() +
+   insertUpdate()), just triggered from a toast instead of a picker.
+
+   Scope v1 (matches the issue): hole scores, manual day scores,
+   stableford, NTP, anthem. Team/group moves are explicitly excluded --
+   they cascade (#147 eviction) and deserve their own undo design.
+───────────────────────────────────── */
+let pendingUndo = null;
+let undoToastTimer = null;
+function undoCoordKey(row) {
+  return [row.update_type, row.match_idx ?? '', row.player_id ?? '', row.field_key ?? ''].join('|');
+}
+
+// `newRowFields` is the row just committed (update_type + coordinates +
+// the NEW value) -- used to label the toast via the same describeUpdateRow()
+// vocabulary Field History already uses. `previousValue` is what the field
+// held before this change; it's what Undo restores.
+function showUndoToast(newRowFields, previousValue) {
+  const decoded = describeUpdateRow(newRowFields, PLAYERS, { A: state.teamNameA, B: state.teamNameB });
+  pendingUndo = {
+    coordKey: undoCoordKey(newRowFields),
+    updatedBy: currentUsername,
+    restoreRow: buildRestoreRow({ ...newRowFields, value: previousValue })
+  };
+  clearTimeout(undoToastTimer);
+  const toast = document.getElementById('undo-toast');
+  if (!toast) return;
+  toast.querySelector('.undo-toast-text').textContent = `${decoded.fieldLabel}: ${decoded.valueLabel}`;
+  toast.classList.add('show');
+  // 6s (not the 10s in the issue's own suggestion) -- long enough to react
+  // to a fat-finger without the toast overstaying its welcome.
+  undoToastTimer = setTimeout(dismissUndoToast, 6000);
+}
+function dismissUndoToast() {
+  pendingUndo = null;
+  clearTimeout(undoToastTimer);
+  const toast = document.getElementById('undo-toast');
+  if (toast) toast.classList.remove('show');
+}
+// If a *different* scorer's write lands on the same field while the toast
+// is up, their change is newer than what Undo would restore -- undoing
+// would silently clobber it, so dismiss instead. Compares updated_by (not
+// just timing) specifically so this device's own write echoing back
+// through the next poll never dismisses its own just-shown toast.
+function dismissUndoToastIfSuperseded(row) {
+  if (!pendingUndo) return;
+  if (row.updated_by === pendingUndo.updatedBy) return;
+  if (undoCoordKey(row) === pendingUndo.coordKey) dismissUndoToast();
+}
+function performUndo() {
+  if (!pendingUndo) return;
+  const payload = pendingUndo.restoreRow;
+  // Same immediacy + cascade handling as Admin Restore (#132): apply
+  // locally through the normal replay path, then write it forward so it
+  // syncs, queues offline, and shows up in Field History like any other
+  // edit -- attributed to whoever hit Undo, not the original entry.
+  applyUpdateToState(state, payload);
+  saveState();
+  insertUpdate(payload.update_type, toInsertFields(payload));
+  refreshAllDays();
+  dismissUndoToast();
 }
 
 function restoreHistoryRow(index) {
