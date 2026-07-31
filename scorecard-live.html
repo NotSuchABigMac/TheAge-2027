@@ -528,6 +528,19 @@ body{padding-top:58px;padding-bottom:52px}
 .music-yes{width:100%;padding:14px 20px;font-family:var(--font-d);font-size:1.3rem;letter-spacing:2px;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr);margin-bottom:10px}
 .music-yes:hover{background:var(--gold-light)}
 .music-no{background:none;border:none;color:#8a9b8d;font-family:var(--font-h);font-size:.75rem;letter-spacing:1px;cursor:pointer;text-transform:uppercase}
+/* Issue #204: multi-tab safety -- blocks input entirely (not just
+   visually) in every tab but the one most recently opened/taken-over,
+   so two tabs on one phone can't fight over the same write queue. Sits
+   above even .music-modal (z-index) since it isn't optional/dismissible
+   the way that one is -- the only way out is "Take Over Here". */
+.dormant-tab-modal{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:999999;backdrop-filter:blur(6px)}
+.dormant-tab-modal.hidden{display:none}
+.dormant-tab-card{background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:40px 36px;max-width:440px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6)}
+.dormant-tab-icon{font-size:2.6rem;margin-bottom:16px}
+.dormant-tab-title{font-family:var(--font-d);font-size:1.3rem;letter-spacing:1.5px;color:var(--gold);margin-bottom:12px}
+.dormant-tab-body{font-size:.9rem;color:var(--ink-mute);line-height:1.6;margin-bottom:24px}
+.dormant-tab-btn{background:var(--gold);color:var(--ink);border:none;border-radius:var(--r);padding:12px 24px;font-family:var(--font-h);font-weight:700;font-size:.8rem;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+.dormant-tab-btn:hover{background:var(--gold-light)}
 .music-no:hover{color:#efe7d3}
 
 /* ── HELP / TUTORIAL (issue #245) ── */
@@ -565,7 +578,8 @@ body{padding-top:58px;padding-bottom:52px}
 @media print {
   #username-badge, #offline-banner, .mini-sb, .sync-bar, .sc-tabs,
   #save-toast, #undo-toast, #update-toast, #confirm-toast, #projected-line,
-  #provenance-popover, .username-modal, .countdown-bar, .help-btn, .help-modal, #field-history-panel {
+  #provenance-popover, .username-modal, .countdown-bar, .help-btn, .help-modal,
+  #field-history-panel, .dormant-tab-modal {
     display: none !important;
   }
   input[type=number], .hole-grid-table input {
@@ -590,6 +604,18 @@ body{padding-top:58px;padding-bottom:52px}
   </div>
 </div>
 <audio id="bg-audio" src="TheSong.mp3" loop preload="none" style="display:none"></audio>
+
+<!-- Issue #204: multi-tab safety. Shown in every tab but the one most
+     recently opened/taken-over on this device -- see the MULTI-TAB
+     SAFETY script section below. -->
+<div id="dormant-tab-modal" class="dormant-tab-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dormant-tab-title">
+  <div class="dormant-tab-card">
+    <div class="dormant-tab-icon">📱</div>
+    <div class="dormant-tab-title" id="dormant-tab-title">Scoring continues in your newer tab</div>
+    <div class="dormant-tab-body">This tab has gone quiet so the two don't fight over the same scores. Tap below if you'd rather score from here instead.</div>
+    <button type="button" class="dormant-tab-btn" onclick="takeOverTab()">Take Over Here</button>
+  </div>
+</div>
 
 <!-- Username Picker Modal -->
 <div id="username-modal" class="username-modal hidden" role="dialog" aria-modal="true" aria-labelledby="username-modal-title">
@@ -1561,6 +1587,7 @@ function renderCourseCard(day) {
 ───────────────────────────────────── */
 function saveState() {
   if (rollbackInProgress) return; // issue #212: a wipe is pending -- don't rewrite what it just cleared
+  if (tabDormant) return; // issue #204: a dormant tab must never write over the active tab's state
   try {
     const s = {
       teamNameA: state.teamNameA,
@@ -3942,6 +3969,7 @@ let pendingWrites = [];
 const PENDING_KEY = KEY_PREFIX + 'wongaCup2026_pendingWrites';
 function persistPending() {
   if (rollbackInProgress) return; // issue #212: don't resurrect the queue a wipe just cleared
+  if (tabDormant) return; // issue #204: a dormant tab must never write over the active tab's queue
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(pendingWrites)); } catch(e) {}
 }
 
@@ -4014,6 +4042,7 @@ function pendingWriteToRow(updateType, fields) {
 }
 
 async function insertUpdate(updateType, fields) {
+  if (tabDormant) return; // issue #204: belt-and-braces -- inputs are already blocked behind the dormant overlay
   if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey || !currentUsername || !currentWriteToken) return;
   showSaveToast('Saving...', 'saving');
   const row = pendingWriteToRow(updateType, fields);
@@ -4059,6 +4088,7 @@ async function insertUpdate(updateType, fields) {
 // itself is extracted into scoring.js's flushQueue() (issue #166); this is
 // a thin wrapper supplying the real network call and persisting the result.
 async function flushPendingWrites() {
+  if (tabDormant) return; // issue #204: never flush from a dormant tab -- the active tab owns the queue
   if (pendingWrites.length === 0) return;
   pendingWrites = await flushQueue(pendingWrites, async w => {
     const result = await sendUpdateRow(w.updateType, w.fields);
@@ -5317,6 +5347,127 @@ setupModalA11y('help-modal', closeHelpModal);
 
 initUsername();
 initJoinHandoff();
+
+/* ─────────────────────────────────────
+   MULTI-TAB SAFETY (issue #204)
+   Two tabs of the scorecard on one phone share localStorage state, the
+   sync cursors, and pendingWrites while each holds an independent
+   in-memory copy -- one tab can resurrect what the other cleared, or
+   double-flush the queue. Chosen approach: single active tab. Every
+   tab keeps a localStorage heartbeat (this is the source of truth --
+   works with or without BroadcastChannel, and is the only way a
+   surviving tab can notice the active one was closed/crashed outright
+   rather than handed off cleanly); BroadcastChannel, where available,
+   is layered on top purely so a brand-new tab's takeover is felt
+   instantly by whichever tab was active, instead of waiting up to one
+   heartbeat interval.
+
+   A tab that loses -- or never had -- the claim goes dormant: polling
+   stopped, `tabDormant` blocks saveState()/persistPending()/
+   flushPendingWrites()/insertUpdate() (see those functions above), and
+   a full-screen notice blocks input entirely behind "Take Over Here".
+   Taking over (by tap, or automatically once the active tab's
+   heartbeat goes stale) re-claims and reloads -- the simplest way to
+   "discard in-memory state and rebuild from localStorage + a fresh
+   sync" is to just take the exact path a real reload already takes,
+   rather than hand-rolling a second init sequence that could drift
+   from it. This function block runs before pendingWrites/loadState()
+   below, so a losing tab never gets so much as one initial write in
+   before its dormant state is decided.
+───────────────────────────────────── */
+let tabDormant = false;
+const TAB_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+const TAB_HEARTBEAT_KEY = KEY_PREFIX + 'wongaCup2026_tabHeartbeat';
+const TAB_CHANNEL_NAME = KEY_PREFIX + 'wonga-tab-channel';
+const TAB_HEARTBEAT_STALE_MS = 15000;
+const TAB_HEARTBEAT_INTERVAL_MS = 5000;
+let activeTabId = TAB_ID;
+let activeTabTs = Date.now();
+let tabChannel = null;
+
+function showDormantModal() {
+  const modal = document.getElementById('dormant-tab-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+function hideDormantModal() {
+  const modal = document.getElementById('dormant-tab-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function goDormant() {
+  if (tabDormant) return;
+  tabDormant = true;
+  stopPolling();
+  showDormantModal();
+}
+
+// Claims (or re-claims) active status: writes the heartbeat, and if this
+// tab was dormant, reloads so it starts fresh from localStorage + a real
+// sync rather than resuming whatever it last knew before going quiet.
+function claimActive() {
+  const wasDormant = tabDormant;
+  activeTabId = TAB_ID;
+  activeTabTs = Date.now();
+  try { localStorage.setItem(TAB_HEARTBEAT_KEY, JSON.stringify({ id: TAB_ID, ts: activeTabTs })); } catch(e) {}
+  if (tabChannel) { try { tabChannel.postMessage({ type: 'announce', id: TAB_ID, ts: activeTabTs }); } catch(e) {} }
+  if (wasDormant) { location.reload(); return; }
+}
+
+// "Take Over Here" -- always a fresh (definitely-latest) claim, so every
+// other tab currently believing itself active steps down.
+function takeOverTab() { claimActive(); }
+
+function handleForeignClaim(id, ts) {
+  if (id === TAB_ID || ts <= activeTabTs) return;
+  activeTabId = id;
+  activeTabTs = ts;
+  goDormant();
+}
+
+if (typeof BroadcastChannel !== 'undefined') {
+  tabChannel = new BroadcastChannel(TAB_CHANNEL_NAME);
+  tabChannel.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'announce') handleForeignClaim(e.data.id, e.data.ts);
+  });
+}
+
+// Every fresh page load -- whether the very first tab, a brand new
+// second tab, or a reload after "Take Over Here" -- claims active status
+// unconditionally. This is what makes "last-announcer-wins" trivially
+// convergent: Date.now() at load time is always >= any prior tab's last
+// heartbeat, so a new arrival never has a reason to defer to one already
+// running. Any other tab already open reacts to the resulting
+// announce/heartbeat and steps itself down (see handleForeignClaim and
+// the periodic tick below) -- this tab doesn't need to check who else
+// might be out there before claiming.
+claimActive();
+
+// Ongoing tick, every tab, regardless of active/dormant: an active tab
+// refreshes its own heartbeat (and steps down if it finds the stored
+// heartbeat now names someone else's newer claim -- a race at startup,
+// or a takeover this tab's BroadcastChannel listener already reacted
+// to); a dormant tab reclaims automatically once the stored heartbeat
+// goes stale, i.e. the active tab was closed/crashed without a chance
+// to hand off cleanly (this is the "kill the active tab outright"
+// recovery path -- it doesn't depend on BroadcastChannel at all).
+setInterval(() => {
+  let hb = null;
+  try {
+    const raw = localStorage.getItem(TAB_HEARTBEAT_KEY);
+    if (raw) hb = JSON.parse(raw);
+  } catch(e) {}
+  if (!tabDormant) {
+    if (hb && hb.id && hb.id !== TAB_ID && hb.ts > activeTabTs) {
+      activeTabId = hb.id; activeTabTs = hb.ts;
+      goDormant();
+      return;
+    }
+    claimActive();
+  } else if (!hb || Date.now() - hb.ts > TAB_HEARTBEAT_STALE_MS) {
+    claimActive();
+  }
+}, TAB_HEARTBEAT_INTERVAL_MS);
+
 try { pendingWrites = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch(e) { pendingWrites = []; }
 if (!Array.isArray(pendingWrites)) pendingWrites = [];
 updateOfflineIndicator();
@@ -5518,9 +5669,13 @@ function stopPolling() {
 }
 if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   console.log('Starting Supabase polling...');
-  pollOnce();
-  startPolling();
+  // Issue #204: a tab that started dormant never begins polling at all --
+  // claimActive()'s reload takes it through this whole block fresh, on
+  // the same footing as any other newly-loaded active tab, once it
+  // actually takes over.
+  if (!tabDormant) { pollOnce(); startPolling(); }
   document.addEventListener('visibilitychange', () => {
+    if (tabDormant) return;
     if (document.hidden) {
       stopPolling();
     } else {
@@ -5530,8 +5685,8 @@ if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   });
   // bfcache restores (common on iOS Safari) resurrect the page without a
   // reload or a visibilitychange event -- resync explicitly on those too.
-  window.addEventListener('pageshow', () => { if (!document.hidden) pollOnce(); });
-  window.addEventListener('online', () => { if (!document.hidden) pollOnce(); });
+  window.addEventListener('pageshow', () => { if (!tabDormant && !document.hidden) pollOnce(); });
+  window.addEventListener('online', () => { if (!tabDormant && !document.hidden) pollOnce(); });
 }
 /* ─────────────────────────────────────
    MINI SCOREBOARD
