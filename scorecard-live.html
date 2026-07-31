@@ -1268,6 +1268,10 @@ function maybeShowUpdateToast() {
 let currentUsername = null;
 let currentWriteToken = null;
 let currentAdminToken = null;
+
+// Issue #168/#146: organiser-name allowlist for the admin gates below --
+// still just a UI convenience, same caveat as isAdmin() itself.
+const ADMIN_NAMES = ['James McIntyre', 'Scott Rumbelow', 'Nathan Freestun'];
 let isOffline = false;
 let autoPollingInterval = null;
 
@@ -3888,7 +3892,7 @@ async function loadFromSupabase() {
 // on a second secret distinct from the shared scoring write_token (which
 // all ~14 scorers hold) -- prompted for once and cached in sessionStorage,
 // same pattern as the scoring PIN. This is still just a UI convenience for
-// the "James McIntyre" check above it; the real boundary is the database
+// the isAdmin() check above it; the real boundary is the database
 // re-validating both tokens server-side in rollback_tournament_updates.
 function requireAdminToken() {
   if (currentAdminToken) return currentAdminToken;
@@ -3987,7 +3991,7 @@ function seedDemoData() {
 }
 
 async function rollbackScores() {
-  if (currentUsername !== 'James McIntyre') return;
+  if (!isAdmin()) return;
   const adminToken = requireAdminToken();
   if (!adminToken) return;
   const select = document.getElementById('admin-rollback-minutes');
@@ -4138,7 +4142,7 @@ function currentHistoryCoords() {
 let _lastHistoryRows = [];
 
 async function loadFieldHistory() {
-  if (currentUsername !== 'James McIntyre') return;
+  if (!isAdmin()) return;
   const resultsEl = document.getElementById('history-results');
   if (!resultsEl) return;
   const coords = currentHistoryCoords();
@@ -4459,7 +4463,7 @@ function resolveNtpConfirm(keep) {
 }
 
 function restoreHistoryRow(index) {
-  if (currentUsername !== 'James McIntyre') return;
+  if (!isAdmin()) return;
   const row = _lastHistoryRows[index];
   if (!row || !isRestorable(row.update_type)) return;
   const restoreDecoded = describeUpdateRow(row, PLAYERS, historyTeamNames());
@@ -4527,11 +4531,11 @@ function confirmUsername() {
 }
 
 // Admin controls (currently: score rollback) are only ever meant to be
-// operated by the tournament organiser — gated on their exact player name
+// operated by the tournament organisers — gated on their exact player names
 // rather than any separate credential, since this is a single-tournament
 // tool with no real auth layer.
 function updateAdminVisibility() {
-  document.getElementById('tab-admin').style.display = currentUsername === 'James McIntyre' ? '' : 'none';
+  document.getElementById('tab-admin').style.display = isAdmin() ? '' : 'none';
   updateTeamsLockUI();
   renderAllDayLocks();
   renderShareAccess();
@@ -4601,11 +4605,11 @@ function initJoinHandoff() {
   if (!currentUsername || !currentWriteToken) requireUsername(null);
 }
 
-// Same single-organiser-name gate as the Admin tab above -- shared by the
+// Same organiser-name gate as the Admin tab above -- shared by the
 // Teams tab lock and the per-day lock buttons (issue #168). Not real auth,
 // same as the rest of this app's admin controls.
 function isAdmin() {
-  return currentUsername === 'James McIntyre';
+  return ADMIN_NAMES.includes(currentUsername);
 }
 
 // Teams tab (issue #168): unlike the per-day locks below, this one isn't a
