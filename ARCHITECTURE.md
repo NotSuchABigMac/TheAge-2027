@@ -116,7 +116,7 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 
 | update_type | field_key | value |
 |---|---|---|
-| `day1_match` | `pA` / `pB` (player assigned to the match) or `front9` / `back9` (manual result, used only when the nine has no hole-by-hole scores — see `day1_hole` below) | player id, or `'A'`\|`'T'`\|`'B'` |
+| `day1_match` | `pA` / `pB` (player assigned to the match), `pA2` / `pB2` (Captain's Challenge 2nd/back-9 opponent slot on whichever side is `challengeSide`, issue #256), `type` (`'singles'` \| `'challenge'`), `challengeSide` (`'A'` \| `'B'` \| `null` — which side supplies the Challenge's 2 opponents), or `front9` / `back9` (manual result, used only when the nine has no hole-by-hole scores — see `day1_hole` below) | player id, `'singles'`\|`'challenge'`, `'A'`\|`'B'`, or `'A'`\|`'T'`\|`'B'` |
 | `day1_hole` | `A1`..`A18` / `B1`..`B18` (gross score for that player on that hole) | integer gross score, 1-15 |
 | `day1_ntp` | `h8` / `h17` | nearest-the-pin winner's player id |
 | `day2_score` | `a4` / `a3` / `b4` / `b3` (manual net score to par, used only when the group has no hole-by-hole scores — see `day2_hole` below) | integer score to par |

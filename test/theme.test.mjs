@@ -34,7 +34,40 @@ function buttonStub(kind, value) {
   return self;
 }
 
-function loadTheme({ withPanel = true } = {}) {
+function metaStub() {
+  return { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; } };
+}
+
+// Mirrors the real --canvas values from styles.css's [data-theme][data-mode]
+// rules closely enough to exercise the read-back-from-CSS behavior; theme.js
+// never hardcodes this table itself, styles.css remains the one source of truth.
+const CANVAS_BY_THEME_MODE = {
+  'green:light': '#efe7d3',
+  'green:dark': '#0c1d14',
+  'claret:light': '#f3e8d2',
+  'claret:dark': '#1c0a0d'
+};
+
+function getComputedStyleStub(html) {
+  return {
+    getPropertyValue(prop) {
+      if (prop !== '--canvas') return '';
+      const key = `${html.attrs['data-theme'] || 'green'}:${html.attrs['data-mode'] || 'light'}`;
+      return CANVAS_BY_THEME_MODE[key] || '';
+    }
+  };
+}
+
+function localStorageStub(seed) {
+  const store = new Map(seed ? [[seed.key, seed.value]] : []);
+  return {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => { store.set(k, String(v)); },
+    removeItem: (k) => { store.delete(k); }
+  };
+}
+
+function loadTheme({ withPanel = true, storedTheme = null } = {}) {
   const html = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
 
   const themeButtons = [buttonStub('theme', 'green'), buttonStub('theme', 'claret'), buttonStub('theme', 'navy')];
@@ -51,9 +84,17 @@ function loadTheme({ withPanel = true } = {}) {
     }
   } : null;
 
+  const colorSchemeMeta = metaStub();
+  const themeColorMeta = metaStub();
+
   const documentStub = {
     documentElement: html,
-    getElementById: (id) => (withPanel && id === 'theme-switcher' ? panel : null)
+    getElementById: (id) => (withPanel && id === 'theme-switcher' ? panel : null),
+    querySelector: (sel) => {
+      if (sel === 'meta[name="color-scheme"]') return colorSchemeMeta;
+      if (sel === 'meta[name="theme-color"]') return themeColorMeta;
+      return null;
+    }
   };
 
   const windowStub = {
@@ -64,15 +105,21 @@ function loadTheme({ withPanel = true } = {}) {
 
   globalThis.document = documentStub;
   globalThis.window = windowStub;
+  globalThis.localStorage = localStorageStub(
+    storedTheme ? { key: 'wongaCup2026_theme', value: JSON.stringify(storedTheme) } : null
+  );
+  globalThis.getComputedStyle = () => getComputedStyleStub(html);
   delete require.cache[THEME_PATH];
   require(THEME_PATH);
 
-  return { html, panel, windowStub, themeButtons, modeButtons };
+  return { html, panel, windowStub, themeButtons, modeButtons, colorSchemeMeta, themeColorMeta };
 }
 
 function cleanup() {
   delete globalThis.document;
   delete globalThis.window;
+  delete globalThis.localStorage;
+  delete globalThis.getComputedStyle;
 }
 
 test('applies the default green/light state to <html> on load', () => {
@@ -126,6 +173,66 @@ test('__activate_edit_mode reveals the panel and __deactivate_edit_mode hides it
 test('a page with no theme-switcher panel loads without throwing', () => {
   let html;
   assert.doesNotThrow(() => { ({ html } = loadTheme({ withPanel: false })); });
+  try {
+    assert.equal(html.attrs['data-theme'], 'green');
+    assert.equal(html.attrs['data-mode'], 'light');
+  } finally { cleanup(); }
+});
+
+test('issue #184: a theme choice is written to localStorage so it survives a real navigation/refresh, not just the edit-mode host', () => {
+  const { panel, themeButtons, modeButtons } = loadTheme();
+  try {
+    panel.listeners.click({ target: themeButtons[1] }); // claret
+    panel.listeners.click({ target: modeButtons[1] });  // dark
+    const stored = JSON.parse(globalThis.localStorage.getItem('wongaCup2026_theme'));
+    assert.deepEqual(stored, { theme: 'claret', mode: 'dark' });
+  } finally { cleanup(); }
+});
+
+test('issue #184: a stored theme choice is restored on load, taking precedence over the page default, and meta tags sync to match', () => {
+  const { html, colorSchemeMeta, themeColorMeta } = loadTheme({ storedTheme: { theme: 'claret', mode: 'dark' } });
+  try {
+    assert.equal(html.attrs['data-theme'], 'claret');
+    assert.equal(html.attrs['data-mode'], 'dark');
+    assert.equal(colorSchemeMeta.attrs.content, 'dark');
+    assert.equal(themeColorMeta.attrs.content, '#1c0a0d');
+  } finally { cleanup(); }
+});
+
+test('issue #184: an untouched default load leaves each page\'s own hand-picked meta values alone', () => {
+  const { colorSchemeMeta, themeColorMeta } = loadTheme();
+  try {
+    assert.equal(colorSchemeMeta.attrs.content, undefined);
+    assert.equal(themeColorMeta.attrs.content, undefined);
+  } finally { cleanup(); }
+});
+
+test('issue #184: color-scheme and theme-color meta tags follow the active mode/theme once the visitor changes it', () => {
+  const { panel, themeButtons, modeButtons, colorSchemeMeta, themeColorMeta } = loadTheme();
+  try {
+    panel.listeners.click({ target: themeButtons[1] }); // claret
+    panel.listeners.click({ target: modeButtons[1] });  // dark
+    assert.equal(colorSchemeMeta.attrs.content, 'dark');
+    assert.equal(themeColorMeta.attrs.content, '#1c0a0d');
+  } finally { cleanup(); }
+});
+
+test('issue #184: a missing/corrupt localStorage entry falls back to the page default without throwing', () => {
+  let html;
+  globalThis.document = undefined; // ensure loadTheme sets its own stub below
+  assert.doesNotThrow(() => {
+    const html2 = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+    globalThis.document = {
+      documentElement: html2,
+      getElementById: () => null,
+      querySelector: () => null
+    };
+    globalThis.window = { listeners: {}, addEventListener(t, fn) { this.listeners[t] = fn; }, parent: { postMessage() {} } };
+    globalThis.localStorage = { getItem: () => 'not json{', setItem() {}, removeItem() {} };
+    delete require.cache[THEME_PATH];
+    require(THEME_PATH);
+    html = html2;
+  });
   try {
     assert.equal(html.attrs['data-theme'], 'green');
     assert.equal(html.attrs['data-mode'], 'light');
