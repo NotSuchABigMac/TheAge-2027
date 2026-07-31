@@ -156,6 +156,25 @@ select option{background:var(--canvas)}
 .nine-toggle button.is-active-b{background:var(--team-b);color:#fff}
 .nine-toggle button.is-active-b .rt-pts{color:rgba(255,255,255,.75)}
 @media(max-width:600px){.nine-block{flex-direction:column;align-items:stretch;gap:6px}.nine-label{min-width:0}}
+
+/* ── MATCH WORM (issue #270): tiny inline hole-by-hole lead chart, shown
+   only once a match is decided -- purely visual, no interaction. ── */
+.match-worm-wrap{padding:0 22px 14px}
+.match-worm{display:block;width:100%;height:36px}
+.worm-zero{stroke:var(--rule-strong);stroke-width:1}
+.worm-line{fill:none;stroke-width:2}
+
+/* ── PIN TO TOP (issue #271) + AUTO-PIN (issue #272): a per-device
+   shortcut, never synced -- lets a scorer keep their own match/group/entry
+   at the top of a busy list instead of hunting for it every time. ── */
+.pin-btn{background:none;border:none;cursor:pointer;font-size:1rem;line-height:1;padding:2px 4px;opacity:.35;filter:grayscale(1);transition:var(--tr)}
+.pin-btn:hover{opacity:.7}
+.pin-btn.pin-btn-active{opacity:1;filter:none}
+.pinned-divider{font-family:var(--font-h);font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin:4px 0 10px;display:flex;align-items:center;gap:8px}
+.pinned-divider::after{content:'';flex:1;height:1px;background:var(--rule)}
+.scramble-side-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.scramble-side-head .scramble-side-title{margin-bottom:0}
+
 /* ── ADMIN: RELOCATED FRONT9/BACK9 + NET-TO-PAR OVERRIDES (issues #248, #252) ── */
 .admin-override-match{padding:10px 0;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:10px}
 .admin-override-match:last-child{border-bottom:0}
@@ -728,11 +747,14 @@ body{padding-top:58px;padding-bottom:52px}
         </div>
       </div>
 
-      <div class="scramble-matchup">
+      <div class="scramble-matchup" id="day2-matchup-4">
         <div class="matchup-head"><span class="matchup-label">Group of 4</span></div>
         <div class="matchup-grid">
           <div class="scramble-side scramble-side-a scramble-side-a4">
-            <div class="scramble-side-title" id="scramble-title-a4">Team Beer</div>
+            <div class="scramble-side-head">
+              <div class="scramble-side-title" id="scramble-title-a4">Team Beer</div>
+              <button type="button" class="pin-btn" id="pin-btn-day2-a4" onclick="togglePin('day2','a4')" aria-pressed="false" aria-label="Pin this group" title="Pin to top">📌</button>
+            </div>
             <div class="sig">
               <div id="a4-manual" class="sig-row">
                 <span id="a4-manual-display" class="grey" style="font-size:.85rem">Not started</span>
@@ -744,7 +766,10 @@ body{padding-top:58px;padding-bottom:52px}
           </div>
           <div class="matchup-vs">VS</div>
           <div class="scramble-side scramble-side-b scramble-side-b4">
-            <div class="scramble-side-title" id="scramble-title-b4">Team Golf</div>
+            <div class="scramble-side-head">
+              <div class="scramble-side-title" id="scramble-title-b4">Team Golf</div>
+              <button type="button" class="pin-btn" id="pin-btn-day2-b4" onclick="togglePin('day2','b4')" aria-pressed="false" aria-label="Pin this group" title="Pin to top">📌</button>
+            </div>
             <div class="sig">
               <div id="b4-manual" class="sig-row">
                 <span id="b4-manual-display" class="grey" style="font-size:.85rem">Not started</span>
@@ -757,11 +782,14 @@ body{padding-top:58px;padding-bottom:52px}
         </div>
       </div>
 
-      <div class="scramble-matchup">
+      <div class="scramble-matchup" id="day2-matchup-3">
         <div class="matchup-head"><span class="matchup-label">Group of 3</span></div>
         <div class="matchup-grid">
           <div class="scramble-side scramble-side-a scramble-side-a3">
-            <div class="scramble-side-title" id="scramble-title-a3">Team Beer</div>
+            <div class="scramble-side-head">
+              <div class="scramble-side-title" id="scramble-title-a3">Team Beer</div>
+              <button type="button" class="pin-btn" id="pin-btn-day2-a3" onclick="togglePin('day2','a3')" aria-pressed="false" aria-label="Pin this group" title="Pin to top">📌</button>
+            </div>
             <div class="sig">
               <div id="a3-manual" class="sig-row">
                 <span id="a3-manual-display" class="grey" style="font-size:.85rem">Not started</span>
@@ -773,7 +801,10 @@ body{padding-top:58px;padding-bottom:52px}
           </div>
           <div class="matchup-vs">VS</div>
           <div class="scramble-side scramble-side-b scramble-side-b3">
-            <div class="scramble-side-title" id="scramble-title-b3">Team Golf</div>
+            <div class="scramble-side-head">
+              <div class="scramble-side-title" id="scramble-title-b3">Team Golf</div>
+              <button type="button" class="pin-btn" id="pin-btn-day2-b3" onclick="togglePin('day2','b3')" aria-pressed="false" aria-label="Pin this group" title="Pin to top">📌</button>
+            </div>
             <div class="sig">
               <div id="b3-manual" class="sig-row">
                 <span id="b3-manual-display" class="grey" style="font-size:.85rem">Not started</span>
@@ -1362,6 +1393,7 @@ const {
   // the parameterized versions; the local functions of the same name
   // below are now thin wrappers passing this page's PLAYERS/COURSES/state.
   day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
+  matchWormFor,
   ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
@@ -1798,6 +1830,31 @@ function effectiveMatch(match) {
   return effectiveMatchFor(match, currentPlayers(), day1StrokeIndexes());
 }
 
+// Issue #270: the "worm" chart's cumulative lead sequence for this match.
+function matchWormForMatch(match) {
+  return matchWormFor(match, currentPlayers(), day1StrokeIndexes());
+}
+
+// Small inline SVG line chart, no charting library -- x axis is holes that
+// actually have data (not fixed to 18), y axis is the cumulative lead from
+// matchWormForMatch(). Colored by whoever's ahead at the end, since a
+// completed match's worm always finishes on the actual winning side (or
+// flat through 0 for an all-square finish).
+function wormSvg(points) {
+  const w = 240, h = 36, pad = 4;
+  const max = Math.max(1, ...points.map(Math.abs));
+  const n = points.length;
+  const stepX = n > 1 ? (w - pad * 2) / (n - 1) : 0;
+  const y = v => (h / 2 - (v / max) * (h / 2 - pad)).toFixed(1);
+  const coords = points.map((v, i) => `${(pad + i * stepX).toFixed(1)},${y(v)}`).join(' ');
+  const last = points[points.length - 1];
+  const strokeColor = last > 0 ? 'var(--team-a)' : last < 0 ? 'var(--team-b)' : 'var(--ink-mute)';
+  return `<div class="match-worm-wrap"><svg class="match-worm" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Hole-by-hole lead through the match">` +
+    `<line x1="${pad}" y1="${h / 2}" x2="${w - pad}" y2="${h / 2}" class="worm-zero"/>` +
+    `<polyline points="${coords}" class="worm-line" style="stroke:${strokeColor}"/>` +
+    `</svg></div>`;
+}
+
 function nineStatusLabel(nineResults) {
   const s = nineStatus(nineResults);
   if (s.thru === 0) return 'Not started';
@@ -1912,7 +1969,20 @@ function renderDay1() {
   const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Singles (1v1)', 'Match 3 — Singles (1v1)', 'Match 4 — Singles (1v1)', 'Match 5 — Singles (1v1)', 'Match 6 — Singles (1v1)'];
   const day1Holes = day1CourseHoles();
 
-  state.day1.matches.forEach((match, mi) => {
+  // Issue #271: pinned matches render first, in original match order among
+  // themselves, everything else following in its normal order -- the loop
+  // below still uses the real match index `mi` everywhere (ids, onclick
+  // handlers), only the DOM append order changes.
+  const matchOrder = pinnedFirst('day1', state.day1.matches.map((_, mi) => mi), mi => mi);
+
+  matchOrder.forEach((mi, orderIdx) => {
+    if (orderIdx === 0 && isPinned('day1', mi)) {
+      const divider = document.createElement('div');
+      divider.className = 'pinned-divider';
+      divider.textContent = '📌 Pinned';
+      container.appendChild(divider);
+    }
+    const match = state.day1.matches[mi];
     const { pA, pB, type } = match;
     const slots = type === 'singles' ? 1 : 2;
     const eff = effectiveMatch(match);
@@ -1928,10 +1998,14 @@ function renderDay1() {
     card.className = 'match-card' + resultClass;
 
     // Header
+    const pinnedNow = isPinned('day1', mi);
     const hd = document.createElement('div');
     hd.className = 'match-header';
     hd.innerHTML = `
-      <div class="match-title">${titles[mi]}</div>
+      <div class="match-title" style="display:flex;align-items:center;gap:6px">
+        <button type="button" class="pin-btn${pinnedNow ? ' pin-btn-active' : ''}" onclick="togglePin('day1',${mi})" aria-pressed="${pinnedNow}" aria-label="${pinnedNow ? 'Unpin' : 'Pin'} this match" title="${pinnedNow ? 'Unpin' : 'Pin to top'}">📌</button>
+        ${titles[mi]}
+      </div>
       <div class="match-score-display">
         <span class="msa" id="msa-${mi}">${fmt(pts.a)}</span>
         <span class="mss">pts</span>
@@ -1985,6 +2059,20 @@ function renderDay1() {
       }).join('');
     }
     card.appendChild(re);
+
+    // Issue #270: the "worm" chart -- only once the match is actually
+    // decided (same flag that already sets resultClass above), and only
+    // when there's hole-by-hole data to draw from (matchWormForMatch()
+    // returns null for a match decided purely via the manual front9/back9
+    // toggle, same "hole data or nothing" precedent used throughout Day 1).
+    if (decided) {
+      const worm = matchWormForMatch(match);
+      if (worm && worm.length > 1) {
+        const wormWrap = document.createElement('div');
+        wormWrap.innerHTML = wormSvg(worm);
+        card.appendChild(wormWrap.firstElementChild);
+      }
+    }
 
     // Hole-by-hole gross score entry -- the only way to enter a Day 1
     // result on this tab now (issue #248); only usable once both players
@@ -2508,6 +2596,166 @@ function setDay3Ntp(hole, val) {
     };
     confirmNtpChange('ntp-day3-' + hole, hole, previous, id, commit);
   });
+}
+
+/* ─────────────────────────────────────
+   PIN TO TOP (issue #271) + AUTO-PIN (issue #272)
+   A per-device shortcut so whoever's entering their own match/group/round
+   doesn't have to find it in a busy list every time they open the tab.
+   Purely local UI state -- `pinned`/`autoPinned` never touch insertUpdate()
+   or saveState()'s Supabase path, and are stored under their own
+   KEY_PREFIX-scoped localStorage keys so they automatically respect demo
+   mode's separate namespace, same convention as ACTIVE_TAB_KEY.
+───────────────────────────────────── */
+const PINNED_KEY = KEY_PREFIX + 'wongaCup2026_pinned';
+const AUTO_PINNED_KEY = KEY_PREFIX + 'wongaCup2026_autoPinned';
+
+let pinned = { day1: [], day2: [], day3: [] };
+try {
+  const raw = JSON.parse(localStorage.getItem(PINNED_KEY) || 'null');
+  if (raw && typeof raw === 'object') {
+    ['day1', 'day2', 'day3'].forEach(d => { if (Array.isArray(raw[d])) pinned[d] = raw[d]; });
+  }
+} catch (e) {}
+
+// Tracks which days already had their one-shot auto-pin fire (issue #272)
+// -- separate from `pinned` itself so a deliberate manual unpin afterward
+// is never silently re-applied just because the underlying lineup data it
+// originally fired on still matches.
+let autoPinned = { day1: false, day2: false, day3: false };
+try {
+  const raw = JSON.parse(localStorage.getItem(AUTO_PINNED_KEY) || 'null');
+  if (raw && typeof raw === 'object') {
+    ['day1', 'day2', 'day3'].forEach(d => { autoPinned[d] = raw[d] === true; });
+  }
+} catch (e) {}
+
+function savePinned() {
+  try { localStorage.setItem(PINNED_KEY, JSON.stringify(pinned)); } catch (e) {}
+}
+function saveAutoPinned() {
+  try { localStorage.setItem(AUTO_PINNED_KEY, JSON.stringify(autoPinned)); } catch (e) {}
+}
+
+function isPinned(day, id) {
+  return pinned[day].includes(id);
+}
+
+// Stable partition: pinned items first (most-recently-pinned floats to the
+// very top), then everything else in its original order. Used by Day 1's
+// match list and Day 3's hole-entry list, which are fully rebuilt on every
+// render anyway. Day 2's four group cards are fixed DOM instead (see
+// layoutDay2Pins() below), so they don't go through this.
+function pinnedFirst(day, items, idOf) {
+  const pins = pinned[day];
+  const first = [], rest = [];
+  items.forEach(item => (pins.includes(idOf(item)) ? first : rest).push(item));
+  first.sort((a, b) => pins.indexOf(idOf(a)) - pins.indexOf(idOf(b)));
+  return first.concat(rest);
+}
+
+function togglePin(day, id) {
+  const idx = pinned[day].indexOf(id);
+  if (idx === -1) pinned[day].push(id); else pinned[day].splice(idx, 1);
+  savePinned();
+  if (day === 'day1') renderDay1();
+  else if (day === 'day2') layoutDay2Pins();
+  else if (day === 'day3') renderDay3HoleEntries();
+}
+
+// Day 2's four group cards (a4/a3/b4/b3) are fixed DOM, not rebuilt from
+// scratch each render (see renderDay2GroupCard()) -- pinning here means
+// reordering the *existing* nodes rather than duplicating them, so every
+// id-based lookup (renderDay2Derived(), setDay2HoleScore(), etc.) keeps
+// working unchanged regardless of where in the tree a card currently sits.
+// Reorders are done via insertBefore on adjacent siblings, so nothing
+// outside the pair being swapped (the totals strip above, NTP/anthem
+// sections below) is ever touched.
+function layoutDay2Pins() {
+  DAY2_GROUP_CODES.forEach(code => {
+    const btn = document.getElementById(`pin-btn-day2-${code}`);
+    if (!btn) return;
+    const p = isPinned('day2', code);
+    btn.classList.toggle('pin-btn-active', p);
+    btn.setAttribute('aria-pressed', String(p));
+    btn.title = p ? 'Unpin' : 'Pin to top';
+  });
+  const m4 = document.getElementById('day2-matchup-4');
+  const m3 = document.getElementById('day2-matchup-3');
+  if (m4 && m3 && m4.parentElement === m3.parentElement) {
+    const group3Pinned = isPinned('day2', 'a3') || isPinned('day2', 'b3');
+    const group4Pinned = isPinned('day2', 'a4') || isPinned('day2', 'b4');
+    // Only reorder when the two actually disagree -- both/neither pinned
+    // has no preference to express, so the default Group of 4 / Group of
+    // 3 order is left alone.
+    if (group3Pinned && !group4Pinned) m4.parentElement.insertBefore(m3, m4);
+    else m4.parentElement.insertBefore(m4, m3);
+  }
+  ['4', '3'].forEach(size => {
+    const grid = document.querySelector(`#day2-matchup-${size} .matchup-grid`);
+    if (!grid) return;
+    const aSide = grid.querySelector('.scramble-side-a');
+    const vs = grid.querySelector('.matchup-vs');
+    const bSide = grid.querySelector('.scramble-side-b');
+    if (!aSide || !vs || !bSide) return;
+    const aPinned = isPinned('day2', 'a' + size), bPinned = isPinned('day2', 'b' + size);
+    const order = (bPinned && !aPinned) ? [bSide, vs, aSide] : [aSide, vs, bSide];
+    // .matchup-grid contains exactly these 3 children, so re-appending in
+    // the desired order is a safe, complete reorder of the whole parent.
+    order.forEach(el => grid.appendChild(el));
+  });
+}
+
+// Resolves this device's login to a roster player id -- reliable with no
+// fuzzy matching, since the login dropdown (populateUsernameSelect()) is
+// itself built straight from PLAYERS names.
+function currentPlayerId() {
+  if (!currentUsername) return null;
+  const p = PLAYERS.find(pl => pl.name === currentUsername);
+  return p ? p.id : null;
+}
+
+// Issue #272: the moment the logged-in device's own player shows up in a
+// day's lineup, pin it for them -- once per day-type, ever, tracked via
+// `autoPinned` above so a later manual unpin sticks. "Shows up in the
+// lineup" is checked per day/type independently, not gated on the admin's
+// day-lock toggle (#168) -- that's a separate "freeze editing" concept,
+// not a "lineup is built" signal.
+function maybeAutoPin() {
+  const pid = currentPlayerId();
+  if (pid === null) return;
+  let pinChanged = false, flagChanged = false;
+
+  if (!autoPinned.day1) {
+    const mi = state.day1.matches.findIndex(m => m.pA[0] === pid || m.pB[0] === pid);
+    if (mi !== -1) {
+      if (!isPinned('day1', mi)) { pinned.day1.push(mi); pinChanged = true; }
+      autoPinned.day1 = true; flagChanged = true;
+    }
+  }
+  if (!autoPinned.day2) {
+    const code = DAY2_GROUP_CODES.find(c => state.day2.groups[c].includes(pid));
+    if (code) {
+      if (!isPinned('day2', code)) { pinned.day2.push(code); pinChanged = true; }
+      autoPinned.day2 = true; flagChanged = true;
+    }
+  }
+  if (!autoPinned.day3) {
+    // Stableford is individual -- there's no separate "assigned to a
+    // group" step beyond the team draft itself.
+    if (teamOf(pid) !== null) {
+      if (!isPinned('day3', pid)) { pinned.day3.push(pid); pinChanged = true; }
+      autoPinned.day3 = true; flagChanged = true;
+    }
+  }
+
+  if (flagChanged) saveAutoPinned();
+  if (pinChanged) {
+    savePinned();
+    renderDay1();
+    layoutDay2Pins();
+    renderDay3HoleEntries();
+  }
 }
 
 /* ─────────────────────────────────────
@@ -3115,8 +3363,14 @@ function renderDay3HoleEntries() {
   if (!container) return;
   if (document.activeElement && document.activeElement.classList.contains('grid-in')) return;
   const courseHoles = day3CourseHoles();
+  // Issue #271: pinned players' entry cards render first, everything else
+  // following in its normal order.
+  const order = pinnedFirst('day3', currentPlayers(), p => p.id);
   let html = '';
-  currentPlayers().forEach(p => {
+  order.forEach((p, orderIdx) => {
+    if (orderIdx === 0 && isPinned('day3', p.id)) {
+      html += `<div class="pinned-divider">📌 Pinned</div>`;
+    }
     const holes = state.day3.holes[p.id] || Array(18).fill(null);
     const strokes = day3StrokesFor(p);
     // Issue #148: carry the previous open/closed state across the rebuild
@@ -3125,9 +3379,13 @@ function renderDay3HoleEntries() {
     const prev = document.getElementById(`day3-details-${p.id}`);
     const wasOpen = prev ? prev.open : false;
     const hasData = holes.some(h => h !== null);
+    const pinnedNow = isPinned('day3', p.id);
     html += `
     <details class="hole-grid-details" id="day3-details-${p.id}"${wasOpen ? ' open' : ''}>
-      <summary class="hole-grid-summary">${escapeHtml(p.short)} — Hole-by-hole entry</summary>
+      <summary class="hole-grid-summary">
+        <span>${escapeHtml(p.short)} — Hole-by-hole entry</span>
+        <button type="button" class="pin-btn${pinnedNow ? ' pin-btn-active' : ''}" onclick="event.preventDefault();event.stopPropagation();togglePin('day3',${p.id})" aria-pressed="${pinnedNow}" aria-label="${pinnedNow ? 'Unpin' : 'Pin'} ${escapeHtml(p.short)}" title="${pinnedNow ? 'Unpin' : 'Pin to top'}">📌</button>
+      </summary>
       ${day3HoleGridNineHtml(p.id, holes, strokes, courseHoles, 0)}
       ${day3HoleGridNineHtml(p.id, holes, strokes, courseHoles, 9)}
       ${hasData ? `<div class="nine-status-line"><button type="button" class="clear-btn" onclick="clearDay3PlayerHoles(${p.id})">Clear hole scores to enter manually</button></div>` : ''}
@@ -4527,6 +4785,7 @@ function confirmUsername() {
   document.getElementById('username-badge').textContent = `🎯 ${name}`;
   document.getElementById('username-badge').style.display = 'block';
   updateAdminVisibility();
+  maybeAutoPin(); // issue #272
   if (_pendingAction) { _pendingAction(); _pendingAction = null; }
 }
 
@@ -4831,11 +5090,13 @@ try {
   renderTeams();
   renderDay1();
   restoreDay2();
+  layoutDay2Pins(); // issue #271 -- reflect any pins already saved on this device
   renderDay3();
   updateScoreboard();
   renderAllDayLocks();
   updateTeamsLockUI();
   renderAdminHandicaps();
+  maybeAutoPin(); // issue #272 -- covers a restored (already-logged-in) session
 } catch (e) {
   console.error('Init failed:', e);
   document.getElementById('page-scorecard').innerHTML =
@@ -4853,6 +5114,7 @@ function refreshAllDays() {
     renderDay1();
     console.log('Day 1 rendered');
     restoreDay2();
+    layoutDay2Pins(); // issue #271
     console.log('Day 2 rendered');
     renderDay3();
     console.log('Day 3 rendered');
@@ -4861,6 +5123,7 @@ function refreshAllDays() {
     renderAllDayLocks();
     updateTeamsLockUI();
     renderAdminHandicaps();
+    maybeAutoPin(); // issue #272 -- catches a lineup change that lands after login
   } catch(e) {
     console.error('Error rendering days:', e);
   }
