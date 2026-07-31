@@ -578,6 +578,40 @@
     return { front9: eff.front9, back9: eff.back9 };
   }
 
+  // Cumulative hole-by-hole lead sequence for the "worm" chart on a
+  // completed match (issue #270), kept separate per nine -- front 9 and
+  // back 9 are each their own 1pt contest (matchPoints()/ninePoints()), so
+  // a lead built up on the front 9 has no bearing on the back 9 and must
+  // not carry over into it. One entry per hole that actually has data (a
+  // hole with no score yet is skipped rather than padded, since this is
+  // only ever rendered once a match is already decided, at which point any
+  // remaining hole is moot anyway). +1 per hole A wins, -1 per hole B
+  // wins, unchanged on a halve, reset to 0 at the start of each nine.
+  // Returns null when the match has no hole-by-hole data at all (decided
+  // only via the manual front9/back9 toggle) -- same "hole data or
+  // nothing" precedent as effectiveNines(); otherwise {front9, back9},
+  // either of which can itself be an empty array if that nine has no data
+  // yet.
+  function matchWormFor(match, players, day1StrokeIndexes) {
+    if (!Array.isArray(match.holesA) || !Array.isArray(match.holesB)) return null;
+    const hasData = match.holesA.some(v => v !== null) || match.holesB.some(v => v !== null);
+    if (!hasData) return null;
+    const strokes = matchStrokesForPlayers(match, players, day1StrokeIndexes);
+    function nineWorm(start) {
+      let cum = 0;
+      const points = [];
+      for (let i = start; i < start + 9; i++) {
+        const result = holeResult(match.holesA[i], match.holesB[i], strokes.a[i], strokes.b[i]);
+        if (result === null) continue;
+        if (result === 'A') cum += 1;
+        else if (result === 'B') cum -= 1;
+        points.push(cum);
+      }
+      return points;
+    }
+    return { front9: nineWorm(0), back9: nineWorm(9) };
+  }
+
   function teamOfSets(playerId, teamA, teamB) {
     if (playerId === null || playerId === undefined) return null;
     if (teamA && teamA.has(playerId)) return 'A';
@@ -1514,6 +1548,7 @@
     DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints, day3PointsThru,
     resolveOverallWinner,
     day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
+    matchWormFor,
     teamOfSets, ntpPointsFor, scoreToParSymbol,
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,

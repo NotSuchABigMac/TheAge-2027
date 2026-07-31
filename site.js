@@ -61,6 +61,18 @@
       seekToSavedMusicTime(audio);
       audio.play().catch(() => { musicModal.classList.remove('hidden'); });
     }
+    // Hitting Back/Forward often restores this page from the browser's
+    // bfcache instead of a fresh navigation -- no script re-executes, so
+    // none of the logic above runs. Chrome auto-pauses any playing
+    // <audio>/<video> when a page freezes for bfcache and does NOT resume
+    // it on restore, so without this the music just silently stops.
+    // currentTime survives the freeze, so just resuming is enough.
+    window.addEventListener('pageshow', (e) => {
+      if (!e.persisted) return;
+      if (sessionStorage.getItem('musicConsented') !== '1') return;
+      const audio = document.getElementById('bg-audio');
+      if (audio && audio.paused) audio.play().catch(() => { musicModal.classList.remove('hidden'); });
+    });
   }
 
   /* ─────────────────────────────────────

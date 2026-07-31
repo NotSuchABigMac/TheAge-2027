@@ -22,7 +22,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const {
   matchStrokes, effectiveNines, sumMatchPoints, ntpTeamPoints,
-  day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor,
+  day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor, matchWormFor,
   teamOfSets, ntpPointsFor,
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   day3CourseHolesFor, effectiveDay3ScoreFor, stablefordPoints, day3PointsThru, groupStrokes,
@@ -80,6 +80,52 @@ test('effectiveMatchFor: a hole-derived result matches calling effectiveNines/ma
   assert.equal(got.back9, want.back9);
   // Front 9 is a 5-0 sweep for A (lower gross every hole, no strokes) -> 'A'.
   assert.equal(got.front9, 'A');
+});
+
+/* ── matchWormFor (issue #270) ── */
+
+test('matchWormFor returns null for a match with no hole-by-hole data at all', () => {
+  const players = [{ id: 0, hcp: '12.0' }, { id: 1, hcp: '12.0' }];
+  const match = { pA: [0], pB: [1], front9: 'A', back9: 'B', holesA: Array(18).fill(null), holesB: Array(18).fill(null) };
+  assert.equal(matchWormFor(match, players, SI_ASCENDING), null);
+});
+
+test('matchWormFor accumulates +1 per A-won hole, -1 per B-won hole, skipping holes with no data yet', () => {
+  const players = [{ id: 0, hcp: '12.0' }, { id: 1, hcp: '12.0' }]; // equal hcp -> no strokes
+  const match = {
+    pA: [0], pB: [1], front9: null, back9: null,
+    holesA: [4, 4, 5, null, ...Array(14).fill(null)],
+    holesB: [5, 5, 4, null, ...Array(14).fill(null)]
+  };
+  // hole1: A wins (4<5) -> +1; hole2: A wins -> +2; hole3: B wins (5>4) -> +1; hole4 has no data, skipped.
+  assert.deepEqual(matchWormFor(match, players, SI_ASCENDING).front9, [1, 2, 1]);
+  assert.deepEqual(matchWormFor(match, players, SI_ASCENDING).back9, []);
+});
+
+test('matchWormFor holds flat (no change) through a halved hole', () => {
+  const players = [{ id: 0, hcp: '12.0' }, { id: 1, hcp: '12.0' }];
+  const match = {
+    pA: [0], pB: [1], front9: null, back9: null,
+    holesA: [4, 4, ...Array(16).fill(null)],
+    holesB: [4, 5, ...Array(16).fill(null)]
+  };
+  assert.deepEqual(matchWormFor(match, players, SI_ASCENDING).front9, [0, 1]);
+});
+
+// Issue: the worm must reset at the turn, not carry a front-9 lead into
+// the back 9 -- front9/back9 are each their own 1pt contest.
+test('matchWormFor resets to 0 at the start of the back 9 regardless of the front-9 lead', () => {
+  const players = [{ id: 0, hcp: '12.0' }, { id: 1, hcp: '12.0' }];
+  const match = {
+    pA: [0], pB: [1], front9: null, back9: null,
+    // Front 9: A sweeps all 9 holes (lead climbs to +9).
+    holesA: [4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, ...Array(7).fill(null)],
+    holesB: [5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, ...Array(7).fill(null)]
+  };
+  const worm = matchWormFor(match, players, SI_ASCENDING);
+  assert.deepEqual(worm.front9, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  // Back 9 starts fresh at 0, not continuing from +9 -- hole10: B wins -> -1; hole11: B wins -> -2.
+  assert.deepEqual(worm.back9, [-1, -2]);
 });
 
 test('sumMatchPoints on effectiveMatchFor output feeds the same totals as manual front9/back9 (issue #124 invariant, now via the shared composition)', () => {
