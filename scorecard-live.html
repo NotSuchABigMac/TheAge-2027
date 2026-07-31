@@ -11,6 +11,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Wonga Cup">
 <meta property="og:title" content="Live Scorecard · The Wonga Cup 2026">
@@ -1255,6 +1256,15 @@ let updateAvailable = false;
 // against itself and silently disabling this entire check in production.
 // Local dev/tests without a version.json simply 404 below instead, which
 // already no-ops safely.
+
+// Issue #205: offline app shell. Registration failures (unsupported
+// browser, non-HTTPS localhost dev, a sandboxed test runner) are
+// silently swallowed -- this is a progressive enhancement, never a
+// requirement for the scorecard to work online.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
 async function checkForUpdate() {
   try {
     const resp = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
@@ -1263,6 +1273,14 @@ async function checkForUpdate() {
       if (data && data.v && data.v !== DEPLOYED_VERSION) updateAvailable = true;
     }
   } catch (e) { /* transient network blip -- retried next poll cycle */ }
+  // Issue #205: piggyback the SW's own update check on the same poll
+  // cadence as version.json's, so a new sw.js (and the cache it
+  // repopulates) is already installed and waiting by the time a scorer
+  // actually taps the refresh toast, rather than only starting that
+  // check at the moment of navigation.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then(reg => reg && reg.update()).catch(() => {});
+  }
   maybeShowUpdateToast();
 }
 /* ─────────────────────────────────────
