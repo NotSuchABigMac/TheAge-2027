@@ -1,25 +1,25 @@
 /* ─────────────────────────────────────
-   REGRESSION TEST — issue #200: tap a score to see who entered it and
-   when.
+   REGRESSION TEST — issue #200 follow-up: focus a filled score field to
+   see its last 3 changes.
 
-   Provenance (updated_by/updated_at) is already synced to every device
-   but wasn't surfaced anywhere outside the Admin tab. Drives the real
-   Day 1 hole grid and checks:
+   The original design showed a single "who/when" popover on a long-press,
+   deliberately separate from tap-to-focus-and-edit. That gesture turned
+   out to be unreliable on real touch input (a finger drifts a few pixels
+   even while held still, cancelling the timer before it fired), so the
+   feature now triggers on an ordinary focus of a field that already has
+   a value, and shows its last 3 recorded changes instead of just the
+   latest one. Drives the real Day 1 hole grid and checks:
 
-     - entering a score records optimistic local provenance immediately
-       (before any poll), attributed to the current user
-     - long-pressing (~500ms pointer hold) the cell shows a popover with
-       the "{time} · {name}" text
-     - a genuine tap (pointerdown followed quickly by pointerup) does NOT
-       show the popover -- it must not fight normal tap-to-focus
-     - long-press never triggers while the input is already focused (a
-       scorer mid-entry, not someone asking "who set this")
-     - tapping away dismisses the popover
+     - focusing a filled field fetches and shows its last 3 changes
+       (value, who, when), most recent first
+     - focusing a field with no value yet shows nothing -- a scorer
+       entering fresh scores shouldn't get a panel on every hole
+     - blurring the field (tapping away) dismisses the panel
 
    Self-contained: a tiny static file server for the app; Supabase and
-   Google Fonts hosts blocked outright (this feature doesn't need real
-   Supabase traffic -- it calls the app's own functions directly to
-   simulate a remote row's provenance).
+   Google Fonts hosts blocked by default, with one route fulfilled with
+   canned data standing in for this field's history so the test never
+   depends on real Supabase data.
 
    Run: node test/repro-200-provenance.mjs
    Exits 0 if all assertions pass, 1 otherwise.
@@ -81,6 +81,12 @@ function fail(msg) {
   throw new Error(msg);
 }
 
+const MOCK_HISTORY_ROWS = [
+  { update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: '5', updated_by: 'Gary King', updated_at: new Date().toISOString() },
+  { update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: '6', updated_by: 'Dave Lyons', updated_at: new Date(Date.now() - 3600e3).toISOString() },
+  { update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: '4', updated_by: 'Gary King', updated_at: new Date(Date.now() - 7200e3).toISOString() }
+];
+
 async function main() {
   const site = await startStaticServer();
   const sitePort = site.address().port;
@@ -93,7 +99,15 @@ async function main() {
   let ok = true;
   try {
     const page = await browser.newPage();
-    await page.route('**wtyyarvyscbrrkawjcvo**', route => route.abort());
+    await page.route('**wtyyarvyscbrrkawjcvo**', route => {
+      const req = route.request();
+      const reqUrl = req.url();
+      if (req.method() === 'GET' && reqUrl.includes('/rest/v1/tournament_updates') &&
+          reqUrl.includes('update_type=eq.day1_hole') && reqUrl.includes('field_key=eq.A1')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_HISTORY_ROWS) });
+      }
+      return route.abort();
+    });
     await page.route('**fonts.googleapis.com**', route => route.abort());
     await page.route('**fonts.gstatic.com**', route => route.abort());
     await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -112,58 +126,39 @@ async function main() {
     });
     await page.waitForTimeout(100);
 
-    // 1. Entering a score records optimistic local provenance immediately.
+    // day1-in-0-A-1 ends up with field_key 'A1', matching the mocked route.
     await page.evaluate(() => setHoleScore(0, 'A', 1, '5'));
-    const recorded = await page.evaluate(() => {
-      const coord = coordForElement(document.getElementById('day1-in-0-A-1'));
-      return provenance[undoCoordKey(coord)];
-    });
-    if (!recorded || recorded.updated_by !== 'Gary King') fail(`expected optimistic provenance for Gary King, got ${JSON.stringify(recorded)}`);
 
-    // 2. Long-press (~500ms hold) shows the popover with "{time} · {name}".
+    // 1. Focusing a field with no value yet shows nothing.
+    await page.locator('#day1-in-0-A-2').scrollIntoViewIfNeeded();
+    await page.locator('#day1-in-0-A-2').focus();
+    await page.waitForTimeout(150);
+    const emptyFieldShown = await page.evaluate(() => document.getElementById('field-history-panel').classList.contains('show'));
+    if (emptyFieldShown) fail('expected focusing an empty field to show no history panel');
+    await page.locator('#day1-in-0-A-2').blur();
+
+    // 2. Focusing the filled field shows its last 3 changes, most recent first.
     await page.locator('#day1-in-0-A-1').scrollIntoViewIfNeeded();
-    const box = await page.locator('#day1-in-0-A-1').boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(600);
-    const afterHold = await page.evaluate(() => ({
-      shown: document.getElementById('provenance-popover').classList.contains('show'),
-      text: document.getElementById('provenance-popover').textContent
-    }));
-    await page.mouse.up();
-    if (!afterHold.shown) fail('expected the provenance popover to show after a ~500ms long-press');
-    if (!/Gary King/.test(afterHold.text)) fail(`expected the popover to name Gary King, got "${afterHold.text}"`);
+    await page.locator('#day1-in-0-A-1').focus();
+    await page.waitForTimeout(200);
+    const afterFocus = await page.evaluate(() => {
+      const panel = document.getElementById('field-history-panel');
+      const rows = Array.from(panel.querySelectorAll('.field-history-row')).map(r => r.textContent);
+      return { shown: panel.classList.contains('show'), rows };
+    });
+    if (!afterFocus.shown) fail('expected focusing a filled field to show the field-history panel');
+    if (afterFocus.rows.length !== 3) fail(`expected 3 history rows, got ${afterFocus.rows.length}: ${JSON.stringify(afterFocus.rows)}`);
+    if (!/5/.test(afterFocus.rows[0]) || !/Gary King/.test(afterFocus.rows[0])) fail(`expected row 1 to show value 5 · Gary King, got "${afterFocus.rows[0]}"`);
+    if (!/6/.test(afterFocus.rows[1]) || !/Dave Lyons/.test(afterFocus.rows[1])) fail(`expected row 2 to show value 6 · Dave Lyons, got "${afterFocus.rows[1]}"`);
+    if (!/4/.test(afterFocus.rows[2]) || !/Gary King/.test(afterFocus.rows[2])) fail(`expected row 3 to show value 4 · Gary King, got "${afterFocus.rows[2]}"`);
 
-    // Tapping away dismisses it.
+    // 3. Blurring (tapping away) dismisses the panel.
     await page.mouse.click(10, 10);
     await page.waitForTimeout(50);
-    const afterTapAway = await page.evaluate(() => document.getElementById('provenance-popover').classList.contains('show'));
-    if (afterTapAway) fail('expected tapping away to dismiss the provenance popover');
+    const afterBlur = await page.evaluate(() => document.getElementById('field-history-panel').classList.contains('show'));
+    if (afterBlur) fail('expected blurring the field to dismiss the field-history panel');
 
-    // 3. A genuine quick tap (hold well under 500ms) does NOT show the popover.
-    await page.evaluate(() => document.getElementById('day1-in-0-A-2').blur());
-    await page.locator('#day1-in-0-A-2').scrollIntoViewIfNeeded();
-    const box2 = await page.locator('#day1-in-0-A-2').boundingBox();
-    await page.mouse.move(box2.x + box2.width / 2, box2.y + box2.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(80);
-    await page.mouse.up();
-    await page.waitForTimeout(50);
-    const afterQuickTap = await page.evaluate(() => document.getElementById('provenance-popover').classList.contains('show'));
-    if (afterQuickTap) fail('expected a genuine quick tap to NOT show the provenance popover');
-
-    // 4. Long-press never triggers while the input is already focused.
-    await page.evaluate(() => document.getElementById('day1-in-0-A-3').focus());
-    await page.locator('#day1-in-0-A-3').scrollIntoViewIfNeeded();
-    const box3 = await page.locator('#day1-in-0-A-3').boundingBox();
-    await page.mouse.move(box3.x + box3.width / 2, box3.y + box3.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(600);
-    await page.mouse.up();
-    const whileFocused = await page.evaluate(() => document.getElementById('provenance-popover').classList.contains('show'));
-    if (whileFocused) fail('expected long-press on an already-focused input to never show the popover');
-
-    console.log('All #200 provenance-popover assertions passed.');
+    console.log('All #200 field-history-panel assertions passed.');
   } catch (e) {
     console.log('Error:', e.message);
     ok = false;
