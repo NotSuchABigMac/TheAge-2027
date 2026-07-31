@@ -98,7 +98,8 @@ test('matchWormFor accumulates +1 per A-won hole, -1 per B-won hole, skipping ho
     holesB: [5, 5, 4, null, ...Array(14).fill(null)]
   };
   // hole1: A wins (4<5) -> +1; hole2: A wins -> +2; hole3: B wins (5>4) -> +1; hole4 has no data, skipped.
-  assert.deepEqual(matchWormFor(match, players, SI_ASCENDING), [1, 2, 1]);
+  assert.deepEqual(matchWormFor(match, players, SI_ASCENDING).front9, [1, 2, 1]);
+  assert.deepEqual(matchWormFor(match, players, SI_ASCENDING).back9, []);
 });
 
 test('matchWormFor holds flat (no change) through a halved hole', () => {
@@ -108,7 +109,23 @@ test('matchWormFor holds flat (no change) through a halved hole', () => {
     holesA: [4, 4, ...Array(16).fill(null)],
     holesB: [4, 5, ...Array(16).fill(null)]
   };
-  assert.deepEqual(matchWormFor(match, players, SI_ASCENDING), [0, 1]);
+  assert.deepEqual(matchWormFor(match, players, SI_ASCENDING).front9, [0, 1]);
+});
+
+// Issue: the worm must reset at the turn, not carry a front-9 lead into
+// the back 9 -- front9/back9 are each their own 1pt contest.
+test('matchWormFor resets to 0 at the start of the back 9 regardless of the front-9 lead', () => {
+  const players = [{ id: 0, hcp: '12.0' }, { id: 1, hcp: '12.0' }];
+  const match = {
+    pA: [0], pB: [1], front9: null, back9: null,
+    // Front 9: A sweeps all 9 holes (lead climbs to +9).
+    holesA: [4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, ...Array(7).fill(null)],
+    holesB: [5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, ...Array(7).fill(null)]
+  };
+  const worm = matchWormFor(match, players, SI_ASCENDING);
+  assert.deepEqual(worm.front9, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  // Back 9 starts fresh at 0, not continuing from +9 -- hole10: B wins -> -1; hole11: B wins -> -2.
+  assert.deepEqual(worm.back9, [-1, -2]);
 });
 
 test('sumMatchPoints on effectiveMatchFor output feeds the same totals as manual front9/back9 (issue #124 invariant, now via the shared composition)', () => {

@@ -1493,6 +1493,35 @@ html[data-mode="dark"] .hero-photo {
   .logistics .ll:nth-child(2n) { border-right: none; }
 }
 
+/* ── ADD TO CALENDAR (issue #209): plain links to static .ics files --
+   iOS and Android both hand a .ics off to the calendar app natively, no
+   JS needed. ── */
+.calendar-links {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.calendar-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  background: var(--canvas-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+.calendar-links a:hover {
+  background: var(--canvas-3);
+  border-color: var(--accent-2);
+}
+
 .live-strip {
   margin-top: 40px;
   background: var(--ink);

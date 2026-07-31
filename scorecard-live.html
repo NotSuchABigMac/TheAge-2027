@@ -139,6 +139,7 @@
 .player-group{display:flex;flex-direction:column;gap:6px}
 .player-group.pb{align-items:flex-end}
 .pg-label{font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px}
+.pg-slot-label{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-mute);margin-top:4px}
 .pgl-a{color:var(--team-a)}
 .pgl-b{color:var(--team-b)}
 .vs-div{font-family:var(--font-h);font-size:.75rem;font-weight:700;letter-spacing:2px;color:var(--ink-mute);text-align:center}
@@ -158,11 +159,18 @@ select option{background:var(--canvas)}
 @media(max-width:600px){.nine-block{flex-direction:column;align-items:stretch;gap:6px}.nine-label{min-width:0}}
 
 /* ── MATCH WORM (issue #270): tiny inline hole-by-hole lead chart, shown
-   only once a match is decided -- purely visual, no interaction. ── */
-.match-worm-wrap{padding:0 22px 14px}
-.match-worm{display:block;width:100%;height:36px}
+   only once a match is decided -- purely visual, no interaction. Front 9
+   and back 9 are each their own 1pt contest, so they get their own
+   side-by-side chart rather than one continuous 18-hole line -- a match
+   that swings back the other way after the turn is a different worm, not
+   a continuation of the same one. ── */
+.match-worm-row{display:flex;gap:14px;padding:0 22px 14px}
+.match-worm-wrap{flex:1;min-width:0}
+.match-worm-label{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:2px}
+.match-worm{display:block;width:100%;height:32px}
 .worm-zero{stroke:var(--rule-strong);stroke-width:1}
-.worm-line{fill:none;stroke-width:2}
+.worm-seg{stroke-width:2}
+@media(max-width:600px){.match-worm-row{flex-direction:column;gap:10px}}
 
 /* ── PIN TO TOP (issue #271) + AUTO-PIN (issue #272): a per-device
    shortcut, never synced -- lets a scorer keep their own match/group/entry
@@ -535,6 +543,26 @@ body{padding-top:58px;padding-bottom:52px}
 .dormant-tab-btn:hover{background:var(--gold-light)}
 .music-no:hover{color:#efe7d3}
 
+/* ── HELP / TUTORIAL (issue #245) ── */
+.help-btn{width:26px;height:26px;border-radius:50%;border:1px solid currentColor;background:none;color:inherit;font-family:var(--font-h);font-size:.72rem;font-weight:700;cursor:pointer;line-height:1;opacity:.85;transition:var(--tr)}
+.help-btn:hover{opacity:1;background:rgba(240,180,41,.12)}
+/* One-time nudge toward the help button for a first-time device, instead
+   of stacking a third modal on top of the music-warning + username-picker
+   sequence every new visitor already gets on load. */
+.help-btn.needs-attention{animation:help-pulse 1.8s ease-in-out infinite}
+@keyframes help-pulse{0%,100%{box-shadow:0 0 0 0 rgba(240,180,41,.55)}50%{box-shadow:0 0 0 6px rgba(240,180,41,0)}}
+.help-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);padding:24px}
+.help-modal.hidden{display:none}
+.help-modal-card{background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:32px;max-width:560px;max-height:calc(100vh - 48px);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.help-modal-title{font-family:var(--font-d);font-size:1.7rem;letter-spacing:1px;color:var(--gold);margin-bottom:4px}
+.help-modal-subtitle{font-size:.85rem;color:var(--ink-mute);margin-bottom:24px}
+.help-section{margin-bottom:20px}
+.help-section:last-of-type{margin-bottom:28px}
+.help-section h3{font-family:var(--font-h);font-size:.75rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.help-section p{font-size:.88rem;line-height:1.6;color:var(--ink);margin:0 0 4px}
+.help-modal-close{width:100%;padding:12px 20px;font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
+.help-modal-close:hover{background:var(--gold-light)}
+
 /* Scorecard page body override */
 #page-scorecard { background: var(--canvas); color: var(--ink); min-height: 100vh; }
 #page-scorecard .page-content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
@@ -550,7 +578,8 @@ body{padding-top:58px;padding-bottom:52px}
 @media print {
   #username-badge, #offline-banner, .mini-sb, .sync-bar, .sc-tabs,
   #save-toast, #undo-toast, #update-toast, #confirm-toast, #projected-line,
-  #field-history-panel, .username-modal, .countdown-bar, .dormant-tab-modal {
+  #provenance-popover, .username-modal, .countdown-bar, .help-btn, .help-modal,
+  #field-history-panel, .dormant-tab-modal {
     display: none !important;
   }
   input[type=number], .hole-grid-table input {
@@ -626,9 +655,42 @@ body{padding-top:58px;padding-bottom:52px}
       <a href="index.html" class="back-link">← Tournament Info</a>
     </div>
     <a href="scorecard-live.html" class="masthead-center">A.G.E IV: The Wonga Cup</a>
-    <div class="masthead-right"></div>
+    <div class="masthead-right">
+      <button type="button" class="help-btn" id="help-btn" onclick="openHelpModal()" aria-label="How this works">?</button>
+    </div>
   </div>
 </header>
+
+<!-- Help / Tutorial (issue #245) -->
+<div id="help-modal" class="help-modal hidden" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+  <div class="help-modal-card">
+    <div class="help-modal-title" id="help-modal-title">How This Works</div>
+    <div class="help-modal-subtitle">A quick tour of the live scorecard.</div>
+
+    <div class="help-section">
+      <h3>Entering scores</h3>
+      <p>Tap a hole's box and type the gross score — the cursor jumps to the next box automatically so you can keep both thumbs moving down the card. Every save shows a brief "Saving…/Saved" flash near the top.</p>
+    </div>
+    <div class="help-section">
+      <h3>Undo</h3>
+      <p>Changed a score by mistake? A gold "Undo" button appears bottom-right for a few seconds after every entry — tap it to instantly restore the previous value.</p>
+    </div>
+    <div class="help-section">
+      <h3>Day 1 · Day 2 · Day 3 tabs</h3>
+      <p>Each day scores differently — Day 1 is head-to-head match play, Day 2 is a team scramble, Day 3 is individual Stableford. Switch tabs any time; everyone's device stays in sync automatically every 30 seconds, or tap 🔄 Refresh for an instant update.</p>
+    </div>
+    <div class="help-section">
+      <h3>Teams tab</h3>
+      <p>On the morning of Day 1, the two captains alternate picks until all fourteen players are assigned — do that here. Once teams are set, every other tab already knows who's on which side.</p>
+    </div>
+    <div class="help-section">
+      <h3>Getting stuck?</h3>
+      <p>Nothing you enter here is ever truly lost — every score is logged with who entered it and when (tap any score to see it), and an organiser can restore an earlier value from the Admin tab's Field History.</p>
+    </div>
+
+    <button type="button" class="help-modal-close" onclick="closeHelpModal()">Got it</button>
+  </div>
+</div>
 
 <!-- Practice Mode banner (issue #208) -- always in normal document flow
      (never position:fixed, unlike the badges below), so it just needs
@@ -995,6 +1057,13 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="info-box">Populates sample teams, a Day 1 match, and a few holes of scores so the sandbox isn't empty on first open — real writes, synced to every device currently practicing. "Rollback Scores" below doubles as the sandbox's reset button (it's scoped to this practice tournament only, same as everything else here).</div>
         <button class="username-btn" style="max-width:280px" onclick="seedDemoData()">Seed Sample Data</button>
       </div>
+
+      <div class="section-header" style="padding-top:32px">
+        <div class="section-label">Admin · Day 1</div>
+        <div class="section-title">Captain's Challenge</div>
+      </div>
+      <div class="info-box">Optional — only needed if the Friday field ends up an odd number. Flip exactly one match to Captain's Challenge (1 vs 2): pick which team supplies the two opponents (either team — whichever ends up with the extra player after the Captain's Draft), and that side gets a separate front-9 and back-9 opponent for the one player on the other side. Leave every match as Singles if the field is even — this can be switched back at any time.</div>
+      <div id="admin-day1-challenge"></div>
 
       <div class="section-header" style="padding-top:32px">
         <div class="section-label">Admin · Day 1</div>
@@ -1707,14 +1776,21 @@ function renderTeams() {
 }
 
 // Warns (doesn't block — real-world drafts sometimes have to work around
-// this) when the two teams don't have equal Friday-eligible headcounts,
-// since Day 1 needs a clean 6v6 split across 6 singles matches (issue #68).
+// this) when the two teams' Friday-eligible headcounts don't match what
+// the current Day 1 match setup needs: a clean even split (issue #68), or
+// -- if one match has been flipped to a Captain's Challenge (issue #256)
+// -- a split that differs by exactly 1 in favor of whichever team supplies
+// that match's 2 opponents (it fields one extra Friday player overall to
+// cover the Challenge's 2nd slot on top of its share of the normal
+// matches).
 function renderTeamBalanceWarning() {
   const warnEl = document.getElementById('team-balance-warning');
   if (!warnEl) return;
   const fA = fridayPlayers('A');
   const fB = fridayPlayers('B');
-  if (fA.length === fB.length) {
+  const challengeMatch = state.day1.matches.find(m => m.type === 'challenge' && m.challengeSide);
+  const expectedDiff = challengeMatch ? (challengeMatch.challengeSide === 'A' ? 1 : -1) : 0;
+  if (fA.length - fB.length === expectedDiff) {
     warnEl.style.display = 'none';
     return;
   }
@@ -1723,7 +1799,10 @@ function renderTeamBalanceWarning() {
   const listA = fA.map(p => escapeHtml(p.short)).join(', ') || '—';
   const listB = fB.map(p => escapeHtml(p.short)).join(', ') || '—';
   warnEl.style.display = '';
-  warnEl.innerHTML = `<strong>⚠ Uneven Friday split:</strong> ${escapeHtml(state.teamNameA)} has ${fA.length} Friday player${fA.length === 1 ? '' : 's'} (${listA}); ${escapeHtml(state.teamNameB)} has ${fB.length} (${listB}). Day 1 needs 6-a-side across the singles matches.`;
+  const needText = challengeMatch
+    ? `${escapeHtml(challengeMatch.challengeSide === 'A' ? state.teamNameA : state.teamNameB)} needs exactly 1 more Friday player than the other side, to cover the Captain's Challenge match's 2nd opponent.`
+    : `Day 1 needs an even split across the singles matches.`;
+  warnEl.innerHTML = `<strong>⚠ Uneven Friday split:</strong> ${escapeHtml(state.teamNameA)} has ${fA.length} Friday player${fA.length === 1 ? '' : 's'} (${listA}); ${escapeHtml(state.teamNameB)} has ${fB.length} (${listB}). ${needText}`;
 }
 
 // Shared by movePlayer (a player switching sides) and assignPlayerToTeam
@@ -1858,28 +1937,35 @@ function effectiveMatch(match) {
   return effectiveMatchFor(match, currentPlayers(), day1StrokeIndexes());
 }
 
-// Issue #270: the "worm" chart's cumulative lead sequence for this match.
+// Issue #270: the "worm" chart's cumulative lead sequence for this match,
+// kept separate per nine -- see matchWormFor()'s comment in scoring.js.
 function matchWormForMatch(match) {
   return matchWormFor(match, currentPlayers(), day1StrokeIndexes());
 }
 
 // Small inline SVG line chart, no charting library -- x axis is holes that
-// actually have data (not fixed to 18), y axis is the cumulative lead from
-// matchWormForMatch(). Colored by whoever's ahead at the end, since a
-// completed match's worm always finishes on the actual winning side (or
-// flat through 0 for an all-square finish).
-function wormSvg(points) {
-  const w = 240, h = 36, pad = 4;
-  const max = Math.max(1, ...points.map(Math.abs));
-  const n = points.length;
+// actually have data (not fixed to 9), y axis is the cumulative lead
+// within this one nine. Anchored to start flat at 0 (before any hole in
+// this nine has been played) so the first segment has somewhere to lead
+// from. Each segment is colored by whoever's ahead at ITS end, not a
+// single color for the whole line -- the worm visibly changes color the
+// moment the lead changes hands, rather than only reflecting who wins the
+// nine overall.
+function wormSvg(points, label) {
+  const w = 240, h = 32, pad = 4;
+  const series = [0, ...points];
+  const max = Math.max(1, ...series.map(Math.abs));
+  const n = series.length;
   const stepX = n > 1 ? (w - pad * 2) / (n - 1) : 0;
+  const x = i => (pad + i * stepX).toFixed(1);
   const y = v => (h / 2 - (v / max) * (h / 2 - pad)).toFixed(1);
-  const coords = points.map((v, i) => `${(pad + i * stepX).toFixed(1)},${y(v)}`).join(' ');
-  const last = points[points.length - 1];
-  const strokeColor = last > 0 ? 'var(--team-a)' : last < 0 ? 'var(--team-b)' : 'var(--ink-mute)';
-  return `<div class="match-worm-wrap"><svg class="match-worm" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Hole-by-hole lead through the match">` +
+  const colorFor = v => v > 0 ? 'var(--team-a)' : v < 0 ? 'var(--team-b)' : 'var(--ink-mute)';
+  const segments = series.slice(1).map((v, i) =>
+    `<line x1="${x(i)}" y1="${y(series[i])}" x2="${x(i + 1)}" y2="${y(v)}" class="worm-seg" style="stroke:${colorFor(v)}"/>`
+  ).join('');
+  return `<div class="match-worm-wrap"><div class="match-worm-label">${escapeHtml(label)}</div><svg class="match-worm" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Hole-by-hole lead through the ${escapeHtml(label)}">` +
     `<line x1="${pad}" y1="${h / 2}" x2="${w - pad}" y2="${h / 2}" class="worm-zero"/>` +
-    `<polyline points="${coords}" class="worm-line" style="stroke:${strokeColor}"/>` +
+    segments +
     `</svg></div>`;
 }
 
@@ -1994,7 +2080,6 @@ function renderDay1() {
     notice.textContent = '⚠ No players assigned to teams yet — complete the Captain\'s Draft on the Teams tab first.';
     container.appendChild(notice);
   }
-  const titles = ['Match 1 — Singles (1v1)', 'Match 2 — Singles (1v1)', 'Match 3 — Singles (1v1)', 'Match 4 — Singles (1v1)', 'Match 5 — Singles (1v1)', 'Match 6 — Singles (1v1)'];
   const day1Holes = day1CourseHoles();
 
   // Issue #271: pinned matches render first, in original match order among
@@ -2011,8 +2096,15 @@ function renderDay1() {
       container.appendChild(divider);
     }
     const match = state.day1.matches[mi];
-    const { pA, pB, type } = match;
-    const slots = type === 'singles' ? 1 : 2;
+    const { pA, pB, type, challengeSide } = match;
+    // Issue #256: only the match's designated Captain's Challenge side (if
+    // any) gets a 2nd player slot -- the other side is a normal 1-slot
+    // lone opponent, same as any singles match.
+    const aSlots = (type === 'challenge' && challengeSide === 'A') ? 2 : 1;
+    const bSlots = (type === 'challenge' && challengeSide === 'B') ? 2 : 1;
+    const title = (type === 'challenge' && challengeSide)
+      ? `Match ${mi + 1} — Captain's Challenge (1v2)`
+      : `Match ${mi + 1} — Singles (1v1)`;
     const eff = effectiveMatch(match);
     const pts = matchPoints(eff);
     const decided = eff.front9 !== null && eff.back9 !== null;
@@ -2032,7 +2124,7 @@ function renderDay1() {
     hd.innerHTML = `
       <div class="match-title" style="display:flex;align-items:center;gap:6px">
         <button type="button" class="pin-btn${pinnedNow ? ' pin-btn-active' : ''}" onclick="togglePin('day1',${mi})" aria-pressed="${pinnedNow}" aria-label="${pinnedNow ? 'Unpin' : 'Pin'} this match" title="${pinnedNow ? 'Unpin' : 'Pin to top'}">📌</button>
-        ${titles[mi]}
+        ${title}
       </div>
       <div class="match-score-display">
         <span class="msa" id="msa-${mi}">${fmt(pts.a)}</span>
@@ -2041,19 +2133,21 @@ function renderDay1() {
       </div>`;
     card.appendChild(hd);
 
-    // Player assignments
+    // Player assignments. A Captain's Challenge side's 2 slots are labelled
+    // by nine (front9/back9 opponent) rather than left ambiguous, since
+    // unlike an ordinary 2-slot side they're never interchangeable.
     const pr = document.createElement('div');
     pr.className = 'match-players-row';
-    let aHtml = `<div class="player-group"><div class="pg-label pgl-a">${escapeHtml(state.teamNameA.toUpperCase())}</div>`;
-    for (let s = 0; s < slots; s++) {
-      aHtml += `<select onchange="setMatchPlayer(${mi},'A',${s},this.value)">${playerOptions('A',mi,s,pA[s])}</select>`;
+    function slotSelect(team, slotCount, arr) {
+      let html = '';
+      for (let s = 0; s < slotCount; s++) {
+        const slotLabel = slotCount === 2 ? `<div class="pg-slot-label">${s === 0 ? 'Front 9 opponent' : 'Back 9 opponent'}</div>` : '';
+        html += `${slotLabel}<select onchange="setMatchPlayer(${mi},'${team}',${s},this.value)">${playerOptions(team, mi, s, arr[s])}</select>`;
+      }
+      return html;
     }
-    aHtml += `</div>`;
-    let bHtml = `<div class="player-group pb"><div class="pg-label pgl-b" style="text-align:right">${escapeHtml(state.teamNameB.toUpperCase())}</div>`;
-    for (let s = 0; s < slots; s++) {
-      bHtml += `<select onchange="setMatchPlayer(${mi},'B',${s},this.value)">${playerOptions('B',mi,s,pB[s])}</select>`;
-    }
-    bHtml += `</div>`;
+    let aHtml = `<div class="player-group"><div class="pg-label pgl-a">${escapeHtml(state.teamNameA.toUpperCase())}</div>${slotSelect('A', aSlots, pA)}</div>`;
+    let bHtml = `<div class="player-group pb"><div class="pg-label pgl-b" style="text-align:right">${escapeHtml(state.teamNameB.toUpperCase())}</div>${slotSelect('B', bSlots, pB)}</div>`;
     pr.innerHTML = aHtml + `<div class="vs-div">VS</div>` + bHtml;
     card.appendChild(pr);
 
@@ -2064,7 +2158,8 @@ function renderDay1() {
     // matchPoints() right now (hole data once any exists, else whatever
     // an admin set manually), so a scorer here always knows why the score
     // is what it is, without being able to touch it two different ways.
-    const playersAssigned = pA[0] !== null && pB[0] !== null;
+    const playersAssigned = pA[0] !== null && pB[0] !== null &&
+      (aSlots < 2 || pA[1] !== null) && (bSlots < 2 || pB[1] !== null);
     const strokes = playersAssigned ? matchStrokesFor(match) : null;
     const re = document.createElement('div');
     re.className = 'nine-results';
@@ -2093,12 +2188,17 @@ function renderDay1() {
     // when there's hole-by-hole data to draw from (matchWormForMatch()
     // returns null for a match decided purely via the manual front9/back9
     // toggle, same "hole data or nothing" precedent used throughout Day 1).
+    // Front 9 and back 9 render as separate charts side by side -- each is
+    // its own 1pt contest, so a chart spanning both would misleadingly
+    // show a lead carrying across the turn that the scoring itself resets.
     if (decided) {
       const worm = matchWormForMatch(match);
-      if (worm && worm.length > 1) {
-        const wormWrap = document.createElement('div');
-        wormWrap.innerHTML = wormSvg(worm);
-        card.appendChild(wormWrap.firstElementChild);
+      if (worm && (worm.front9.length > 1 || worm.back9.length > 1)) {
+        const row = document.createElement('div');
+        row.className = 'match-worm-row';
+        if (worm.front9.length > 1) row.innerHTML += wormSvg(worm.front9, 'Front 9');
+        if (worm.back9.length > 1) row.innerHTML += wormSvg(worm.back9, 'Back 9');
+        card.appendChild(row);
       }
     }
 
@@ -2121,6 +2221,7 @@ function renderDay1() {
 
   renderDay1Ntp();
   renderDay1AdminOverrides();
+  renderDay1ChallengeControls();
 }
 
 // holeResult() needs each hole's gross scores + that hole's strokes --
@@ -2358,7 +2459,11 @@ function setMatchPlayer(matchIdx, team, slot, val) {
     match.holesA = Array(18).fill(null);
     match.holesB = Array(18).fill(null);
     saveState();
-    insertUpdate('day1_match', { match_idx: matchIdx, field_key: team === 'A' ? 'pA' : 'pB', value: id });
+    // Issue #256: slot 1 is the Captain's Challenge 2nd opponent (back-9),
+    // synced as pA2/pB2 -- slot 0 (every other case, including a normal
+    // singles side) is still the plain pA/pB field_key.
+    const fieldKey = (team === 'A' ? 'pA' : 'pB') + (slot === 1 ? '2' : '');
+    insertUpdate('day1_match', { match_idx: matchIdx, field_key: fieldKey, value: id });
     if (hadResult) {
       insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'front9', value: null });
       insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'back9', value: null });
@@ -2378,6 +2483,81 @@ function setNineResult(matchIdx, half, result) {
     renderDay1();
     updateScoreboard();
   });
+}
+
+// Issue #256: flips a Day 1 match between plain Singles and a Captain's
+// Challenge (1 vs 2), and picks which team supplies the 2 opponents --
+// deliberately organiser-only (Admin tab) since it's a one-off tournament-
+// format decision, not routine scoring, and reversible at any time (e.g. if
+// the field turns out even after all and the Challenge isn't needed).
+function setMatchType(matchIdx, type, challengeSide) {
+  requireUsername(() => {
+    const match = state.day1.matches[matchIdx];
+    if (match.type === type && match.challengeSide === challengeSide) return;
+    // Changing a match's shape invalidates its existing player assignments
+    // and any result recorded against them -- which side (if either) has a
+    // 2nd slot is different now, so start the match fresh rather than risk
+    // a stale pA2/pB2 or a stroke calc against a pairing that no longer
+    // applies (same reasoning setMatchPlayer() already uses for a plain
+    // reassignment).
+    const clearedSlots = [];
+    ['pA', 'pB'].forEach(side => {
+      match[side].forEach((v, i) => { if (v !== null) clearedSlots.push(i === 1 ? `${side}2` : side); });
+      match[side] = [null];
+    });
+    const hadResult = match.front9 !== null || match.back9 !== null;
+    const clearedHoles = [];
+    match.holesA.forEach((v, i) => { if (v !== null) clearedHoles.push(`A${i + 1}`); });
+    match.holesB.forEach((v, i) => { if (v !== null) clearedHoles.push(`B${i + 1}`); });
+    match.type = type;
+    match.challengeSide = challengeSide;
+    match.front9 = null;
+    match.back9 = null;
+    match.holesA = Array(18).fill(null);
+    match.holesB = Array(18).fill(null);
+    saveState();
+    insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'type', value: type });
+    insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'challengeSide', value: challengeSide });
+    clearedSlots.forEach(fk => insertUpdate('day1_match', { match_idx: matchIdx, field_key: fk, value: null }));
+    if (hadResult) {
+      insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'front9', value: null });
+      insertUpdate('day1_match', { match_idx: matchIdx, field_key: 'back9', value: null });
+    }
+    clearedHoles.forEach(fk => insertUpdate('day1_hole', { match_idx: matchIdx, field_key: fk, value: null }));
+    renderDay1();
+    renderTeamBalanceWarning();
+    updateScoreboard();
+  });
+}
+
+// Renders the Admin-only Captain's Challenge toggle for every Day 1 match
+// (issue #256). Kept separate from renderDay1AdminOverrides() below since
+// it's a structural pre-step (which match, which side) rather than a
+// result override, and needs to render regardless of whether players are
+// assigned yet (the format decision typically comes first).
+function renderDay1ChallengeControls() {
+  const container = document.getElementById('admin-day1-challenge');
+  if (!container) return;
+  let html = '';
+  state.day1.matches.forEach((match, mi) => {
+    const type = match.type, side = match.challengeSide;
+    html += `
+    <div class="admin-override-match">
+      <div class="section-label" style="margin-top:18px" id="admin-challenge-label-${mi}">Match ${mi + 1}</div>
+      <div class="match-toggle nine-toggle" role="radiogroup" aria-labelledby="admin-challenge-label-${mi}">
+        <button role="radio" aria-checked="${type === 'singles'}" class="${type === 'singles' ? 'is-active' : ''}" onclick="setMatchType(${mi},'singles',null)">
+          <span class="rt-lab">Singles (1v1)</span>
+        </button>
+        <button role="radio" aria-checked="${type === 'challenge' && side === 'A'}" class="${type === 'challenge' && side === 'A' ? 'is-active is-active-a' : ''}" onclick="setMatchType(${mi},'challenge','A')">
+          <span class="rt-lab">${escapeHtml(state.teamNameA)} doubles (1v2)</span>
+        </button>
+        <button role="radio" aria-checked="${type === 'challenge' && side === 'B'}" class="${type === 'challenge' && side === 'B' ? 'is-active is-active-b' : ''}" onclick="setMatchType(${mi},'challenge','B')">
+          <span class="rt-lab">${escapeHtml(state.teamNameB)} doubles (1v2)</span>
+        </button>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
 }
 
 // Issue #248: the front9/back9 manual toggle, relocated here from the main
@@ -5067,6 +5247,21 @@ function dismissMusic() {
 }
 
 /* ─────────────────────────────────────
+   HELP / TUTORIAL (issue #245)
+───────────────────────────────────── */
+const HELP_SEEN_KEY = 'wongaCup2026_helpSeen';
+
+function openHelpModal() {
+  document.getElementById('help-modal').classList.remove('hidden');
+  document.getElementById('help-btn').classList.remove('needs-attention');
+  try { localStorage.setItem(HELP_SEEN_KEY, '1'); } catch (_) {}
+}
+
+function closeHelpModal() {
+  document.getElementById('help-modal').classList.add('hidden');
+}
+
+/* ─────────────────────────────────────
    INIT
 ───────────────────────────────────── */
 if (!sessionStorage.getItem('musicConsented')) {
@@ -5097,6 +5292,12 @@ window.addEventListener('pageshow', (e) => {
     audio.play().catch(() => { document.getElementById('music-modal').classList.remove('hidden'); });
   }
 });
+
+try {
+  if (!localStorage.getItem(HELP_SEEN_KEY)) {
+    document.getElementById('help-btn').classList.add('needs-attention');
+  }
+} catch (_) {}
 
 /* ─────────────────────────────────────
    MODAL ACCESSIBILITY — focus trap + Escape-to-close.
@@ -5142,6 +5343,7 @@ function setupModalA11y(modalId, onEscape) {
 
 setupModalA11y('music-modal', dismissMusic);
 setupModalA11y('username-modal', closeUsernameModal);
+setupModalA11y('help-modal', closeHelpModal);
 
 initUsername();
 initJoinHandoff();
