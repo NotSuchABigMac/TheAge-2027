@@ -32,8 +32,13 @@ jobs:
         # <link>/<script> tag). Swap it for this commit's SHA on every
         # deploy so a browser/phone that cached an older version of one of
         # those files is forced to fetch the current one instead of running
-        # stale JS against fresh HTML (or vice versa).
-        run: sed -i "s/__CACHEBUST__/${GITHUB_SHA::8}/g" *.html
+        # stale JS against fresh HTML (or vice versa). sw.js (issue #205)
+        # carries the same placeholder as its own cache-name version --
+        # without its bytes changing every deploy too, the browser's own
+        # "is there a new service worker" check would never notice a new
+        # version exists, since that check is a byte diff against the
+        # previously installed sw.js.
+        run: sed -i "s/__CACHEBUST__/${GITHUB_SHA::8}/g" *.html sw.js
 
       - name: Write version.json
         # Issue #196: a fix pushed mid-tournament reaches ~none of the open
@@ -53,7 +58,7 @@ jobs:
         # "whatever happens to be in the repo root".
         run: |
           mkdir _site
-          cp *.html *.js *.css *.mp3 CNAME version.json _site/
+          cp *.html *.js *.css *.mp3 CNAME version.json manifest.webmanifest _site/
           cp -r images _site/
           cp -r fonts _site/
           cp -r calendar _site/

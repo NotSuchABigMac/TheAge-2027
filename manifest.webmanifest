@@ -1,0 +1,13 @@
+{
+  "name": "The Wonga Cup",
+  "short_name": "Wonga Cup",
+  "start_url": "scorecard-live.html",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0b1a0d",
+  "theme_color": "#0b1a0d",
+  "icons": [
+    { "src": "images/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "images/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

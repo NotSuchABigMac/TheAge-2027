@@ -102,6 +102,47 @@ a pure function of the log — `normalizeState`/`applyUpdateToState` in
 order, replayed on any device. After the tournament weekend, the final
 snapshot becomes the permanent 2026 archive.
 
+## Offline app shell (issue #205)
+
+`sw.js` precaches the live scorecard's own shell (`scorecard-live.html`,
+its CSS/JS, and the fonts it needs) so a dead spot on the course — no
+reception on the 14th tee — doesn't mean a white screen on open. Scoped
+narrowly on purpose: not the brochure pages, images, or the background
+music, just what's needed to keep scoring. Network-first with cache
+fallback, so an online device always gets the freshest deploy; offline
+devices get whatever shell was last cached. It never touches Supabase
+requests — the app's own `pendingWrites` queue (see above) already owns
+that problem.
+
+Its cache name is versioned by the same `__CACHEBUST__` commit-SHA sed
+substitution every `<script src>`/`<link>` tag already gets (see
+`deploy.yml`), and `checkForUpdate()` (issue #196) keeps the SW
+registration's own update check warm on the same 30s poll cadence, so a
+new version is already installed and waiting by the time someone taps
+the "Site updated" toast.
+
+**Kill switch.** A broken service worker can brick every phone still
+holding the old one, since it's what serves the shell the next time
+they open the tab — worth having this written down *before* it's ever
+needed, not looked up mid-incident:
+
+1. Replace the contents of `sw.js` (repo root) with:
+   ```js
+   self.addEventListener('install', () => self.skipWaiting());
+   self.addEventListener('activate', () => {
+     self.registration.unregister()
+       .then(() => self.clients.matchAll())
+       .then((clients) => clients.forEach((client) => client.navigate(client.url)));
+   });
+   ```
+2. Commit and push to `trunk` as normal — `deploy.yml`'s existing sed
+   still cachebusts it, so every open tab picks up this new SW on its
+   next poll cycle exactly like any other update, unregisters itself,
+   and reloads straight from the network from then on.
+3. Once every device has recovered, revert the commit to restore the
+   real `sw.js` and redeploy — the cache name is per-version, so there's
+   no stale-cache risk picking the offline shell back up afterward.
+
 ## More
 
 `ARCHITECTURE.md` covers the data model in depth: the transaction-log
