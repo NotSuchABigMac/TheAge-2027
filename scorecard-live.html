@@ -438,13 +438,15 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .confirm-toast-btn{border:none;border-radius:4px;padding:6px 12px;font-family:var(--font-h);font-weight:700;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;flex-shrink:0}
 .confirm-toast-keep{background:var(--gold);color:var(--ink)}
 .confirm-toast-fix{background:transparent;color:var(--canvas);border:1px solid var(--canvas)}
-.provenance-popover{position:fixed;transform:translate(-50%,-100%) translateY(-8px);background:var(--ink);color:var(--canvas);font-family:var(--font-h);font-size:.68rem;font-weight:600;padding:6px 10px;border-radius:4px;white-space:nowrap;z-index:103;opacity:0;pointer-events:none;transition:opacity .15s}
-.provenance-popover.show{opacity:1}
-/* Issue #200: long-press must not fight the browser's own text-selection
-   callout on these controls (grid-in/sf-in/select all support the
-   underlying long-press gesture already, e.g. iOS's magnifier/select-text
-   UI) -- this suppresses that so the provenance popover isn't fighting
-   it for the same gesture. */
+.field-history-panel{position:fixed;transform:translate(-50%,-100%) translateY(-8px);background:var(--ink);color:var(--canvas);font-family:var(--font-h);font-size:.68rem;padding:6px 10px;border-radius:6px;z-index:103;opacity:0;pointer-events:none;transition:opacity .15s;min-width:130px}
+.field-history-panel.show{opacity:1}
+.field-history-row{display:flex;justify-content:space-between;align-items:center;gap:10px;white-space:nowrap;padding:3px 0}
+.field-history-row+.field-history-row{border-top:1px solid rgba(255,255,255,.15)}
+.field-history-value{font-weight:700}
+.field-history-meta{opacity:.7;font-weight:500}
+.field-history-loading{opacity:.8}
+/* Prevents iOS's press-and-hold text-selection/magnifier UI from covering
+   these cells when a scorer taps a number input on a touch device. */
 .grid-in,.sf-in{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .sync-spacer{flex:1}
 
@@ -535,7 +537,7 @@ body{padding-top:58px;padding-bottom:52px}
 @media print {
   #username-badge, #offline-banner, .mini-sb, .sync-bar, .sc-tabs,
   #save-toast, #undo-toast, #update-toast, #confirm-toast, #projected-line,
-  #provenance-popover, .username-modal, .countdown-bar {
+  #field-history-panel, .username-modal, .countdown-bar {
     display: none !important;
   }
   input[type=number], .hole-grid-table input {
@@ -588,7 +590,7 @@ body{padding-top:58px;padding-bottom:52px}
   <button type="button" class="confirm-toast-btn confirm-toast-fix" onclick="resolveNtpConfirm(false)">Fix</button>
   <button type="button" class="confirm-toast-btn confirm-toast-keep" onclick="resolveNtpConfirm(true)">Keep</button>
 </div>
-<div id="provenance-popover" class="provenance-popover" role="tooltip"></div>
+<div id="field-history-panel" class="field-history-panel" role="tooltip"></div>
 
 <!-- ══════════════════════════════════════
      NEW MASTHEAD
@@ -4583,6 +4585,10 @@ function recordProvenance(row) {
   if (!row.updated_by) return;
   provenance[undoCoordKey(row)] = { updated_by: row.updated_by, updated_at: row.updated_at || new Date().toISOString() };
   try { localStorage.setItem(PROVENANCE_KEY, JSON.stringify(provenance)); } catch(e) {}
+  // A write just landed for this coordinate -- drop any cached field-history
+  // rows for it so re-focusing the field right after editing it shows the
+  // new value instead of a stale pre-edit list (#200 follow-up).
+  _fieldHistoryCache.delete(undoCoordKey(row));
 }
 
 // The inverse of elementsForUpdate() (#194): given a DOM element, resolve
@@ -4625,62 +4631,95 @@ function formatProvenanceTime(iso) {
   return d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
-function showProvenancePopover(el) {
-  const coord = coordForElement(el);
-  if (!coord) return;
-  const info = provenance[undoCoordKey(coord)];
-  const popover = document.getElementById('provenance-popover');
-  if (!popover) return;
-  // Shares the "changed · name" vocabulary with the remote-flash feature
-  // (#194) rather than inventing a second phrasing for the same idea.
-  popover.textContent = info ? `${formatProvenanceTime(info.updated_at)} · ${info.updated_by}` : 'No entry yet';
-  const rect = el.getBoundingClientRect();
-  popover.style.left = Math.round(rect.left + rect.width / 2) + 'px';
-  popover.style.top = Math.round(rect.top) + 'px';
-  popover.classList.add('show');
-}
-function hideProvenancePopover() {
-  const popover = document.getElementById('provenance-popover');
-  if (popover) popover.classList.remove('show');
+/* ─────────────────────────────────────
+   FIELD HISTORY PANEL (issue #200 follow-up)
+   Focusing into a field that already has a value shows its last 3
+   changes (value, who, when). An ordinary focusin/focusout pair, not a
+   gesture -- the previous design used a long-press to avoid fighting
+   tap-to-edit, but that made the popover depend on a still hold that
+   real touch input can't reliably deliver (a finger drifts a few pixels
+   even at rest). Tying this to focus instead sidesteps that whole class
+   of timing bug, and a blank field (nothing recorded yet) shows nothing,
+   so a scorer entering fresh scores doesn't get a panel on every hole
+   they tab through.
+───────────────────────────────────── */
+const FIELD_HISTORY_CACHE_MS = 15000;
+const _fieldHistoryCache = new Map(); // undoCoordKey -> { rows, fetchedAt }
+let _fieldHistoryToken = 0;
+
+async function fetchLastFieldChanges(coord, limit) {
+  const key = undoCoordKey(coord);
+  const cached = _fieldHistoryCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < FIELD_HISTORY_CACHE_MS) return cached.rows;
+  const params = new URLSearchParams({
+    select: SAFE_SELECT_COLUMNS,
+    tournament_id: `eq.${SUPABASE_CONFIG.tournamentId}`,
+    update_type: `eq.${coord.update_type}`,
+    order: 'updated_at.desc',
+    limit: String(limit)
+  });
+  if (coord.match_idx !== null && coord.match_idx !== undefined) params.set('match_idx', `eq.${coord.match_idx}`);
+  if (coord.player_id !== null && coord.player_id !== undefined) params.set('player_id', `eq.${coord.player_id}`);
+  if (coord.field_key !== null && coord.field_key !== undefined) params.set('field_key', `eq.${coord.field_key}`);
+  const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?${params.toString()}`;
+  const resp = await fetch(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const rows = await resp.json();
+  _fieldHistoryCache.set(key, { rows, fetchedAt: Date.now() });
+  return rows;
 }
 
-// Long-press (~500ms), not a tap -- must not fight normal tap-to-focus-
-// and-type, real scrolling, or an already-active edit. Never triggers on
-// an already-focused input (per the issue's explicit requirement) since
-// that's a scorer mid-entry, not someone asking "who set this".
-//
-// A finger held down on a real touchscreen always drifts a few pixels
-// (unlike a mouse, which reports zero pointermove during a still hold),
-// so cancelling on the very first pointermove made the long-press fire
-// essentially never off a real device -- only a perfectly still mouse
-// (as in the automated test) ever survived to 500ms. A small movement
-// budget before treating it as a scroll/drag fixes that.
-const PROVENANCE_LONGPRESS_SLOP = 10;
-let provenanceLongPressTimer = null;
-let provenanceLongPressOrigin = null;
-document.addEventListener('pointerdown', e => {
+function hideFieldHistoryPanel() {
+  const panel = document.getElementById('field-history-panel');
+  if (panel) panel.classList.remove('show');
+}
+
+async function showFieldHistoryPanel(el, coord) {
+  const panel = document.getElementById('field-history-panel');
+  if (!panel) return;
+  const myToken = ++_fieldHistoryToken;
+  const position = () => {
+    const rect = el.getBoundingClientRect();
+    panel.style.left = Math.round(rect.left + rect.width / 2) + 'px';
+    panel.style.top = Math.round(rect.top) + 'px';
+  };
+  position();
+  panel.innerHTML = '<div class="field-history-row field-history-loading">Loading…</div>';
+  panel.classList.add('show');
+  let rows;
+  try {
+    rows = await fetchLastFieldChanges(coord, 3);
+  } catch (err) {
+    console.error('Field history load failed:', err.message);
+    // The field may have been blurred, or a newer focus started, while
+    // this fetch was in flight -- a stale response landing after that
+    // must not resurrect the panel or clobber a newer one's content.
+    if (myToken !== _fieldHistoryToken || document.activeElement !== el) return;
+    panel.innerHTML = '<div class="field-history-row field-history-loading">Could not load history</div>';
+    return;
+  }
+  if (myToken !== _fieldHistoryToken || document.activeElement !== el) return;
+  if (rows.length === 0) {
+    panel.innerHTML = '<div class="field-history-row field-history-loading">No history recorded</div>';
+    return;
+  }
+  position();
+  panel.innerHTML = rows.map(row => {
+    const decoded = describeUpdateRow(row, PLAYERS, historyTeamNames());
+    return `<div class="field-history-row"><span class="field-history-value">${escapeHtml(decoded.valueLabel)}</span><span class="field-history-meta">${escapeHtml(formatProvenanceTime(row.updated_at))} · ${escapeHtml(row.updated_by || '—')}</span></div>`;
+  }).join('');
+}
+
+document.addEventListener('focusin', e => {
   const coord = coordForElement(e.target);
-  if (!coord) return;
-  if (document.activeElement === e.target) return;
-  clearTimeout(provenanceLongPressTimer);
-  const target = e.target;
-  provenanceLongPressOrigin = { x: e.clientX, y: e.clientY };
-  provenanceLongPressTimer = setTimeout(() => showProvenancePopover(target), 500);
-}, { passive: true });
-['pointerup', 'pointercancel'].forEach(evt => {
-  document.addEventListener(evt, () => clearTimeout(provenanceLongPressTimer), { passive: true });
+  if (!coord || !e.target.value) { hideFieldHistoryPanel(); return; }
+  showFieldHistoryPanel(e.target, coord);
 });
-document.addEventListener('pointermove', e => {
-  if (!provenanceLongPressOrigin) return;
-  const dx = e.clientX - provenanceLongPressOrigin.x;
-  const dy = e.clientY - provenanceLongPressOrigin.y;
-  if (Math.hypot(dx, dy) > PROVENANCE_LONGPRESS_SLOP) clearTimeout(provenanceLongPressTimer);
-}, { passive: true });
-window.addEventListener('scroll', hideProvenancePopover, { passive: true, capture: true });
-document.addEventListener('pointerdown', e => {
-  const popover = document.getElementById('provenance-popover');
-  if (popover && popover.classList.contains('show') && !popover.contains(e.target)) hideProvenancePopover();
+document.addEventListener('focusout', () => {
+  _fieldHistoryToken++; // invalidate any in-flight fetch for the field just left
+  hideFieldHistoryPanel();
 });
+window.addEventListener('scroll', hideFieldHistoryPanel, { passive: true, capture: true });
 
 /* ─────────────────────────────────────
    NTP OVERWRITE CONFIRM (issue #199)
