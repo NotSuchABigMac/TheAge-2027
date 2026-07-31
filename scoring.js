@@ -1351,6 +1351,121 @@
     };
   }
 
+  /* ── LIVE COMMENTARY WIRE (issue #186) ──
+     Pure, state-aware event classifier: given one just-applied sync row
+     and the tournament state immediately before/after applying it,
+     returns a human headline plus an importance tier ('notify' vs
+     'feed') for the UI to decide whether it's toast/feed-only or also
+     fires a system notification. `courses` isn't in the issue's own
+     suggested signature but there's no way to compute Day 1 stroke
+     indexes or Day 2 group handicaps without it.
+
+     Scope: match-play drama (a nine decided, the lead changing), NTP
+     claims, and a Day 2 group finishing its round -- three of the four
+     concrete categories the issue names. The fourth, "record pace", is
+     deliberately NOT implemented: there's no historical baseline
+     anywhere in this app to compare a live score against, so "record"
+     can't actually be detected, only asserted -- left out of scope
+     rather than guessed at. */
+  function playerLabelFor(ids, players) {
+    const names = (ids || []).filter(id => id !== null && id !== undefined).map(id => {
+      const p = (players || []).find(pp => pp.id === id);
+      return p ? p.short : `Player #${id}`;
+    });
+    return names.length ? names.join(' & ') : 'TBD';
+  }
+
+  function describeDay1HoleEvent(row, prevState, nextState, players, courses) {
+    const idx = row.match_idx;
+    if (typeof idx !== 'number') return null;
+    const match = nextState.day1.matches[idx];
+    const prevMatch = prevState.day1.matches[idx];
+    if (!match || !prevMatch) return null;
+    const holeMatch = /^([AB])(\d{1,2})$/.exec(row.field_key || '');
+    if (!holeMatch) return null;
+    const holeNum = parseInt(holeMatch[2], 10);
+    if (isNaN(holeNum) || holeNum < 1 || holeNum > 18) return null;
+    const start = holeNum <= 9 ? 0 : 9;
+    const nineLabel = start === 0 ? 'front 9' : 'back 9';
+
+    function nineStatusFor(mtch) {
+      if (!Array.isArray(mtch.holesA) || !Array.isArray(mtch.holesB)) return nineStatus(Array(9).fill(null));
+      const si = day1StrokeIndexesFor(courses);
+      const strokes = matchStrokesForPlayers(mtch, players, si);
+      const holesA = mtch.holesA.slice(start, start + 9);
+      const holesB = mtch.holesB.slice(start, start + 9);
+      const strokesA = strokes.a.slice(start, start + 9);
+      const strokesB = strokes.b.slice(start, start + 9);
+      const results = holesA.map((g, i) => holeResult(g, holesB[i], strokesA[i], strokesB[i]));
+      return nineStatus(results);
+    }
+
+    const status = nineStatusFor(match);
+    if (status.thru === 0) return null;
+    const prevStatus = nineStatusFor(prevMatch);
+
+    const nameA = playerLabelFor(match.pA, players);
+    const nameB = playerLabelFor(match.pB, players);
+
+    if (status.decided && !prevStatus.decided) {
+      if (status.leader === null) return { headline: `${nameA} and ${nameB} halve the ${nineLabel}`, importance: 'notify' };
+      const winnerName = status.leader === 'A' ? nameA : nameB;
+      const marginStr = status.margin !== null ? `${status.lead}&${status.margin}` : `${status.lead}UP`;
+      return { headline: `${winnerName} wins the ${nineLabel} ${marginStr}`, importance: 'notify' };
+    }
+    if (!status.decided && status.leader !== prevStatus.leader) {
+      if (status.leader === null) return { headline: `${nameA} and ${nameB} level thru ${status.thru}`, importance: 'notify' };
+      const leaderName = status.leader === 'A' ? nameA : nameB;
+      return { headline: `${leaderName} goes ${status.lead}UP thru ${status.thru}`, importance: 'notify' };
+    }
+    const leaderName = status.leader === 'A' ? nameA : status.leader === 'B' ? nameB : null;
+    const line = leaderName ? `${leaderName} ${status.lead}UP thru ${status.thru}` : `${nameA} v ${nameB} level thru ${status.thru}`;
+    return { headline: line, importance: 'feed' };
+  }
+
+  function describeNtpEvent(row, players) {
+    const holderId = parseIntOrNull(row.value);
+    if (holderId === null) return null; // cleared -- not commentary-worthy
+    const holeLabel = String(row.field_key || '').replace(/^h/, '');
+    const name = playerLabelFor([holderId], players);
+    const dayLabel = row.update_type === 'day1_ntp' ? 'Day 1' : row.update_type === 'day2_ntp' ? 'Day 2' : 'Day 3';
+    return { headline: `${name} takes NTP — ${dayLabel}, hole ${holeLabel}`, importance: 'notify' };
+  }
+
+  function describeDay2HoleEvent(row, nextState, players, courses, teamNames) {
+    const groupMatch = /^(a4|a3|b4|b3)_(\d{1,2})$/.exec(row.field_key || '');
+    if (!groupMatch) return null;
+    const code = groupMatch[1];
+    const day2 = nextState.day2;
+    const holes = day2.holes[code];
+    if (!Array.isArray(holes) || !scrambleRoundComplete(holes)) return null; // only notify-worthy once the group actually finishes
+    const handicap = day2GroupHandicapFor(code, day2, players);
+    if (handicap === null) return null;
+    const courseHoles = day2CourseHolesFor(courses);
+    const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
+    const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
+    const parLabel = netToPar === null ? '—' : netToPar === 0 ? 'level par' : netToPar > 0 ? `+${netToPar}` : String(netToPar);
+    const teamLabel = code[0] === 'a' ? ((teamNames && teamNames.A) || 'Team A') : ((teamNames && teamNames.B) || 'Team B');
+    const sizeLabel = code[1] === '4' ? 'four-ball' : 'three-ball';
+    return { headline: `${teamLabel}'s ${sizeLabel} finishes ${parLabel}`, importance: 'notify' };
+  }
+
+  // The one function the UI actually calls -- dispatches to the
+  // per-update_type classifiers above. Any update_type not covered
+  // (team-name edits, admin overrides, lock toggles, etc.) is
+  // deliberately not commentary -- returning null, not a fallback
+  // generic line, keeps the wire signal-only.
+  function describeEvent(row, prevState, nextState, players, courses, teamNames) {
+    switch (row.update_type) {
+      case 'day1_hole': return describeDay1HoleEvent(row, prevState, nextState, players, courses);
+      case 'day1_ntp':
+      case 'day2_ntp':
+      case 'day3_ntp': return describeNtpEvent(row, players);
+      case 'day2_hole': return describeDay2HoleEvent(row, nextState, players, courses, teamNames);
+      default: return null;
+    }
+  }
+
   /* ── STATE HYGIENE (issue #166) ──
      Extracted from scorecard-live.html's loadState() with no behavior
      change -- runs on every page load against whatever's in localStorage,
@@ -1559,6 +1674,7 @@
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
     parseIntOrNull, applyUpdateToState,
     UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
+    describeEvent,
     normalizeState, flushQueue
   };
 });
