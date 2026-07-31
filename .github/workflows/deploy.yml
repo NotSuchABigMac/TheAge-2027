@@ -56,6 +56,7 @@ jobs:
           cp *.html *.js *.css *.mp3 CNAME version.json _site/
           cp -r images _site/
           cp -r fonts _site/
+          cp -r calendar _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
