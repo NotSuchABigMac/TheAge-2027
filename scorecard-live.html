@@ -876,15 +876,15 @@ body{padding-top:58px;padding-bottom:52px}
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-end">
           <div style="flex:1;min-width:140px">
             <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-a);margin-bottom:6px">Team A Name</label>
-            <input id="tn-input-a" type="text" value="Team Beer" maxlength="24"
+            <input id="tn-input-a" type="text" value="Team Beer" maxlength="24" disabled
               style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-a) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
           </div>
           <div style="flex:1;min-width:140px">
             <label style="display:block;font-family:var(--font-h);font-size:.65rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--team-b);margin-bottom:6px">Team B Name</label>
-            <input id="tn-input-b" type="text" value="Team Golf" maxlength="24"
+            <input id="tn-input-b" type="text" value="Team Golf" maxlength="24" disabled
               style="width:100%;background:var(--canvas-2);border:1px solid color-mix(in srgb,var(--team-b) 40%,transparent);border-radius:var(--r);padding:10px 14px;color:var(--ink);font-size:.95rem;font-family:var(--font-h)">
           </div>
-          <button onclick="saveTeamNames()" style="background:var(--gold);color:#0b1a0d;font-family:var(--font-h);font-weight:700;font-size:.78rem;letter-spacing:1.5px;text-transform:uppercase;border:none;border-radius:var(--r);padding:10px 20px;cursor:pointer;white-space:nowrap">Save Names</button>
+          <button id="tn-save-btn" onclick="saveTeamNames()" disabled title="Waiting for initial sync…" style="background:var(--gold);color:#0b1a0d;font-family:var(--font-h);font-weight:700;font-size:.78rem;letter-spacing:1.5px;text-transform:uppercase;border:none;border-radius:var(--r);padding:10px 20px;cursor:pointer;white-space:nowrap">Save Names</button>
         </div>
 
         <div class="section-header" style="padding-top:4px">
@@ -4842,7 +4842,26 @@ function relativeAgo(ms) {
   if (s < 60) return `${s}s ago`;
   return `${Math.round(s / 60)}m ago`;
 }
+// Issue: 'Save Names' could fire before the first Supabase poll landed --
+// state.teamNameA/B are still the hardcoded placeholder defaults at that
+// point (nothing synced yet to overwrite them), so a save pushed those
+// placeholders out as the new authoritative team_name row, clobbering the
+// real names for every device with zero effect on scores (which start
+// null, so there's nothing placeholder-shaped to accidentally resubmit).
+// Gating on syncStatus rather than a new flag: it already flips away from
+// 'initial-loading' the moment the first poll resolves, success or not.
+function updateSyncGatedInputs() {
+  const gated = syncStatus === 'initial-loading';
+  ['tn-input-a', 'tn-input-b', 'tn-save-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = gated;
+    el.title = gated ? 'Waiting for initial sync…' : '';
+  });
+}
+
 function renderSyncBar() {
+  updateSyncGatedInputs();
   const dot = document.querySelector('.sync-bar .live-dot');
   const label = document.querySelector('.sync-bar .sync-text');
   if (!dot || !label) return;
@@ -4965,6 +4984,13 @@ function flashFieldError(input) {
   setTimeout(() => { input.style.borderColor = ''; }, 1500);
 }
 function saveTeamNames() {
+  // Belt-and-braces alongside the disabled button/inputs (updateSyncGatedInputs) --
+  // covers a click already in flight the instant syncStatus flips, or the
+  // button somehow getting re-enabled out of band.
+  if (syncStatus === 'initial-loading') {
+    showSaveToast('Still syncing — try again in a moment', 'error');
+    return;
+  }
   requireUsername(() => {
     const inputA = document.getElementById('tn-input-a');
     const inputB = document.getElementById('tn-input-b');
