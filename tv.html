@@ -12,16 +12,18 @@
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- Issue #197: self-hosted fonts -- styles.css already declares the
+     @font-face rules and --display/--body/--mono variables this page
+     uses; a separate Google Fonts round-trip here would just be the
+     exact render-blocking third-party dependency #197 removed
+     everywhere else, quietly reintroduced on this one page. -->
+<link rel="preload" href="fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css?v=__CACHEBUST__">
-<!-- Issue #187, first pass: overall score + a plain scrolling results list.
-     No rotating screens, no NTP board, no wire -- see the issue for the
-     fuller vision this deliberately doesn't attempt yet. Dark-only by
-     design (a TV, not a themeable page), so theme.js/site.js aren't
-     loaded here -- their shared default would fight this page's fixed
-     dark mode. -->
+<!-- Issue #187: rotating big-screen leaderboard for the clubhouse TV --
+     dark-only by design (a TV, not a themeable page), so theme.js/site.js
+     aren't loaded here -- their shared default would fight this page's
+     fixed dark mode. -->
 <style>
 html, body { height: 100%; overflow: hidden; background: var(--canvas); }
 body.tv-page {
@@ -32,7 +34,7 @@ body.tv-page {
 .tv-hero {
   flex: 0 0 auto;
   text-align: center;
-  padding: clamp(16px, 3vh, 40px) 24px clamp(12px, 2vh, 24px);
+  padding: clamp(14px, 2.6vh, 32px) 24px clamp(10px, 1.8vh, 20px);
   border-bottom: 1.5px solid var(--rule-strong);
 }
 .tv-kicker {
@@ -51,7 +53,7 @@ body.tv-page {
   font-family: var(--display);
 }
 .tv-team-name {
-  font-size: clamp(1.4rem, 4vw, 3rem);
+  font-size: clamp(1.3rem, 3.6vw, 2.6rem);
   font-weight: 500;
   max-width: 32vw;
   overflow: hidden;
@@ -59,25 +61,52 @@ body.tv-page {
   white-space: nowrap;
 }
 .tv-points {
-  font-size: clamp(2.6rem, 9vw, 7rem);
+  font-size: clamp(2.2rem, 7.5vw, 5.6rem);
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 .tv-status {
-  margin-top: 8px;
-  font-size: clamp(.85rem, 1.6vw, 1.15rem);
+  margin-top: 6px;
+  font-size: clamp(.8rem, 1.5vw, 1.05rem);
   color: var(--ink-mute);
 }
-.tv-board {
+.tv-stage {
   flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+}
+.tv-screen {
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
-  padding: 8px 0 40px;
+  padding: clamp(8px, 1.5vh, 20px) 0 40px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .6s ease;
+}
+.tv-screen.tv-screen-active {
+  opacity: 1;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-screen { transition: none; }
+}
+.tv-screen-title {
+  max-width: 900px;
+  margin: 0 auto 12px;
+  padding: 0 24px;
+  font-family: var(--mono);
+  font-size: clamp(.7rem, 1.3vw, .9rem);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  text-align: center;
 }
 .tv-day {
   max-width: 900px;
   margin: 0 auto;
-  padding: 18px 24px;
+  padding: 14px 24px;
 }
 .tv-day + .tv-day { border-top: 1px solid var(--rule); }
 .tv-day-head {
@@ -118,15 +147,24 @@ body.tv-page {
 .tv-row .mid {
   flex: 0 0 auto;
   font-family: var(--mono);
-  font-size: .85em;
+  font-size: .82em;
   color: var(--accent-2);
-  min-width: 4.5em;
+  min-width: 6em;
   text-align: center;
 }
 .tv-empty {
   color: var(--ink-mute);
   font-style: italic;
   padding: 6px 0;
+}
+.tv-margin {
+  max-width: 900px;
+  margin: 4px auto 18px;
+  padding: 0 24px;
+  text-align: center;
+  font-family: var(--display);
+  font-size: clamp(1.1rem, 2.6vw, 1.9rem);
+  color: var(--gold, var(--accent-2));
 }
 </style>
 </head>
@@ -142,8 +180,20 @@ body.tv-page {
   <div class="tv-status" id="tv-status">Loading&hellip;</div>
 </header>
 
-<main class="tv-board" id="tv-board">
-  <div class="tv-empty">Loading scoreboard&hellip;</div>
+<main class="tv-stage">
+  <section class="tv-screen tv-screen-active" id="screen-cup">
+    <div class="tv-screen-title">The Cup</div>
+    <div id="cup-margin" class="tv-margin"></div>
+    <div id="cup-board"><div class="tv-empty">Loading&hellip;</div></div>
+  </section>
+  <section class="tv-screen" id="screen-live">
+    <div class="tv-screen-title" id="live-title">Live</div>
+    <div id="live-board"><div class="tv-empty">Loading&hellip;</div></div>
+  </section>
+  <section class="tv-screen" id="screen-ntp">
+    <div class="tv-screen-title">Nearest the Pin</div>
+    <div id="ntp-board"><div class="tv-empty">Loading&hellip;</div></div>
+  </section>
 </main>
 
 <script src="error-beacon.js?v=__CACHEBUST__"></script>
@@ -156,18 +206,23 @@ body.tv-page {
   const teamBEl = document.getElementById('tv-team-b');
   const pointsEl = document.getElementById('tv-points');
   const statusEl = document.getElementById('tv-status');
-  const boardEl = document.getElementById('tv-board');
+  const cupMarginEl = document.getElementById('cup-margin');
+  const cupBoardEl = document.getElementById('cup-board');
+  const liveTitleEl = document.getElementById('live-title');
+  const liveBoardEl = document.getElementById('live-board');
+  const ntpBoardEl = document.getElementById('ntp-board');
   if (typeof WongaScoring === 'undefined' || typeof WongaCourses === 'undefined' || typeof WongaPlayers === 'undefined') return;
 
   const {
     phaseFor, daysUntilDay1, defaultDay,
     normalizeState, processUpdateRows, applyUpdateToState,
-    computeSeasonTotals, resolveOverallWinner,
-    effectiveMatchFor, matchPoints, day1StrokeIndexesFor,
-    effectiveDay2StateFor, parseScoreToPar,
+    computeSeasonTotals, resolveOverallWinner, playersWithOverrides,
+    effectiveMatchFor, matchPoints, day1StrokeIndexesFor, matchStrokesForPlayers, holeResult,
+    day2CourseHolesFor, day2GroupHandicapFor, groupStrokes, scrambleNetToParThru,
+    parseScoreToPar,
     teamOfSets, computeStableford, escapeHtml
   } = WongaScoring;
-  const { COURSES } = WongaCourses;
+  const { COURSES, NTP_HOLES } = WongaCourses;
   const { PLAYERS } = WongaPlayers;
 
   // Read-only anon key, same one already shipped in scorecard-live.html /
@@ -179,6 +234,9 @@ body.tv-page {
   const TOURNAMENT_ID = 'wonga-cup-2026';
   const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,field_key,value,updated_by,updated_at';
   const DAY_LABELS = { day1: 'Day 1', day2: 'Day 2', day3: 'Day 3' };
+  const NTP_DAY_TITLES = { day1: 'Day 1 · Murray', day2: 'Day 2 · Black Bull', day3: 'Day 3' };
+  const NTP_DAY_FIELDS = { day1: ['h8', 'h17'], day2: ['h4', 'h16'], day3: ['h7', 'h14'] };
+  const NTP_DAY_COURSE = { day1: 1, day2: 2, day3: 3 };
 
   function fmt(n) {
     return n === Math.floor(n) ? n.toString() : n.toFixed(1);
@@ -238,44 +296,100 @@ body.tv-page {
     else statusEl.textContent = 'Tied — tiebreak pending';
   }
 
-  function day1Rows(state) {
+  // ── SCREEN 1: THE CUP -- day-by-day breakdown + margin line. There's
+  // no well-defined "needs X to clinch" here (Day 2's group differential
+  // scoring has no fixed ceiling to count down from, unlike a fixed
+  // 1-point-per-match format), so this shows the actual point margin
+  // instead -- still the single number that matters most on a big
+  // screen at a glance.
+  function renderCup(totals, state) {
+    cupBoardEl.innerHTML = [
+      daySection('Day 1 · Match Play', `${fmt(totals.day1.a)} – ${fmt(totals.day1.b)}`, ''),
+      daySection('Day 2 · Scramble', `${fmt(totals.day2.a)} – ${fmt(totals.day2.b)}`, ''),
+      daySection('Day 3 · Stableford', `${fmt(totals.day3.a)} – ${fmt(totals.day3.b)}`, '')
+    ].join('');
+    const diff = totals.totalA - totals.totalB;
+    if (diff === 0) {
+      cupMarginEl.textContent = 'All square';
+    } else {
+      const leaderName = diff > 0 ? state.teamNameA : state.teamNameB;
+      cupMarginEl.textContent = `${leaderName} leads by ${fmt(Math.abs(diff))}`;
+    }
+  }
+
+  // ── SCREEN 2: LIVE DAY -- whichever day is actually in play, with
+  // thru-N detail per the issue's own spec, rather than just the final
+  // points every other screen already shows.
+  function matchLiveLabel(match, players, si) {
+    const eff = effectiveMatchFor(match, players, si);
+    if (eff.front9 !== null && eff.back9 !== null) return null; // fully decided -- nothing "live" to show
+    if (!Array.isArray(match.holesA) || !Array.isArray(match.holesB)) return null; // manual-only, no hole data to derive a live line from
+    const strokes = matchStrokesForPlayers(match, players, si);
+    const nine = eff.front9 === null ? { start: 0, label: 'Front 9' } : { start: 9, label: 'Back 9' };
+    const holesA = match.holesA.slice(nine.start, nine.start + 9);
+    const holesB = match.holesB.slice(nine.start, nine.start + 9);
+    if (!holesA.some(v => v !== null) && !holesB.some(v => v !== null)) return null; // that nine hasn't started
+    const strokesA = strokes.a.slice(nine.start, nine.start + 9);
+    const strokesB = strokes.b.slice(nine.start, nine.start + 9);
+    const results = holesA.map((g, i) => holeResult(g, holesB[i], strokesA[i], strokesB[i]));
+    const thru = results.filter(r => r !== null).length;
+    const wonA = results.filter(r => r === 'A').length;
+    const wonB = results.filter(r => r === 'B').length;
+    const lead = Math.abs(wonA - wonB);
+    if (lead === 0) return `${nine.label}: AS thru ${thru}`;
+    const leaderName = wonA > wonB ? 'A' : 'B';
+    return `${nine.label}: ${leaderName} ${lead}UP thru ${thru}`;
+  }
+
+  function liveDay1Rows(state, players) {
     const si = day1StrokeIndexesFor(COURSES);
     return state.day1.matches
       .filter(m => m.pA[0] !== null || m.pB[0] !== null)
       .map(m => {
-        const eff = effectiveMatchFor(m, PLAYERS, si);
+        const eff = effectiveMatchFor(m, players, si);
         const pts = matchPoints(eff);
+        const live = matchLiveLabel(m, players, si);
         return `<div class="tv-row">
           <span class="side">${escapeHtml(playerName(m.pA[0]))}</span>
-          <span class="mid">${fmt(pts.a)} – ${fmt(pts.b)}</span>
+          <span class="mid">${live || `${fmt(pts.a)} – ${fmt(pts.b)}`}</span>
           <span class="side right">${escapeHtml(playerName(m.pB[0]))}</span>
         </div>`;
       }).join('');
   }
 
-  function day2Rows(state, scramble) {
-    const eff = effectiveDay2StateFor(state.day2, PLAYERS, COURSES);
+  // Same net-to-par-thru-N math projectedDay2Field() (scoring.js) uses
+  // for the live scorecard's own "if it ended right now" line (#260),
+  // just also surfacing `played` here for the thru-N label.
+  function liveDay2Field(code, day2, players) {
+    const holes = day2.holes[code];
+    if (!holes.some(h => h !== null)) return { label: netToParLabel(day2[code]), played: null };
+    const handicap = day2GroupHandicapFor(code, day2, players);
+    if (handicap === null) return { label: '—', played: null };
+    const courseHoles = day2CourseHolesFor(COURSES);
+    const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
+    const { netToPar, played } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
+    return { label: netToParLabel(netToPar), played };
+  }
+
+  function liveDay2Rows(state, players, scramble) {
     const groups = state.day2.groups;
     const rows = [];
     [['4', 'a4', 'b4', scramble.four], ['3', 'a3', 'b3', scramble.three]].forEach(([size, aCode, bCode, pts]) => {
       if (!groups[aCode].length && !groups[bCode].length) return;
+      const a = liveDay2Field(aCode, state.day2, players);
+      const b = liveDay2Field(bCode, state.day2, players);
+      const aThru = a.played !== null ? ` (thru ${a.played})` : '';
+      const bThru = b.played !== null ? ` (thru ${b.played})` : '';
       rows.push(`<div class="tv-row">
-        <span class="side">Group of ${size} · ${escapeHtml(state.teamNameA)}: ${netToParLabel(eff[aCode])}</span>
+        <span class="side">Group of ${size} · ${escapeHtml(state.teamNameA)}: ${a.label}${aThru}</span>
         <span class="mid">${fmt(pts.a)} – ${fmt(pts.b)}</span>
-        <span class="side right">${escapeHtml(state.teamNameB)}: ${netToParLabel(eff[bCode])}</span>
+        <span class="side right">${escapeHtml(state.teamNameB)}: ${b.label}${bThru}</span>
       </div>`);
     });
-    if (scramble.complete) {
-      rows.push(`<div class="tv-row">
-        <span class="side">Team bonus</span>
-        <span class="mid">${fmt(scramble.bonus.a)} – ${fmt(scramble.bonus.b)}</span>
-        <span class="side right"></span>
-      </div>`);
-    }
     return rows.join('');
   }
 
-  function day3Rows(state) {
+  function liveDay3Rows(state) {
     const entries = PLAYERS.map(p => ({
       id: p.id,
       team: teamOfSets(p.id, state.teamA, state.teamB),
@@ -300,23 +414,57 @@ body.tv-page {
     </section>`;
   }
 
-  function renderBoard(totals, state) {
-    boardEl.innerHTML = [
-      daySection('Day 1 · Match Play', `${fmt(totals.day1.a)} – ${fmt(totals.day1.b)}`, day1Rows(state)),
-      daySection('Day 2 · Scramble', `${fmt(totals.day2.a)} – ${fmt(totals.day2.b)}`, day2Rows(state, totals.day2.scramble)),
-      daySection('Day 3 · Stableford', `${fmt(totals.day3.a)} – ${fmt(totals.day3.b)}`, day3Rows(state))
-    ].join('');
+  function renderLive(totals, state, players) {
+    const day = defaultDay(new Date());
+    if (!day) {
+      liveTitleEl.textContent = 'Live';
+      liveBoardEl.innerHTML = '<div class="tv-day"><div class="tv-empty">No round in play right now</div></div>';
+      return;
+    }
+    liveTitleEl.textContent = `${DAY_LABELS[day]} · Live`;
+    if (day === 'day1') {
+      liveBoardEl.innerHTML = daySection('Day 1 · Match Play', `${fmt(totals.day1.a)} – ${fmt(totals.day1.b)}`, liveDay1Rows(state, players));
+    } else if (day === 'day2') {
+      liveBoardEl.innerHTML = daySection('Day 2 · Scramble', `${fmt(totals.day2.a)} – ${fmt(totals.day2.b)}`, liveDay2Rows(state, players, totals.day2.scramble));
+    } else {
+      liveBoardEl.innerHTML = daySection('Day 3 · Stableford', `${fmt(totals.day3.a)} – ${fmt(totals.day3.b)}`, liveDay3Rows(state));
+    }
+  }
+
+  // ── SCREEN 3: NEAREST THE PIN honours board.
+  function renderNtp(state) {
+    const ntpState = { day1: state.day1.ntp, day2: state.day2.ntp, day3: state.day3.ntp };
+    ntpBoardEl.innerHTML = ['day1', 'day2', 'day3'].map((dayKey) => {
+      const fields = NTP_DAY_FIELDS[dayKey];
+      const holeNums = NTP_HOLES[NTP_DAY_COURSE[dayKey]];
+      const rows = fields.map((field, i) => {
+        const holderId = ntpState[dayKey][field];
+        const holderName = holderId === null || holderId === undefined ? '—' : escapeHtml(playerName(holderId));
+        return `<div class="tv-row">
+          <span class="side">Hole ${holeNums[i]}</span>
+          <span class="mid"></span>
+          <span class="side right">${holderName}</span>
+        </div>`;
+      }).join('');
+      return daySection(NTP_DAY_TITLES[dayKey], '', rows);
+    }).join('');
   }
 
   async function refresh() {
     const rows = await fetchAllRows();
     const state = replayState(rows);
-    const totals = computeSeasonTotals(state, PLAYERS, COURSES);
+    // Issue #206: an admin's handicap override must reach every derived
+    // score here too, same as the live scorecard's own currentPlayers() --
+    // otherwise a corrected handicap silently disagrees between the two.
+    const players = playersWithOverrides(PLAYERS, state.hcp);
+    const totals = computeSeasonTotals(state, players, COURSES);
     teamAEl.textContent = state.teamNameA;
     teamBEl.textContent = state.teamNameB;
     pointsEl.textContent = `${fmt(totals.totalA)} – ${fmt(totals.totalB)}`;
     renderStatus(totals, state);
-    renderBoard(totals, state);
+    renderCup(totals, state);
+    renderLive(totals, state, players);
+    renderNtp(state);
   }
 
   // Screen wake lock (issue #187) -- best-effort only, this is a display
@@ -331,6 +479,23 @@ body.tv-page {
     if (document.visibilityState === 'visible') requestWakeLock();
   });
 
+  // Auto-rotating screens (issue #187), ~15s each with a CSS crossfade.
+  // All three screens are always kept up to date by refresh() above,
+  // whether or not they're the one currently visible, so rotating into
+  // one never shows stale data from several polls ago.
+  const SCREEN_IDS = ['screen-cup', 'screen-live', 'screen-ntp'];
+  // Starts at 0 -- screen-cup is already the one marked active in the
+  // static markup, so the first tick must advance past it, not
+  // re-select it (an off-by-one that would otherwise sit on the Cup
+  // screen for two full intervals before ever moving).
+  let screenIndex = 0;
+  function rotateScreen() {
+    screenIndex = (screenIndex + 1) % SCREEN_IDS.length;
+    const screens = SCREEN_IDS.map(id => document.getElementById(id));
+    screens.forEach((el, i) => el.classList.toggle('tv-screen-active', i === screenIndex));
+  }
+  setInterval(rotateScreen, 15000);
+
   // 30s poll, matching the live scorecard's cadence. A failed refresh
   // (network blip, cast device asleep) just keeps showing the last good
   // render rather than clearing the screen.
@@ -340,7 +505,7 @@ body.tv-page {
     catch (e) {
       if (!everLoaded) {
         statusEl.textContent = 'Unable to load live scores';
-        boardEl.innerHTML = '<div class="tv-empty">Unable to load the scoreboard</div>';
+        cupBoardEl.innerHTML = '<div class="tv-empty">Unable to load the scoreboard</div>';
       }
     }
     finally { setTimeout(tick, 30000); }
