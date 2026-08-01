@@ -144,7 +144,7 @@ async function main() {
         };
       });
       if (!result.shown) fail('expected #projected-line visible once a match has an undecided in-progress lead');
-      if (!result.text.includes('If everything ended right now')) fail(`expected the projection copy, got "${result.text}"`);
+      if (!result.text.toLowerCase().includes('as it stands')) fail(`expected the "as it stands" projection copy, got "${result.text}"`);
       if (!result.text.includes(result.teamA) || !result.text.includes(result.teamB)) {
         fail(`expected both team names in the projection line, got "${result.text}"`);
       }

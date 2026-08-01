@@ -54,10 +54,13 @@
 
 /* ── SCORECARD PAGE ── */
 .scoreboard-pin{position:sticky;top:58px;z-index:900;background:linear-gradient(90deg,var(--navy),var(--navy-mid),var(--navy));border-bottom:3px solid var(--gold)}
-.scoreboard-inner{max-width:1200px;margin:0 auto;padding:14px 24px;display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:12px}
+.scoreboard-inner{max-width:1200px;margin:0 auto;padding:10px 24px;display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:12px}
 .sb-team{text-align:center}
 .sb-team-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-bottom:2px}
-.sb-total{font-family:var(--font-d);font-size:3.2rem;line-height:1}
+/* Live/real total -- kept small and secondary to .sb-standing-total below
+   (the "as it stands" projection), which is the number worth glancing at
+   mid-round. This one is the literal, currently-locked score. */
+.sb-total{font-family:var(--font-d);font-size:1.5rem;line-height:1}
 .team-a .sb-team-name,.team-a .sb-total{color:var(--team-a)}
 .team-b .sb-team-name,.team-b .sb-total{color:var(--team-b)}
 /* Issue #230: mascot emoji next to the currently-leading team on the
@@ -70,11 +73,21 @@
 .sb-vs{font-family:var(--font-d);font-size:1.4rem;color:var(--grey);text-align:center}
 .sb-day-chips{display:flex;justify-content:center;gap:6px;margin-top:5px;flex-wrap:wrap}
 .sb-chip{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--grey)}
-/* Issue #260: "if it ended right now" projection line. Deliberately
-   muted/italic and visually subordinate to .sb-total -- it is a
-   what-if, never the real score, and only shown while it differs
-   from the real total (updateScoreboard() toggles display:none). */
-.projected-line{text-align:center;padding:4px 24px 10px;font-family:var(--font-h);font-size:.7rem;font-style:italic;letter-spacing:.5px;color:var(--grey)}
+/* Issue #260: "as it stands" projection section -- the number worth a
+   glance mid-round, so it's the visual focus of the pinned panel (big,
+   colored) while the literal live/locked score above (.sb-total) stays
+   small. Still only shown while it differs from the real total
+   (updateScoreboard() toggles display:none) -- once nothing's in
+   progress the real score already reads the same, so showing both would
+   be redundant. */
+.projected-line{text-align:center;padding:2px 24px 14px}
+.sb-standing-label{font-family:var(--font-h);font-size:.62rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
+.sb-standing-row{display:flex;align-items:baseline;justify-content:center;gap:10px;flex-wrap:wrap}
+.sb-standing-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase}
+.sb-standing-total{font-family:var(--font-d);font-size:3.2rem;line-height:1}
+.sb-standing-div{font-family:var(--font-d);font-size:1.4rem;color:var(--grey)}
+.sb-standing-a{color:var(--team-a)}
+.sb-standing-b{color:var(--team-b)}
 .win-banner{background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));color:var(--navy);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 2s ease-in-out infinite}
 .sd-banner{background:linear-gradient(90deg,#7a0000,#c00,#7a0000);color:var(--white);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
@@ -4075,7 +4088,14 @@ function updateScoreboard() {
     const projTotalB = proj.totalB + d3.b;
     if (fmt(projTotalA) !== fmt(totalA) || fmt(projTotalB) !== fmt(totalB)) {
       projLine.className = 'projected-line';
-      projLine.textContent = `If everything ended right now: ${state.teamNameA} ${fmt(projTotalA)} – ${fmt(projTotalB)} ${state.teamNameB}`;
+      projLine.innerHTML = `<div class="sb-standing-label">Standing: As It Stands</div>` +
+        `<div class="sb-standing-row">` +
+        `<span class="sb-standing-name sb-standing-a">${escapeHtml(state.teamNameA)}</span>` +
+        `<span class="sb-standing-total sb-standing-a">${fmt(projTotalA)}</span>` +
+        `<span class="sb-standing-div">–</span>` +
+        `<span class="sb-standing-total sb-standing-b">${fmt(projTotalB)}</span>` +
+        `<span class="sb-standing-name sb-standing-b">${escapeHtml(state.teamNameB)}</span>` +
+        `</div>`;
       projLine.style.display = '';
     } else {
       projLine.style.display = 'none';
