@@ -1864,15 +1864,15 @@ function activateTab(btn, { focus = false, updateHash = true } = {}) {
   }
   // Day locks are admin controls too (issue #168) but their buttons live on
   // the Day tabs themselves, not inside Admin -- the gate above doesn't
-  // reach them. Unlike the Admin tab (which now also holds Team Setup and
-  // its Lock Teams button, issue #302), the Day tabs stay open to everyone
-  // (there's a real read-only view to show); an isAdmin() name match with no
-  // cached PIN yet just gets offered the prompt on arrival, and renders
-  // read-only same as a non-admin if it's skipped or wrong.
-  if (['day1', 'day2', 'day3'].includes(btn.dataset.tab) && isAdmin() && !currentAdminToken) {
-    requireAdminToken();
-    renderAllDayLocks();
-  }
+  // reach them, and unlike the Admin tab the Day tabs stay open to everyone
+  // (there's a real read-only view to show). This used to proactively
+  // prompt for the PIN right here on every arrival at a Day tab for an
+  // isAdmin() name match with none cached yet -- but requireAdminToken()
+  // caches nothing on a decline, so cancelling once meant getting prompted
+  // again on the very next Day-tab click, forever (issue #313). Asking is
+  // now entirely on-demand: renderDayLockUI() offers a real button for an
+  // isAdmin() user who hasn't unlocked yet, and only unlockDayLockControls()
+  // (that button's handler) ever calls requireAdminToken() for this.
   scTabs.forEach(x => {
     x.classList.remove('active');
     x.setAttribute('aria-selected', 'false');
@@ -5708,6 +5708,20 @@ function toggleDayLock(day) {
   renderDayLockUI(day);
 }
 
+// On-demand PIN entry for the Day-lock controls (issue #313) -- a real
+// button click, not a prompt() firing proactively on every arrival at a Day
+// tab regardless of whether the admin actually wants to manage a lock right
+// now. requireAdminToken() caches nothing on a decline, so unlike the old
+// arrival-triggered prompt, declining this one just leaves the button
+// there to click again whenever the admin is ready, rather than reopening
+// itself on the next tab switch. Re-renders all three days, not just the
+// one clicked from -- the admin token is a single global cache, so
+// unlocking it on Day 1 unlocks Day 2/Day 3's controls too.
+function unlockDayLockControls() {
+  if (!requireAdminToken()) return;
+  renderAllDayLocks();
+}
+
 // Renders one day's lock row (badge + admin's lock/unlock button) and dims
 // the day's scoring content for anyone who isn't the admin while it's
 // locked -- the admin can always keep editing (per the requested behavior),
@@ -5723,6 +5737,12 @@ function renderDayLockUI(day) {
     row.innerHTML = locked
       ? `<span class="day-locked-badge">🔒 Locked</span><button class="day-lock-btn is-locked" onclick="toggleDayLock(${day})">Unlock Day</button>`
       : `<button class="day-lock-btn" onclick="toggleDayLock(${day})">Lock Day</button>`;
+  } else if (isAdmin()) {
+    // Signed in under an organiser name but hasn't entered the Admin PIN
+    // this session -- offer it via an explicit click instead of the old
+    // proactive, repeat-on-every-tab-click prompt (issue #313).
+    row.innerHTML = (locked ? `<span class="day-locked-badge">🔒 Locked by organiser</span>` : '') +
+      `<button class="day-lock-btn" onclick="unlockDayLockControls()">Admin: manage lock</button>`;
   } else {
     row.innerHTML = locked ? `<span class="day-locked-badge">🔒 Locked by organiser</span>` : '';
   }
