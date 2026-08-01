@@ -151,8 +151,9 @@ async function main() {
     });
     if (withPoints.display !== '') fail(`expected #weekend-worm-slot visible once team points have resolved, got display="${withPoints.display}"`);
     if (!withPoints.hasSvg) fail('expected a .match-worm SVG once team points have resolved');
-    // Differential sequence is [1, 0] (A up 1, then level again) -> 2 segments (0->1, 1->0).
-    if (withPoints.segCount !== 2) fail(`expected 2 worm segments for a 2-step differential sequence, got ${withPoints.segCount}`);
+    // Differential sequence is [1, 0] (A up 1, then level again) -> 2 steps (0->1, 1->0),
+    // each step chart step drawn as a flat + a vertical jump -> 2 <line>s per step -> 4 total.
+    if (withPoints.segCount !== 4) fail(`expected 4 worm segments (2 steps x 2 lines each) for a 2-step differential sequence, got ${withPoints.segCount}`);
     if (!withPoints.hasRefreshBtn) fail('expected a manual refresh button inside the rendered weekend worm');
 
     if (consoleErrors.length > 0) fail('unexpected console/page errors during the run:\n' + consoleErrors.join('\n'));

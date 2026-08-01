@@ -2187,6 +2187,10 @@ function matchWormForMatch(match) {
 // single color for the whole line -- the worm visibly changes color the
 // moment the lead changes hands, rather than only reflecting who wins the
 // nine overall.
+// Drawn as a step chart (flat, then a sharp vertical jump), not a smooth
+// diagonal -- the lead is unchanged FOR the whole hole/event and only
+// actually moves at the instant it resolves, so a diagonal ramp between
+// points would visually imply a gradual change that never happened.
 function wormSvg(points, label, ariaLabel) {
   const w = 240, h = 32, pad = 4;
   const series = [0, ...points];
@@ -2196,9 +2200,14 @@ function wormSvg(points, label, ariaLabel) {
   const x = i => (pad + i * stepX).toFixed(1);
   const y = v => (h / 2 - (v / max) * (h / 2 - pad)).toFixed(1);
   const colorFor = v => v > 0 ? 'var(--team-a)' : v < 0 ? 'var(--team-b)' : 'var(--ink-mute)';
-  const segments = series.slice(1).map((v, i) =>
-    `<line x1="${x(i)}" y1="${y(series[i])}" x2="${x(i + 1)}" y2="${y(v)}" class="worm-seg" style="stroke:${colorFor(v)}"/>`
-  ).join('');
+  const segments = series.slice(1).map((v, i) => {
+    const prevY = y(series[i]);
+    const color = colorFor(v);
+    // Hold flat at the previous level across the step, then jump straight
+    // up/down to the new one at the same x -- two <line>s per step, not one.
+    return `<line x1="${x(i)}" y1="${prevY}" x2="${x(i + 1)}" y2="${prevY}" class="worm-seg" style="stroke:${color}"/>` +
+      `<line x1="${x(i + 1)}" y1="${prevY}" x2="${x(i + 1)}" y2="${y(v)}" class="worm-seg" style="stroke:${color}"/>`;
+  }).join('');
   const finalAriaLabel = ariaLabel || `Hole-by-hole lead through the ${label}`;
   return `<div class="match-worm-wrap"><div class="match-worm-label">${escapeHtml(label)}</div><svg class="match-worm" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(finalAriaLabel)}">` +
     `<line x1="${pad}" y1="${h / 2}" x2="${w - pad}" y2="${h / 2}" class="worm-zero"/>` +
