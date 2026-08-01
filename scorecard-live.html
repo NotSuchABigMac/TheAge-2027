@@ -1742,6 +1742,29 @@ function visibleScTabs() { return scTabs.filter(x => x.style.display !== 'none')
 const ACTIVE_TAB_KEY = KEY_PREFIX + 'wongaCup2026_activeTab';
 function activateTab(btn, { focus = false, updateHash = true } = {}) {
   if (btn.style.display === 'none') return;
+  // Issue: name-matching (isAdmin()) alone let anyone who knew the shared
+  // tournament PIN type an organiser's name and reach the whole Admin tab
+  // (history restore, day/team locks, QR codes) with no further check --
+  // the admin PIN previously only gated rollback/handicap. Require it here
+  // too, at the single choke point every path into this tab goes through
+  // (click, arrow-key nav, initial hash/localStorage restore). Same cached
+  // prompt as requireAdminToken()'s other callers: prompted once per
+  // session, cleared automatically if a later rollback proves it wrong.
+  if (btn.dataset.tab === 'admin' && !requireAdminToken()) {
+    showSaveToast('Admin PIN required', 'error');
+    return;
+  }
+  // Day/Teams locks are admin controls too (issue #168) but their buttons
+  // live on the Day/Teams tabs themselves, not inside Admin -- the gate
+  // above doesn't reach them. Unlike the Admin tab, these tabs stay open
+  // to everyone (there's a real read-only view to show); an isAdmin() name
+  // match with no cached PIN yet just gets offered the prompt on arrival,
+  // and renders read-only same as a non-admin if it's skipped or wrong.
+  if (['day1', 'day2', 'day3', 'teams'].includes(btn.dataset.tab) && isAdmin() && !currentAdminToken) {
+    requireAdminToken();
+    renderAllDayLocks();
+    updateTeamsLockUI();
+  }
   scTabs.forEach(x => {
     x.classList.remove('active');
     x.setAttribute('aria-selected', 'false');
@@ -5430,6 +5453,16 @@ function isAdmin() {
   return ADMIN_NAMES.includes(currentUsername);
 }
 
+// Name match alone used to be enough to unlock Teams editing and day
+// locks -- anyone who knew the shared tournament PIN could type an
+// organiser's name and get them with no further check. These controls now
+// also need the cached admin PIN (offered on arrival at the relevant tab
+// by activateTab(), never prompted from a passive render), same gate as
+// the Admin tab and rollback/handicap.
+function isAdminUnlocked() {
+  return isAdmin() && !!currentAdminToken;
+}
+
 // Teams tab (issue #168): unlike the per-day locks below, this one isn't a
 // toggle -- team setup is always organiser-only once the draft is entered,
 // so anyone else just sees the notice and a dimmed, click-through-disabled
@@ -5438,7 +5471,7 @@ function updateTeamsLockUI() {
   const editable = document.getElementById('teams-editable');
   const notice = document.getElementById('teams-locked-notice');
   if (!editable || !notice) return;
-  const admin = isAdmin();
+  const admin = isAdminUnlocked();
   editable.classList.toggle('locked-for-viewer', !admin);
   notice.style.display = admin ? 'none' : '';
 }
@@ -5452,7 +5485,7 @@ function isDayLocked(day) {
 // in this app is, as a single-field delta so two admins toggling different
 // days at once can't clobber each other.
 function toggleDayLock(day) {
-  if (!isAdmin()) return;
+  if (!isAdminUnlocked()) return;
   const key = 'day' + day;
   const next = !isDayLocked(day);
   state[key].locked = next;
@@ -5470,7 +5503,7 @@ function renderDayLockUI(day) {
   const lockable = document.getElementById('day' + day + '-lockable');
   if (!row || !lockable) return;
   const locked = isDayLocked(day);
-  const admin = isAdmin();
+  const admin = isAdminUnlocked();
   lockable.classList.toggle('locked-for-viewer', locked && !admin);
   if (admin) {
     row.innerHTML = locked
