@@ -19,7 +19,8 @@ test('004_client_errors.sql exists and is the next migration in sequence', () =>
     '001_lock_down_tournament_updates.sql',
     '002_restrict_write_token_column_and_admin_secret.sql',
     '003_move_secrets_off_database_guc.sql',
-    '004_client_errors.sql'
+    '004_client_errors.sql',
+    '005_validate_tournament_pin_rpc.sql'
   ]);
 });
 

@@ -82,6 +82,28 @@ three:
   silently queuing the write as if offline, and `flushPendingWrites()`
   stops at the first `'auth'` rejection rather than re-failing the same
   wrong PIN against every queued write forever.
+- **The login modal itself validates the PIN, instead of accepting it
+  unchecked (migration `005_validate_tournament_pin_rpc.sql`).**
+  Previously `confirmUsername()` never checked the PIN at all — it closed
+  the modal on any non-empty input, and a wrong PIN was only ever
+  discovered later, on the first score write's RLS rejection, by which
+  point the user looked fully logged in. `confirmUsername()` now `await`s
+  a `validate_tournament_pin` RPC before closing the modal: a confirmed
+  wrong PIN clears the field and reopens/stays on the modal with an inline
+  error instead of letting the user in. Since `internal.check_tournament_token`
+  is deliberately not exposed as a public RPC (see above — a bare boolean
+  check is a brute-force oracle), `validate_tournament_pin` wraps it with a
+  rate limit: after 20 failed guesses inside a 5-minute window (tracked in
+  `pin_validation_attempts`, itself RLS-locked with zero grants) it stops
+  checking the token at all and just returns `false` until the window
+  clears. The limit is global rather than per-caller since there's no
+  trustworthy client identity to key it on for an anon PostgREST request —
+  an acceptable trade for a single-tournament tool with ~14 known scorers.
+  If the RPC can't be reached at all (offline/timeout on course wifi) the
+  login proceeds provisionally rather than blocking a scorer with no
+  signal — the existing write-time `'auth'` handling above is still the
+  backstop that catches a genuinely wrong PIN once a real write is
+  attempted.
 
 ## Supabase Schema: `client_errors` (write-only error beacon, issue #202)
 

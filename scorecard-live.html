@@ -655,7 +655,7 @@ body{padding-top:58px;padding-bottom:52px}
     <select id="username-input" class="username-input" autofocus></select>
     <input type="password" inputmode="numeric" id="write-token-input" class="username-input" placeholder="Tournament PIN" autocomplete="off">
     <div id="username-error" class="username-modal-desc" style="color:#ff6b6b;display:none" role="alert">Please enter your name and the tournament PIN to continue</div>
-    <button class="username-btn" onclick="confirmUsername()">Enter Tournament</button>
+    <button class="username-btn" id="username-submit-btn" onclick="confirmUsername()">Enter Tournament</button>
     <div class="username-modal-desc" style="font-size:.75rem;margin-top:16px;color:var(--ink-mute)">Your scores will sync live across all devices</div>
   </div>
 </div>
@@ -5220,10 +5220,41 @@ function closeUsernameModal() {
   _pendingAction = null;
 }
 
-function confirmUsername() {
+// Calls the validate_tournament_pin RPC (see migration 005) rather than
+// trusting whatever the user typed -- previously the PIN was accepted
+// unchecked here and only ever found to be wrong the first time a score
+// write hit RLS, by which point the user looked fully logged in. Returns
+// true/false when Supabase actually answered, or throws if it couldn't be
+// reached at all (offline/timeout), which callers must handle separately
+// since "couldn't check" is not the same as "checked and wrong".
+async function validateTournamentPin(token) {
+  const resp = await fetchWithTimeout(`${SUPABASE_CONFIG.apiUrl}/rest/v1/rpc/validate_tournament_pin`, {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_token: token })
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return await resp.json(); // true | false
+}
+
+function completeLogin(name, token) {
+  currentUsername = name;
+  currentWriteToken = token;
+  sessionStorage.setItem(SS_USERNAME_KEY, name);
+  sessionStorage.setItem(SS_WRITE_TOKEN_KEY, token);
+  document.getElementById('username-modal').classList.add('hidden');
+  document.getElementById('username-badge').textContent = `🎯 ${name}`;
+  document.getElementById('username-badge').style.display = 'block';
+  updateAdminVisibility();
+  maybeAutoPin(); // issue #272
+  if (_pendingAction) { _pendingAction(); _pendingAction = null; }
+}
+
+async function confirmUsername() {
   const input = document.getElementById('username-input');
   const tokenInput = document.getElementById('write-token-input');
   const error = document.getElementById('username-error');
+  const btn = document.getElementById('username-submit-btn');
   const name = input.value.trim();
   const token = tokenInput.value.trim();
   if (!name || !token) {
@@ -5236,16 +5267,39 @@ function confirmUsername() {
   }
   input.removeAttribute('aria-invalid');
   error.style.display = 'none';
-  currentUsername = name;
-  currentWriteToken = token;
-  sessionStorage.setItem(SS_USERNAME_KEY, name);
-  sessionStorage.setItem(SS_WRITE_TOKEN_KEY, token);
-  document.getElementById('username-modal').classList.add('hidden');
-  document.getElementById('username-badge').textContent = `🎯 ${name}`;
-  document.getElementById('username-badge').style.display = 'block';
-  updateAdminVisibility();
-  maybeAutoPin(); // issue #272
-  if (_pendingAction) { _pendingAction(); _pendingAction = null; }
+
+  btn.disabled = true;
+  btn.textContent = 'Checking PIN…';
+  try {
+    const valid = await validateTournamentPin(token);
+    btn.disabled = false;
+    btn.textContent = 'Enter Tournament';
+    if (!valid) {
+      tokenInput.value = '';
+      tokenInput.style.borderColor = '#ff6b6b';
+      tokenInput.setAttribute('aria-invalid', 'true');
+      error.textContent = 'Wrong PIN — check with the organiser';
+      error.style.display = 'block';
+      tokenInput.focus();
+      setTimeout(() => { tokenInput.style.borderColor = ''; }, 300);
+      return;
+    }
+    tokenInput.removeAttribute('aria-invalid');
+    completeLogin(name, token);
+  } catch (e) {
+    // Couldn't reach Supabase at all (offline/timeout, e.g. patchy course
+    // wifi) -- there's no way to confirm the PIN either way from here, and
+    // this app is offline-first by design, so let the scorer in
+    // provisionally rather than lock them out entirely. insertUpdate()'s
+    // existing 'auth' handling still catches a genuinely wrong PIN and
+    // reopens this modal the moment the first real save is attempted.
+    btn.disabled = false;
+    btn.textContent = 'Enter Tournament';
+    authNeeded = true;
+    showSaveToast('⚠ Couldn\'t verify PIN — will confirm on first save', 'error');
+    completeLogin(name, token);
+    renderSyncBar();
+  }
 }
 
 // Admin controls (currently: score rollback) are only ever meant to be
