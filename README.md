@@ -55,17 +55,20 @@ config ships in the page source by design — it is not a secret, so
 
 1. Create the `tournament_updates` table (see **Data model** in
    `ARCHITECTURE.md` for the schema).
-2. Run **all four** migrations in `supabase/migrations/`, in order,
+2. Run **all five** migrations in `supabase/migrations/`, in order,
    by hand, via the Supabase dashboard's SQL Editor:
    - `001_lock_down_tournament_updates.sql`
    - `002_restrict_write_token_column_and_admin_secret.sql`
    - `003_move_secrets_off_database_guc.sql`
    - `004_client_errors.sql`
+   - `005_validate_tournament_pin_rpc.sql`
 
    Nothing client-side applies these — this is a manual, one-time
-   (per-project) setup step, and all four must land before the app is
+   (per-project) setup step, and all five must land before the app is
    safe to point at the project (004 specifically is a prerequisite for
-   error-beacon.js's inserts succeeding rather than failing RLS).
+   error-beacon.js's inserts succeeding rather than failing RLS; 005 is a
+   prerequisite for the login modal's PIN check succeeding rather than
+   404ing against a missing RPC).
 3. Set the two passphrases migration 003 expects:
    ```sql
    UPDATE app_secrets SET value = '...' WHERE key = 'tournament_secret';
