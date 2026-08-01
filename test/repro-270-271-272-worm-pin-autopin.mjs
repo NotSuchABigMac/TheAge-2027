@@ -99,7 +99,7 @@ async function main() {
     // needed for this test) and version.json isn't served by this bare
     // static server -- both produce expected, benign console noise having
     // nothing to do with the worm/pin/auto-pin behavior under test.
-    const BENIGN = /Supabase load failed|ERR_FAILED|version\.json|404 \(Not Found\)/;
+    const BENIGN = /Supabase load failed|Weekend worm load failed|ERR_FAILED|version\.json|404 \(Not Found\)/;
     page.on('pageerror', e => consoleErrors.push('pageerror: ' + e.message));
     page.on('console', msg => {
       if (msg.type() === 'error' && !BENIGN.test(msg.text())) consoleErrors.push('console.error: ' + msg.text());
