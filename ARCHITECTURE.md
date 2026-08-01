@@ -387,13 +387,16 @@ exactly when a sync problem most needs to be seen.
 conditions that already colour the dot red) and passes it to
 `setSyncBarFrozen()`, which toggles a `.sync-frozen` class (solid red,
 white blinking dot, bold text) and switches the bar to `position: sticky`
-with `top` set to `.masthead`'s + `.scoreboard-pin`'s live `offsetHeight` —
+with `top` set to `.masthead`'s + `.mini-sb`'s live `offsetHeight` —
 read at freeze-time rather than hardcoded, so it docks directly under the
-scoreboard with no gap or overlap regardless of which day chips/tiebreak
-row/win banner happen to be showing. The ordinary "Live"/"Syncing…" states
-are untouched, so a bar with nothing to say never gets in the way.
-`test/repro-287-frozen-error-bar.mjs` covers all of it, including that the
-bar's bounding rect actually stays on-screen after a large scroll.
+mini scoreboard with no gap or overlap. (Docks under `.mini-sb` rather than
+`.scoreboard-pin` since issue #301 made `.mini-sb` the sticky bar that
+follows down the page, while `.scoreboard-pin` reverted to normal document
+flow — see the CSS comments on both classes in `scorecard-live.html`.) The
+ordinary "Live"/"Syncing…" states are untouched, so a bar with nothing to
+say never gets in the way. `test/repro-287-frozen-error-bar.mjs` covers all
+of it, including that the bar's bounding rect actually stays on-screen after a
+large scroll.
 
 ## Self-service full resync (issue #290)
 
