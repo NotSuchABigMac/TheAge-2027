@@ -53,41 +53,60 @@
 }
 
 /* ── SCORECARD PAGE ── */
-.scoreboard-pin{position:sticky;top:58px;z-index:900;background:linear-gradient(90deg,var(--navy),var(--navy-mid),var(--navy));border-bottom:3px solid var(--gold)}
-.scoreboard-inner{max-width:1200px;margin:0 auto;padding:10px 24px;display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:12px}
-.sb-team{text-align:center}
-.sb-team-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-bottom:2px}
-/* Live/real total -- kept small and secondary to .sb-standing-total below
-   (the "as it stands" projection), which is the number worth glancing at
-   mid-round. This one is the literal, currently-locked score. */
-.sb-total{font-family:var(--font-d);font-size:1.5rem;line-height:1}
+.scoreboard-pin{position:sticky;top:58px;z-index:900;background:linear-gradient(180deg,var(--navy),var(--navy-mid) 65%,var(--navy));border-bottom:3px solid var(--gold);box-shadow:0 8px 22px rgba(0,0,0,.35)}
+.scoreboard-inner{max-width:1200px;margin:0 auto;padding:14px 24px;display:flex;flex-direction:column;gap:10px}
+/* Sectioned-dashboard cards: a compact "live match" card (the literal,
+   currently-locked score) above a bigger "as it stands" card (issue
+   #260's projection). Both live inside the same sticky panel. */
+.sb-card{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);border-radius:var(--rl);padding:12px 18px}
+.sb-section-label{font-family:var(--font-h);font-size:.62rem;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--grey);margin-bottom:8px}
+
+.sb-live-card .sb-section-label{text-align:left}
+.sb-live-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 18px}
+.sb-live-score{display:flex;align-items:baseline;gap:10px;font-family:var(--font-h);font-size:.78rem;font-weight:600;letter-spacing:1.5px}
+.sb-team-name{text-transform:uppercase}
+.sb-total{font-family:var(--font-d);font-size:1.3rem;font-weight:600;letter-spacing:0;margin:0 1px}
 .team-a .sb-team-name,.team-a .sb-total{color:var(--team-a)}
 .team-b .sb-team-name,.team-b .sb-total{color:var(--team-b)}
-/* Issue #230: mascot emoji next to the currently-leading team on the
-   pinned scoreboard -- Team A/flamingo, Team B/gorilla per this year's
-   team names (organiser's call if that ever needs to flip). Purely
-   decorative, keyed off the .leading class updateScoreboard() already
-   toggles based on totals already computed. */
+.sb-live-sep{color:var(--grey);font-weight:400}
+/* Issue #230: mascot emoji next to the currently-leading team on the live
+   score -- Team A/flamingo, Team B/gorilla per this year's team names
+   (organiser's call if that ever needs to flip). Purely decorative,
+   keyed off the .leading class updateScoreboard() already toggles based
+   on totals already computed. */
 .team-a.leading .sb-team-name::after{content:' 🦩'}
 .team-b.leading .sb-team-name::after{content:' 🦍'}
-.sb-vs{font-family:var(--font-d);font-size:1.4rem;color:var(--grey);text-align:center}
-.sb-day-chips{display:flex;justify-content:center;gap:6px;margin-top:5px;flex-wrap:wrap}
-.sb-chip{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--grey)}
-/* Issue #260: "as it stands" projection section -- the number worth a
+.sb-day-chips{display:flex;gap:6px;flex-wrap:wrap}
+.sb-chip{font-family:var(--font-h);font-size:.62rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:3px 9px;border-radius:100px;background:rgba(255,255,255,.06);color:var(--grey);border:1px solid rgba(255,255,255,.07)}
+.sb-chip.live-a{background:color-mix(in srgb,var(--team-a) 16%,transparent);color:var(--team-a);border-color:color-mix(in srgb,var(--team-a) 32%,transparent)}
+.sb-chip.live-b{background:color-mix(in srgb,var(--team-b) 16%,transparent);color:var(--team-b);border-color:color-mix(in srgb,var(--team-b) 32%,transparent)}
+
+/* Issue #260: "as it stands" projection card -- the number worth a
    glance mid-round, so it's the visual focus of the pinned panel (big,
-   colored) while the literal live/locked score above (.sb-total) stays
-   small. Still only shown while it differs from the real total
-   (updateScoreboard() toggles display:none) -- once nothing's in
+   colored, mascots either side) while the literal live/locked score
+   above stays small. Still only shown while it differs from the real
+   total (updateScoreboard() toggles display:none) -- once nothing's in
    progress the real score already reads the same, so showing both would
    be redundant. */
-.projected-line{text-align:center;padding:2px 24px 14px}
-.sb-standing-label{font-family:var(--font-h);font-size:.62rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
-.sb-standing-row{display:flex;align-items:baseline;justify-content:center;gap:10px;flex-wrap:wrap}
+.projected-line{padding:0}
+.sb-standing-card{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));text-align:center}
+.sb-standing-card .sb-section-label{text-align:center;color:var(--gold)}
+.sb-standing-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px}
+.sb-standing-side{display:flex;flex-direction:column;align-items:center;gap:3px}
+.sb-standing-emoji{font-size:1.7rem;line-height:1;filter:drop-shadow(0 3px 8px rgba(0,0,0,.45))}
 .sb-standing-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase}
+.sb-standing-score{display:flex;align-items:baseline;justify-content:center;gap:14px}
 .sb-standing-total{font-family:var(--font-d);font-size:3.2rem;line-height:1}
 .sb-standing-div{font-family:var(--font-d);font-size:1.4rem;color:var(--grey)}
 .sb-standing-a{color:var(--team-a)}
 .sb-standing-b{color:var(--team-b)}
+@media(max-width:560px){
+  .sb-standing-total{font-size:2.3rem}
+  .sb-standing-emoji{font-size:1.3rem}
+  .sb-standing-row{gap:8px}
+  .sb-live-row{justify-content:center;text-align:center}
+  .sb-day-chips{justify-content:center;width:100%}
+}
 .win-banner{background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));color:var(--navy);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 2s ease-in-out infinite}
 .sd-banner{background:linear-gradient(90deg,#7a0000,#c00,#7a0000);color:var(--white);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
@@ -836,27 +855,23 @@ body{padding-top:58px;padding-bottom:52px}
   <!-- Pinned scoreboard -->
   <div class="scoreboard-pin">
     <div class="scoreboard-inner">
-      <div class="team-a">
-        <div class="sb-team-name" id="sb-team-name-a">Team Beer</div>
-        <div class="sb-total" id="sb-total-a">0</div>
-        <div class="sb-day-chips" id="sb-chips-a">
-          <span class="sb-chip">D1: 0</span>
-          <span class="sb-chip">D2: 0</span>
-          <span class="sb-chip">D3: 0</span>
+      <div class="sb-card sb-live-card">
+        <div class="sb-section-label">Live Match</div>
+        <div class="sb-live-row">
+          <span class="sb-live-score">
+            <span class="team-a"><span class="sb-team-name" id="sb-team-name-a">Team Beer</span> <span class="sb-total" id="sb-total-a">0</span></span>
+            <span class="sb-live-sep">|</span>
+            <span class="team-b"><span class="sb-team-name" id="sb-team-name-b">Team Golf</span> <span class="sb-total" id="sb-total-b">0</span></span>
+          </span>
+          <div class="sb-day-chips" id="sb-day-chips">
+            <span class="sb-chip">D1: 0–0</span>
+            <span class="sb-chip">D2: 0–0</span>
+            <span class="sb-chip">D3: 0–0</span>
+          </div>
         </div>
       </div>
-      <div class="sb-vs">VS</div>
-      <div class="team-b">
-        <div class="sb-team-name" id="sb-team-name-b">Team Golf</div>
-        <div class="sb-total" id="sb-total-b">0</div>
-        <div class="sb-day-chips" id="sb-chips-b">
-          <span class="sb-chip">D1: 0</span>
-          <span class="sb-chip">D2: 0</span>
-          <span class="sb-chip">D3: 0</span>
-        </div>
-      </div>
+      <div id="projected-line" style="display:none"></div>
     </div>
-    <div id="projected-line" style="display:none"></div>
     <div id="win-banner" style="display:none"></div>
     <div id="tiebreak-control" class="tiebreak-row" style="display:none">
       <span style="font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;color:var(--white);align-self:center">Sudden-Death Putt-Off Winner:</span>
@@ -4052,10 +4067,16 @@ function updateScoreboard() {
   if (teamAPin) teamAPin.classList.toggle('leading', totalA > totalB);
   if (teamBPin) teamBPin.classList.toggle('leading', totalB > totalA);
 
-  document.getElementById('sb-chips-a').innerHTML =
-    `<span class="sb-chip">D1: ${fmt(d1.a)}</span><span class="sb-chip">D2: ${fmt(d2.a)}</span><span class="sb-chip">D3: ${fmt(d3.a)}</span>`;
-  document.getElementById('sb-chips-b').innerHTML =
-    `<span class="sb-chip">D1: ${fmt(d1.b)}</span><span class="sb-chip">D2: ${fmt(d2.b)}</span><span class="sb-chip">D3: ${fmt(d3.b)}</span>`;
+  document.getElementById('sb-day-chips').innerHTML = [
+    { label: 'D1', a: d1.a, b: d1.b },
+    { label: 'D2', a: d2.a, b: d2.b },
+    { label: 'D3', a: d3.a, b: d3.b },
+  ].map(d => {
+    let cls = 'sb-chip';
+    if (d.a > d.b) cls += ' live-a';
+    else if (d.b > d.a) cls += ' live-b';
+    return `<span class="${cls}">${d.label}: ${fmt(d.a)}–${fmt(d.b)}</span>`;
+  }).join('');
 
   const banner = document.getElementById('win-banner');
   const tiebreakControl = document.getElementById('tiebreak-control');
@@ -4105,14 +4126,22 @@ function updateScoreboard() {
     const projTotalA = proj.totalA + d3.a;
     const projTotalB = proj.totalB + d3.b;
     if (fmt(projTotalA) !== fmt(totalA) || fmt(projTotalB) !== fmt(totalB)) {
-      projLine.className = 'projected-line';
-      projLine.innerHTML = `<div class="sb-standing-label">Standing: As It Stands</div>` +
+      projLine.className = 'sb-card sb-standing-card';
+      projLine.innerHTML = `<div class="sb-section-label">Standing: As It Stands</div>` +
         `<div class="sb-standing-row">` +
-        `<span class="sb-standing-name sb-standing-a">${escapeHtml(state.teamNameA)}</span>` +
-        `<span class="sb-standing-total sb-standing-a">${fmt(projTotalA)}</span>` +
-        `<span class="sb-standing-div">–</span>` +
-        `<span class="sb-standing-total sb-standing-b">${fmt(projTotalB)}</span>` +
-        `<span class="sb-standing-name sb-standing-b">${escapeHtml(state.teamNameB)}</span>` +
+        `<div class="sb-standing-side">` +
+          `<span class="sb-standing-emoji" aria-hidden="true">🦩</span>` +
+          `<span class="sb-standing-name sb-standing-a">${escapeHtml(state.teamNameA)}</span>` +
+        `</div>` +
+        `<div class="sb-standing-score">` +
+          `<span class="sb-standing-total sb-standing-a">${fmt(projTotalA)}</span>` +
+          `<span class="sb-standing-div">|</span>` +
+          `<span class="sb-standing-total sb-standing-b">${fmt(projTotalB)}</span>` +
+        `</div>` +
+        `<div class="sb-standing-side">` +
+          `<span class="sb-standing-emoji" aria-hidden="true">🦍</span>` +
+          `<span class="sb-standing-name sb-standing-b">${escapeHtml(state.teamNameB)}</span>` +
+        `</div>` +
         `</div>`;
       projLine.style.display = '';
     } else {
