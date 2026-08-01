@@ -1,9 +1,10 @@
 /* ─────────────────────────────────────
    REGRESSION TEST — issues #295 (right-align Team A on the pinned
    scoreboard), #300 (mini scoreboard should show the "as it stands"
-   projected score, not the literal current total), #301 (swap sticky
-   behavior: the pinned scoreboard stays at the top of the page, the mini
-   scoreboard bar is the one that follows down the page).
+   projected score, not the literal current total, and label itself
+   "Projected"), #301 (swap sticky behavior: the pinned scoreboard stays
+   at the top of the page, the mini scoreboard bar is the one that follows
+   down the page).
 
    Drives the real scorecard-live.html in demo mode with state mutated
    directly (no real network round-trip needed):
@@ -13,11 +14,15 @@
      - #301: .scoreboard-pin is NOT position:sticky (normal document flow,
        scrolls away), .mini-sb IS position:sticky and stays on-screen after
        a big scroll while .scoreboard-pin scrolls out of view.
-     - #300: with an in-progress, undecided Day 1 match lead, the mini
-       scoreboard's score reflects the "as it stands" projected total (not
-       the still-0-0 literal total) -- matching the pinned scoreboard's own
-       #projected-line figure. Once the match is fully decided, the mini
-       scoreboard reads the same as the (now caught-up) real total.
+     - #300: .mini-sb has a "Projected" header label. With an in-progress,
+       undecided Day 1 match lead, the mini scoreboard's score reflects the
+       "as it stands" projected total (not the still-0-0 literal total).
+       Once the match is fully decided, the mini scoreboard reads the same
+       as the (now caught-up) real total. The pinned scoreboard's old
+       on-panel "Standing: As It Stands" projection line (#260) is gone
+       (#projected-line no longer exists) -- .mini-sb is now the only place
+       the projected score is shown, avoiding the duplication both bars
+       used to show.
 
    Self-contained: a tiny static file server for the app; Supabase and
    Google Fonts hosts blocked outright (demo mode + direct state mutation
@@ -157,6 +162,17 @@ async function main() {
       updateScoreboard();
     });
 
+    // ── #300: .mini-sb has a "Projected" header, and the pinned
+    // scoreboard's old #projected-line duplicate is gone entirely.
+    {
+      const miniState = await page.evaluate(() => ({
+        header: document.querySelector('.mini-sb-header')?.textContent,
+        projectedLineExists: !!document.getElementById('projected-line')
+      }));
+      if (miniState.header !== 'Projected') fail(`expected .mini-sb-header to read "Projected", got "${miniState.header}"`);
+      if (miniState.projectedLineExists) fail('expected #projected-line to no longer exist on the pinned scoreboard (moved to .mini-sb)');
+    }
+
     // ── #300: with no hole data, mini-sb reads 0-0 (nothing to project).
     {
       const scores = await page.evaluate(() => ({
@@ -167,9 +183,8 @@ async function main() {
     }
 
     // ── #300: a partial, undecided lead in match 0 (A ahead 3-0 thru 3 on
-    // the front nine) must show up in the mini-sb's score -- it should
-    // match the pinned scoreboard's #projected-line figure, NOT the still
-    // 0-0 real/current totals.
+    // the front nine) must show up in the mini-sb's score as the projected
+    // 1-0 match-points lead, NOT the still 0-0 real/current totals.
     {
       const result = await page.evaluate(() => {
         const m = state.day1.matches[0];
@@ -181,18 +196,12 @@ async function main() {
           miniA: document.getElementById('mini-score-a').textContent,
           miniB: document.getElementById('mini-score-b').textContent,
           realA: document.getElementById('sb-total-a').textContent,
-          realB: document.getElementById('sb-total-b').textContent,
-          projShown: getComputedStyle(document.getElementById('projected-line')).display !== 'none',
-          projText: document.getElementById('projected-line').textContent
+          realB: document.getElementById('sb-total-b').textContent
         };
       });
-      if (!result.projShown) fail('expected #projected-line visible once a match has an undecided in-progress lead');
       if (result.realA !== '0' || result.realB !== '0') fail(`expected real totals to stay "0"-"0" while undecided, got "${result.realA}"-"${result.realB}"`);
-      if (result.miniA === result.realA && result.miniB === result.realB) {
-        fail(`expected the mini scoreboard to differ from the still-undecided real total (both read "${result.miniA}"-"${result.miniB}") -- it should show the "as it stands" projection instead`);
-      }
-      if (!result.projText.includes(result.miniA) || !result.projText.includes(result.miniB)) {
-        fail(`expected the mini scoreboard's score ("${result.miniA}"-"${result.miniB}") to match the pinned scoreboard's #projected-line ("${result.projText}")`);
+      if (result.miniA !== '1' || result.miniB !== '0') {
+        fail(`expected the mini scoreboard to show the projected 1-0 lead, got "${result.miniA}"-"${result.miniB}"`);
       }
     }
 
