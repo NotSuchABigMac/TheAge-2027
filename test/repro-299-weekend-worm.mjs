@@ -156,6 +156,24 @@ async function main() {
     if (withPoints.segCount !== 4) fail(`expected 4 worm segments (2 steps x 2 lines each) for a 2-step differential sequence, got ${withPoints.segCount}`);
     if (!withPoints.hasRefreshBtn) fail('expected a manual refresh button inside the rendered weekend worm');
 
+    /* ── the sync bar's Refresh button also reloads the weekend worm ── */
+    // Real network is blocked in this test, so loadWeekendWorm() is
+    // stubbed to just record that it was called rather than exercising
+    // the actual fetch -- this proves manualRefresh() is wired to it,
+    // without needing a live Supabase round-trip.
+    const refreshWired = await page.evaluate(async () => {
+      let called = 0;
+      const original = window.loadWeekendWorm;
+      window.loadWeekendWorm = () => { called++; return Promise.resolve(); };
+      try {
+        await manualRefresh(document.querySelector('.refresh-btn'));
+      } finally {
+        window.loadWeekendWorm = original;
+      }
+      return called;
+    });
+    if (refreshWired < 1) fail('expected the sync bar\'s Refresh button (manualRefresh()) to also call loadWeekendWorm()');
+
     if (consoleErrors.length > 0) fail('unexpected console/page errors during the run:\n' + consoleErrors.join('\n'));
 
     console.log('All #299 weekend-worm assertions passed.');

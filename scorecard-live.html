@@ -6306,7 +6306,13 @@ async function manualRefresh(btn) {
   const prev = btn.textContent;
   btn.textContent = '⏳ Refreshing…';
   try {
-    await pollOnce();
+    // Issue #299 follow-up: the weekend worm otherwise only ever loads once
+    // at boot (see fetchWeekendWormRows()'s own comment for why it's kept
+    // out of the regular 30s poll cycle) -- a scorer tapping the sync bar's
+    // Refresh button expects "everything" to catch up, worm included, not
+    // just the live scoreboard. loadWeekendWorm() swallows its own errors,
+    // so this can't turn an otherwise-successful refresh into a failure.
+    await Promise.all([pollOnce(), loadWeekendWorm()]);
     if (isOffline) showSaveToast('✗ Could not reach server', 'error');
   } finally {
     btn.disabled = false;
