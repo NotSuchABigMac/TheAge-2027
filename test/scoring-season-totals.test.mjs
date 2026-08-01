@@ -441,13 +441,27 @@ test('weekendWormFor returns null when the team differential never once leaves 0
   assert.equal(weekendWormFor(rows, players, COURSES_FIXTURE, teams), null);
 });
 
-test('weekendWormFor accumulates the team-point differential as NTP holes resolve, in row order', () => {
+test('weekendWormFor accumulates the team-point differential as NTP holes resolve, in chronological (not necessarily array) order', () => {
   const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
   const teams = { teamA: new Set([0]), teamB: new Set([1]) };
   const rows = [
     { update_type: 'day1_ntp', field_key: 'h8', value: '0', updated_at: '2026-08-07T09:00:00Z' },  // player 0 (A) -> +1 A
-    { update_type: 'day2_ntp', field_key: 'h4', value: '0', updated_at: '2026-08-08T09:00:00Z' },  // player 0 (A) again -> +1 A
-    { update_type: 'day1_ntp', field_key: 'h17', value: '1', updated_at: '2026-08-07T15:00:00Z' }  // player 1 (B) -> +1 B
+    { update_type: 'day1_ntp', field_key: 'h17', value: '1', updated_at: '2026-08-07T15:00:00Z' }, // player 1 (B) -> +1 B
+    { update_type: 'day2_ntp', field_key: 'h4', value: '0', updated_at: '2026-08-08T09:00:00Z' }   // (next day) player 0 (A) again -> +1 A
+  ];
+  assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1, 0, 1]);
+});
+
+test('weekendWormFor replays by each field\'s own updated_at, not by array position -- a caller-supplied array that\'s already sorted stays exactly in that order, but nothing relies on it being pre-sorted', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const teams = { teamA: new Set([0]), teamB: new Set([1]) };
+  const rows = [
+    // Listed out of chronological order on purpose (h17 first in the array,
+    // but its timestamp is actually latest) -- the real replay order must
+    // still be h8, then day2 h4, then h17.
+    { update_type: 'day1_ntp', field_key: 'h17', value: '1', updated_at: '2026-08-07T15:00:00Z' }, // B, but LAST chronologically
+    { update_type: 'day1_ntp', field_key: 'h8', value: '0', updated_at: '2026-08-07T09:00:00Z' },  // A, earliest
+    { update_type: 'day2_ntp', field_key: 'h4', value: '0', updated_at: '2026-08-07T12:00:00Z' }   // A, middle
   ];
   assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1, 2, 1]);
 });
@@ -461,6 +475,34 @@ test('weekendWormFor only records a point when the differential actually changes
     { update_type: 'day1_ntp', field_key: 'h17', value: '0', updated_at: '2026-08-07T15:00:00Z' }   // +1 A again
   ];
   assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1, 2]);
+});
+
+test('weekendWormFor collapses a typo-then-correction on the same field to just the correction, credited at the correction\'s own time -- not two steps (the wrong value, then undoing it)', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const teams = { teamA: new Set([0]), teamB: new Set([1]) };
+  const rows = [
+    { update_type: 'day1_ntp', field_key: 'h8', value: '1', updated_at: '2026-08-07T09:00:00Z' }, // typo: player 1 (B) recorded as winner
+    { update_type: 'day1_ntp', field_key: 'h8', value: '0', updated_at: '2026-08-07T09:05:00Z' }  // corrected: really player 0 (A)
+  ];
+  // Only the correction (A) should ever be applied -- never a B-then-A
+  // flip-flop from replaying both the mistake and its fix.
+  assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1]);
+});
+
+test('weekendWormFor: a field\'s deduped final value still slots into the replay at its OWN last-write time, not the time it was first (wrongly) entered', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const teams = { teamA: new Set([0]), teamB: new Set([1]) };
+  const rows = [
+    { update_type: 'day1_ntp', field_key: 'h17', value: '1', updated_at: '2026-08-07T08:00:00Z' }, // genuine, single write -> +1 B
+    { update_type: 'day1_ntp', field_key: 'h8', value: '1', updated_at: '2026-08-07T09:00:00Z' },  // typo -> +1 B (wrong)
+    { update_type: 'day1_ntp', field_key: 'h8', value: '0', updated_at: '2026-08-07T10:00:00Z' }   // corrected -> +1 A instead
+  ];
+  // Raw chronological replay (no dedup) would read [-1, -2, 0] -- a
+  // spurious extra step showing B pulling further ahead, then snapping
+  // back, purely from the correction. Deduped: h17 (B) applies at 08:00,
+  // h8's surviving correction (A) applies at its own last-write time
+  // (10:00) -- net [-1, 0], the tournament's actual progression.
+  assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [-1, 0]);
 });
 
 test('weekendWormFor skips a row that throws when applied (e.g. a malformed legacy team_assign value) instead of aborting the whole replay -- same tolerance processUpdateRows() gives the real sync path (issue #63)', () => {
