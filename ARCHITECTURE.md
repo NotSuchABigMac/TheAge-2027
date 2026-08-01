@@ -302,6 +302,38 @@ Composes correctly with issue #149's anthem adjustment: `anthemAdjustedHandicap(
 is applied to whatever `.hcp` value it's given, override or not, so an
 overridden base handicap still gets its per-round anthem nudge on top.
 
+## Fetch timeout on every Supabase call (issue #285)
+
+Reported as "scores desynced after everyone entered the tournament PIN" —
+other devices showing the live total, one device stuck on a stale one with
+no offline banner, just the subtle "Syncing…" sync-bar text. Root cause:
+none of `scorecard-live.html`'s or `ribbon-status.js`'s `fetch()` calls
+carried a timeout, so a stalled connection (flaky course wifi/cell) could
+hang a request indefinitely instead of failing it.
+
+`pollOnce()` sets `syncInFlight = true`, awaits `loadFromSupabase()`, and
+only resets `syncInFlight` — and flips `syncStatus` to `'offline'`, which is
+what makes the loud red `#offline-banner` appear via `updateOfflineIndicator()`
+— in its `finally` block, once that await settles. A `fetch` that never
+settles means `syncInFlight` never clears, and every subsequent 30s tick's
+`pollOnce()` early-returns on `if (syncInFlight) return`, permanently
+wedging that device's sync while every other device on a working connection
+keeps updating normally. `ribbon-status.js`'s `schedulePoll()` has the same
+shape of bug: it only re-arms its next `setTimeout` after its own
+`await renderLive()` settles.
+
+`fetchWithTimeout()` (one copy in each file, `FETCH_TIMEOUT_MS = 15000`)
+wraps every Supabase-hitting `fetch` with an `AbortController` timeout —
+comfortably under the 30s poll cadence — so a hang becomes an ordinary
+failed request instead. The existing offline handling already does the
+right thing with that: `isOffline` gets set, the red banner appears, and
+the write/read queue retries exactly as it does for any other network
+failure. `test/repro-285-fetch-timeout.mjs` hangs a mocked GET (never
+fulfilled, never aborted — a stalled connection never resolves either) and
+asserts the device recovers (`syncInFlight` resets, `isOffline` flips true,
+the banner becomes visible) and that the very next poll against a working
+connection succeeds normally.
+
 Editing is gated behind the Admin tab (organiser-only) *and* the same
 admin-PIN prompt (`requireAdminToken()`) Rollback Scores uses — a bad
 handicap silently changes every derived score rather than failing loudly

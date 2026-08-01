@@ -57,6 +57,25 @@
     valueEl.textContent = days <= 0 ? 'Today' : (days === 1 ? '1 Day' : `${days} Days`);
   }
 
+  // Issue #285: a fetch has no default timeout -- on a flaky connection it
+  // can hang indefinitely instead of failing. schedulePoll() only re-arms
+  // its next setTimeout after its `await renderLive()` settles, so a fetch
+  // that never settles here means the ribbon simply stops polling forever,
+  // frozen on whatever score it last showed with no visible sign anything
+  // is wrong (this ribbon has no offline banner by design). A hard timeout
+  // turns the hang into an ordinary rejection, which schedulePoll()'s
+  // existing catch already handles (keep last render, re-arm next tick).
+  const FETCH_TIMEOUT_MS = 15000;
+  async function fetchWithTimeout(url, options) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   // A deliberately simpler full-refresh read than the live scorecard's
   // exact-once cursor/id tracking (issue #111) -- this is read-only
   // display, not the source of truth for scoring, so re-applying a
@@ -69,7 +88,7 @@
     let cursor = '1970-01-01T00:00:00.000Z';
     while (true) {
       const url = `${SUPABASE_URL}/rest/v1/tournament_updates?select=${SAFE_SELECT_COLUMNS}&tournament_id=eq.${TOURNAMENT_ID}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
-      const resp = await fetch(url, { headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' } });
+      const resp = await fetchWithTimeout(url, { headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' } });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const page = await resp.json();
       rows.push(...page);
