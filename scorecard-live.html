@@ -61,9 +61,10 @@
 .scoreboard-inner{max-width:1200px;margin:0 auto;padding:10px 24px;display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:12px}
 .sb-team{text-align:center}
 .sb-team-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-bottom:2px}
-/* Live/real total -- kept small and secondary to .sb-standing-total below
-   (the "as it stands" projection), which is the number worth glancing at
-   mid-round. This one is the literal, currently-locked score. */
+/* The literal, currently-locked score. The "as it stands" projection
+   (issue #260) used to duplicate this as a second, bigger figure right on
+   this panel -- moved to .mini-sb's header instead (issue #300/follow-up),
+   so this is the only score shown here now. */
 .sb-total{font-family:var(--font-d);font-size:1.5rem;line-height:1}
 .team-a .sb-team-name,.team-a .sb-total{color:var(--team-a)}
 .team-b .sb-team-name,.team-b .sb-total{color:var(--team-b)}
@@ -84,21 +85,6 @@
 .sb-vs{font-family:var(--font-d);font-size:1.4rem;color:var(--grey);text-align:center}
 .sb-day-chips{display:flex;justify-content:center;gap:6px;margin-top:5px;flex-wrap:wrap}
 .sb-chip{font-family:var(--font-h);font-size:.6rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--grey)}
-/* Issue #260: "as it stands" projection section -- the number worth a
-   glance mid-round, so it's the visual focus of the pinned panel (big,
-   colored) while the literal live/locked score above (.sb-total) stays
-   small. Still only shown while it differs from the real total
-   (updateScoreboard() toggles display:none) -- once nothing's in
-   progress the real score already reads the same, so showing both would
-   be redundant. */
-.projected-line{text-align:center;padding:2px 24px 14px}
-.sb-standing-label{font-family:var(--font-h);font-size:.62rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
-.sb-standing-row{display:flex;align-items:baseline;justify-content:center;gap:10px;flex-wrap:wrap}
-.sb-standing-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase}
-.sb-standing-total{font-family:var(--font-d);font-size:3.2rem;line-height:1}
-.sb-standing-div{font-family:var(--font-d);font-size:1.4rem;color:var(--grey)}
-.sb-standing-a{color:var(--team-a)}
-.sb-standing-b{color:var(--team-b)}
 .win-banner{background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));color:var(--navy);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 2s ease-in-out infinite}
 .sd-banner{background:linear-gradient(90deg,#7a0000,#c00,#7a0000);color:var(--white);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
@@ -563,7 +549,14 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
    fixed masthead (same top offset .scoreboard-pin used to use), so it's
    the one still visible once a scorer has scrolled down into the entry
    grids. */
-.mini-sb{position:sticky;top:58px;z-index:900;background:rgba(11,26,13,.97);border-bottom:1px solid rgba(240,180,41,.2);padding:7px 24px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+.mini-sb{position:sticky;top:58px;z-index:900;background:rgba(11,26,13,.97);border-bottom:1px solid rgba(240,180,41,.2);padding:5px 24px 7px;display:flex;flex-direction:column;align-items:center;gap:2px}
+/* Header label so it's clear the score below is the "as it stands"
+   projection (issue #260/#300), not the literal, currently-locked total --
+   the pinned scoreboard used to spell that out with its own duplicate
+   "Standing: As It Stands" line + scores; that's gone now that this bar
+   already says it, and shows it, on every scroll position. */
+.mini-sb-header{font-family:var(--font-h);font-size:.58rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
+.mini-sb-row{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
 .mini-sb-team{display:flex;align-items:center;gap:8px;font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase}
 .mini-sb-name{color:var(--grey)}
 .mini-sb-score{font-family:var(--font-d);font-size:1.4rem;line-height:1}
@@ -673,7 +666,7 @@ body{padding-top:58px;padding-bottom:52px}
    already handle that in every media, nothing extra needed there. */
 @media print {
   #username-badge, #offline-banner, .mini-sb, .sync-bar, .sc-tabs,
-  #save-toast, #undo-toast, #update-toast, #confirm-toast, #wire-toast, #projected-line,
+  #save-toast, #undo-toast, #update-toast, #confirm-toast, #wire-toast,
   #provenance-popover, .username-modal, .countdown-bar, .help-btn, .help-modal,
   #field-history-panel, .dormant-tab-modal, .resync-nudge-modal, .app-footer {
     display: none !important;
@@ -845,16 +838,19 @@ body{padding-top:58px;padding-bottom:52px}
 
 <!-- Mini Scoreboard -->
 <div class="mini-sb" id="mini-sb">
-  <div class="mini-sb-team mini-sb-a">
-    <span class="mini-sb-name" id="mini-name-a">Team Beer</span>
-    <span class="mini-sb-score" id="mini-score-a">0</span>
+  <div class="mini-sb-header">Projected</div>
+  <div class="mini-sb-row">
+    <div class="mini-sb-team mini-sb-a">
+      <span class="mini-sb-name" id="mini-name-a">Team Beer</span>
+      <span class="mini-sb-score" id="mini-score-a">0</span>
+    </div>
+    <span class="mini-sb-vs">vs</span>
+    <div class="mini-sb-team mini-sb-b">
+      <span class="mini-sb-score" id="mini-score-b">0</span>
+      <span class="mini-sb-name" id="mini-name-b">Team Golf</span>
+    </div>
+    <div class="mini-sb-days" id="mini-sb-days"></div>
   </div>
-  <span class="mini-sb-vs">vs</span>
-  <div class="mini-sb-team mini-sb-b">
-    <span class="mini-sb-score" id="mini-score-b">0</span>
-    <span class="mini-sb-name" id="mini-name-b">Team Golf</span>
-  </div>
-  <div class="mini-sb-days" id="mini-sb-days"></div>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -886,7 +882,6 @@ body{padding-top:58px;padding-bottom:52px}
       </div>
     </div>
     <div id="weekend-worm-slot" class="weekend-worm-slot" style="display:none"></div>
-    <div id="projected-line" style="display:none"></div>
     <div id="win-banner" style="display:none"></div>
     <div id="tiebreak-control" class="tiebreak-row" style="display:none">
       <span style="font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;color:var(--white);align-self:center">Sudden-Death Putt-Off Winner:</span>
@@ -4166,38 +4161,6 @@ function updateScoreboard() {
     if (tiebreakControl) tiebreakControl.style.display = 'none';
   }
 
-  // Issue #260: "if everything ended right now" projection line.
-  // Day 3 is a full-field Stableford ranking rather than a per-match
-  // score, so it doesn't decompose into an in-progress/decided split
-  // the way Day 1 match play and Day 2 fourball-scramble do -- its
-  // real, already-computed d3 total is carried through unprojected,
-  // by design, not an oversight. projectedTotals() itself provably
-  // degrades to the real score once a match/round is actually decided
-  // (it calls the same matchPoints()/day2GroupPoints() the real totals
-  // do, just fed projected-so-far inputs), so the line only shows once
-  // it differs from the real total -- avoiding clutter once nothing is
-  // actually in progress.
-  const projLine = document.getElementById('projected-line');
-  if (projLine) {
-    const proj = projectedTotals(state, currentPlayers(), COURSES);
-    const projTotalA = proj.totalA + d3.a;
-    const projTotalB = proj.totalB + d3.b;
-    if (fmt(projTotalA) !== fmt(totalA) || fmt(projTotalB) !== fmt(totalB)) {
-      projLine.className = 'projected-line';
-      projLine.innerHTML = `<div class="sb-standing-label">Standing: As It Stands</div>` +
-        `<div class="sb-standing-row">` +
-        `<span class="sb-standing-name sb-standing-a">${escapeHtml(state.teamNameA)}</span>` +
-        `<span class="sb-standing-total sb-standing-a">${fmt(projTotalA)}</span>` +
-        `<span class="sb-standing-div">–</span>` +
-        `<span class="sb-standing-total sb-standing-b">${fmt(projTotalB)}</span>` +
-        `<span class="sb-standing-name sb-standing-b">${escapeHtml(state.teamNameB)}</span>` +
-        `</div>`;
-      projLine.style.display = '';
-    } else {
-      projLine.style.display = 'none';
-    }
-  }
-
   updateMiniScoreboard();
 }
 
@@ -6422,11 +6385,11 @@ function updateTeamNames() {
   if (ib) ib.value = b;
 }
 
-// Issue #300: shows the "as it stands" projected score (same figure as the
-// pinned scoreboard's #projected-line -- see updateScoreboard()) rather than
-// the literal, currently-locked total. projectedTotals() degrades to the
-// real score once nothing's in progress, so this is safe to always show,
-// no separate in-progress/decided branching needed here.
+// Issue #300: shows the "as it stands" projected score (labeled by
+// .mini-sb-header, see the HTML above) rather than the literal,
+// currently-locked total. projectedTotals() degrades to the real score
+// once nothing's in progress, so this is safe to always show, no separate
+// in-progress/decided branching needed here.
 function updateMiniScoreboard() {
   const d1 = calcDay1();
   const d2 = calcDay2();
