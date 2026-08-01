@@ -684,6 +684,24 @@ body{padding-top:58px;padding-bottom:52px}
   </div>
 </div>
 
+<!-- One-time nudge shown right after a fresh login, so scorers aren't
+     expected to find the 🔔 button on the Wire tab on their own. The
+     actual Notification.requestPermission() call still only ever fires
+     from the "Turn On" tap below, via toggleWireNotifications() --
+     browsers require that gesture regardless, and this modal supplies it
+     without expecting anyone to have found the Wire tab first. -->
+<div id="notify-nudge-modal" class="resync-nudge-modal hidden" role="dialog" aria-modal="true" aria-labelledby="notify-nudge-title">
+  <div class="resync-nudge-card">
+    <div class="resync-nudge-icon">🔔</div>
+    <div class="resync-nudge-title" id="notify-nudge-title">Get notified of big moments?</div>
+    <div class="resync-nudge-body">Turn on notifications and we'll ping you when someone claims Nearest the Pin or another big moment happens on the Wonga Wire -- even with the app in your pocket.</div>
+    <div class="resync-nudge-actions">
+      <button type="button" class="resync-nudge-btn sec" onclick="dismissNotifyNudge()">Not Now</button>
+      <button type="button" class="resync-nudge-btn primary" onclick="acceptNotifyNudge()">Turn On</button>
+    </div>
+  </div>
+</div>
+
 <div id="save-toast" class="save-toast"></div>
 <div id="wire-toast" class="wire-toast" role="status"></div>
 <div id="undo-toast" class="undo-toast" role="status">
@@ -4460,9 +4478,12 @@ function showWireToast(headline) {
 }
 
 // Opt-in bell (issue #186 tier 2): system notifications, best-effort
-// only. Never requested automatically -- Notification.requestPermission()
-// must come from a real tap, and a golfer who never opens the Wire tab
-// should never be prompted at all.
+// only. requestPermission() itself must always come from a real tap --
+// browsers enforce that regardless -- so the bell button below and the
+// post-login nudge (maybeOfferNotifyNudge()) are just two different taps
+// that both land on toggleWireNotifications(). Golfers are no longer
+// expected to find the bell on their own; the nudge offers it proactively
+// the moment they log in, once per device.
 const WIRE_NOTIFY_KEY = KEY_PREFIX + 'wongaCup2026_wireNotify';
 function wireNotifyEnabled() {
   try { return localStorage.getItem(WIRE_NOTIFY_KEY) === '1' && typeof Notification !== 'undefined' && Notification.permission === 'granted'; }
@@ -4496,6 +4517,33 @@ function maybeShowSystemNotification(headline) {
   if (!wireNotifyEnabled()) return;
   if (document.visibilityState === 'visible') return; // already looking at the toast/feed -- a system notification too would be redundant noise
   try { new Notification('Wonga Wire', { body: headline, icon: 'images/favicon-32.png' }); } catch (_) {}
+}
+
+// Post-login nudge: offered once per device right after a fresh name/PIN
+// login, instead of relying on the scorer to find the 🔔 button on the
+// Wire tab. Only offered when there's an actual decision left to make --
+// skipped if the browser can't do notifications at all, if the golfer
+// already granted/denied permission some other way, or if this device has
+// already seen the nudge (accepting and declining both count -- "Not Now"
+// means "don't ask again here", not "ask again next login").
+const NOTIFY_NUDGE_SEEN_KEY = KEY_PREFIX + 'wongaCup2026_notifyNudgeSeen';
+function maybeOfferNotifyNudge() {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'default') return;
+  try { if (localStorage.getItem(NOTIFY_NUDGE_SEEN_KEY) === '1') return; } catch (_) {}
+  document.getElementById('notify-nudge-modal').classList.remove('hidden');
+}
+function markNotifyNudgeSeen() {
+  try { localStorage.setItem(NOTIFY_NUDGE_SEEN_KEY, '1'); } catch (_) {}
+}
+function dismissNotifyNudge() {
+  markNotifyNudgeSeen();
+  document.getElementById('notify-nudge-modal').classList.add('hidden');
+}
+function acceptNotifyNudge() {
+  markNotifyNudgeSeen();
+  document.getElementById('notify-nudge-modal').classList.add('hidden');
+  toggleWireNotifications(); // same requestPermission() -> localStorage -> bell-state wiring as the Wire tab button
 }
 
 /* ─────────────────────────────────────
@@ -5357,6 +5405,7 @@ function completeLogin(name, token) {
   document.getElementById('username-badge').style.display = 'block';
   updateAdminVisibility();
   maybeAutoPin(); // issue #272
+  maybeOfferNotifyNudge();
   if (_pendingAction) { _pendingAction(); _pendingAction = null; }
 }
 
@@ -5730,6 +5779,7 @@ setupModalA11y('music-modal', dismissMusic);
 setupModalA11y('username-modal', closeUsernameModal);
 setupModalA11y('help-modal', closeHelpModal);
 setupModalA11y('resync-nudge-modal', dismissResyncNudge);
+setupModalA11y('notify-nudge-modal', dismissNotifyNudge);
 
 initUsername();
 initJoinHandoff();
