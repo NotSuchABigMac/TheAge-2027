@@ -419,6 +419,21 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .live-dot.grey{background:#999;animation:none}
 .live-dot.offline{background:#ff5c5c;animation:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+/* Issue #287: sat in normal document flow, so it scrolled out of view the
+   moment a scorer entered holes further down the page -- exactly when an
+   offline/auth problem most needs to be seen, and the failure this whole
+   page-flow bug was actually reported against. Only applied once there is
+   something to act on (offline, queued writes, wrong PIN) -- setSyncBarFrozen()
+   (JS) toggles this class and sets `top` to dock it directly under whatever
+   height .scoreboard-pin currently renders at, so it never gaps or overlaps
+   regardless of which day chips/tiebreak row/win banner happen to be showing.
+   The ordinary "Live"/"Syncing…" states stay in normal flow exactly as
+   before -- freezing a bar with nothing to say would just be in the way. */
+.sync-bar.sync-frozen{position:sticky;z-index:890;max-width:none;width:100%;box-sizing:border-box;background:#c81e1e;border-bottom:3px solid #7a1414;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.sync-frozen .sync-label,.sync-frozen .sync-text{color:#fff}
+.sync-frozen .live-dot.offline{background:#fff;animation:blink 1s ease-in-out infinite}
+.sync-frozen .refresh-btn{background:rgba(255,255,255,.18);color:#fff;border-color:#fff}
+.sync-frozen .refresh-btn:hover{background:rgba(255,255,255,.3)}
 .sync-btn{padding:7px 16px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
 .sync-btn:hover{background:var(--gold-light)}
 .sync-btn.sec{background:transparent;color:var(--ink-mute);border:1px solid var(--rule-strong)}
@@ -5768,18 +5783,43 @@ function updateSyncGatedInputs() {
   });
 }
 
+// Issue #287: the frozen/red treatment only kicks in once there's actually
+// something to act on (offline, queued writes, wrong PIN) -- docks the bar
+// (position:sticky) directly under whatever height .scoreboard-pin is
+// currently rendering at (masthead height + the scoreboard's own, both
+// read live rather than hardcoded, so this never gaps or overlaps
+// regardless of which day chips/tiebreak row/win banner happen to be
+// showing) so it stays visible even after scrolling down into the entry
+// grids -- exactly where the original bug report's stuck device was
+// scrolled to when nobody noticed the subtle grey "Syncing…" text.
+function setSyncBarFrozen(bar, frozen) {
+  if (!bar) return;
+  bar.classList.toggle('sync-frozen', frozen);
+  if (frozen) {
+    const pin = document.querySelector('.scoreboard-pin');
+    const masthead = document.querySelector('.masthead');
+    const top = (masthead ? masthead.offsetHeight : 58) + (pin ? pin.offsetHeight : 0);
+    bar.style.top = top + 'px';
+  } else {
+    bar.style.top = '';
+  }
+}
+
 function renderSyncBar() {
   updateSyncGatedInputs();
+  const bar = document.querySelector('.sync-bar');
   const dot = document.querySelector('.sync-bar .live-dot');
   const label = document.querySelector('.sync-bar .sync-text');
   if (!dot || !label) return;
   dot.classList.remove('grey', 'offline');
+  let needsAttention = false;
   if (syncStatus === 'initial-loading') {
     dot.classList.add('grey');
     label.textContent = 'Syncing latest scores…';
   } else if (authNeeded) {
     dot.classList.add('offline');
     label.textContent = 'Sign-in needed';
+    needsAttention = true;
   } else if (syncInFlight) {
     dot.classList.add('grey');
     label.textContent = 'Syncing…';
@@ -5788,9 +5828,11 @@ function renderSyncBar() {
     label.textContent = pendingWrites.length > 0
       ? `Offline · ${pendingWrites.length} queued`
       : 'Offline — local only';
+    needsAttention = true;
   } else {
     label.textContent = lastSyncedAt ? `Live · synced ${relativeAgo(lastSyncedAt)}` : 'Live Scores';
   }
+  setSyncBarFrozen(bar, needsAttention);
 }
 // The "synced Xs ago" text keeps drifting even when nothing else changes
 // -- refreshed lazily rather than on a busy per-second timer, and only
