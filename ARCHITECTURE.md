@@ -690,8 +690,18 @@ total.
   Rendered in the `.scoreboard-pin` header (`#weekend-worm-slot`), fed by
   `fetchWeekendWormRows()` — a direct fetch of the *full* table,
   independent of the sync cursor, same precedent as the Admin Field
-  History panel's own direct fetch. Deliberately **not** wired into
-  `pollOnce()`'s 30s cycle, since re-fetching the entire table on every
-  poll would multiply a full-table read for no benefit that a one-shot
-  load at boot (`loadWeekendWorm()`) plus a manual refresh button doesn't
-  already cover.
+  History panel's own direct fetch. **Paginates 500 rows at a time,
+  looping until a page comes back short** — the exact same cursor-based
+  loop `loadFromSupabase()` already uses — rather than trusting a single
+  request with a large `limit=`: a real Supabase/PostgREST response can
+  cap out under whatever's asked for regardless of the `limit` param, and
+  since rows are ordered oldest-first, a truncated single-request fetch
+  silently keeps only the earliest rows and drops every later correction
+  — which is exactly what made the worm briefly show a stale,
+  already-corrected imbalance as if it were still current. Loaded once at
+  boot (`loadWeekendWorm()`), on the sync bar's manual Refresh button
+  (`manualRefresh()`), and via its own small refresh button on the chart
+  itself — deliberately **not** wired into `pollOnce()`'s automatic 30s
+  cycle, since re-fetching (and re-paginating) the entire table on every
+  poll would multiply a full-table read for no benefit those three
+  explicit triggers don't already cover.

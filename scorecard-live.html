@@ -5293,20 +5293,43 @@ function formatProvenanceTime(iso) {
    needs the entire log every time, not just what's new, so refetching it
    on every poll would multiply a full-table read for no benefit; a
    one-shot load at boot plus a manual refresh button covers it.
-───────────────────────────────────── */
-const WEEKEND_WORM_ROW_LIMIT = 5000;
 
+   Paginates exactly like loadFromSupabase() above -- 500 rows per page,
+   looping until a page comes back short of the limit -- rather than
+   trusting a single request with a large `limit=`. A single oversized
+   request silently truncates to whatever the server's own row cap
+   actually is (PostgREST/Supabase commonly caps a response regardless of
+   the requested `limit`), and since rows are ordered oldest-first, a
+   truncated fetch keeps only the EARLIEST rows and silently drops every
+   later correction -- exactly the shape of bug that made the worm show a
+   stale, already-corrected imbalance as if it were still current.
+───────────────────────────────────── */
 async function fetchWeekendWormRows() {
-  const params = new URLSearchParams({
-    select: SAFE_SELECT_COLUMNS,
-    tournament_id: `eq.${SUPABASE_CONFIG.tournamentId}`,
-    order: 'updated_at.asc,id.asc',
-    limit: String(WEEKEND_WORM_ROW_LIMIT)
-  });
-  const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?${params.toString()}`;
-  const resp = await fetchWithTimeout(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return resp.json();
+  const rows = [];
+  let cursor = '1970-01-01T00:00:00.000Z';
+  let seenAtCursor = new Set();
+  while (true) {
+    const params = new URLSearchParams({
+      select: SAFE_SELECT_COLUMNS,
+      tournament_id: `eq.${SUPABASE_CONFIG.tournamentId}`,
+      updated_at: `gte.${cursor}`,
+      order: 'updated_at.asc,id.asc',
+      limit: '500'
+    });
+    const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?${params.toString()}`;
+    const resp = await fetchWithTimeout(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const page = await resp.json();
+    const fresh = page.filter(r => !(r.updated_at === cursor && seenAtCursor.has(r.id)));
+    rows.push(...fresh);
+    if (page.length < 500) break; // caught up
+    const lastTs = page[page.length - 1].updated_at;
+    seenAtCursor = lastTs === cursor
+      ? new Set([...seenAtCursor, ...page.filter(r => r.updated_at === lastTs).map(r => r.id)])
+      : new Set(page.filter(r => r.updated_at === lastTs).map(r => r.id));
+    cursor = lastTs;
+  }
+  return rows;
 }
 
 async function loadWeekendWorm() {

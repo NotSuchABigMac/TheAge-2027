@@ -176,6 +176,46 @@ async function main() {
 
     if (consoleErrors.length > 0) fail('unexpected console/page errors during the run:\n' + consoleErrors.join('\n'));
 
+    /* ── fetchWeekendWormRows() paginates instead of trusting a single
+       oversized `limit=` -- a real Supabase/PostgREST response can cap
+       out well under what's asked for, and since rows are ordered
+       oldest-first, a truncated single-request fetch silently keeps only
+       the EARLIEST rows and drops every later correction. A fresh context
+       here (not the shared one above) so this can serve a mocked
+       tournament_updates response instead of aborting the request. ── */
+    const context2 = await browser.newContext();
+    try {
+      await context2.route('**fonts.googleapis.com**', route => route.abort());
+      await context2.route('**fonts.gstatic.com**', route => route.abort());
+      const TOTAL_ROWS = 510; // more than one 500-row page
+      const ALL_ROWS = Array.from({ length: TOTAL_ROWS }, (_, i) => ({
+        id: i,
+        update_type: 'day1_ntp',
+        match_idx: null,
+        player_id: null,
+        field_key: i % 2 === 0 ? 'h8' : 'h17',
+        value: '0',
+        updated_by: 'test',
+        updated_at: new Date(Date.UTC(2026, 6, 7, 0, 0, i)).toISOString() // one second apart, strictly ascending
+      }));
+      await context2.route('**wtyyarvyscbrrkawjcvo.supabase.co/rest/v1/tournament_updates**', async (route) => {
+        const url = new URL(route.request().url());
+        const cursor = (url.searchParams.get('updated_at') || 'gte.1970-01-01T00:00:00.000Z').replace(/^gte\./, '');
+        const page = ALL_ROWS.filter(r => r.updated_at >= cursor).slice(0, 500);
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(page) });
+      });
+      const page2 = await context2.newPage();
+      await page2.goto(`${base}?demo=1`, { waitUntil: 'domcontentloaded' });
+      await page2.waitForTimeout(200);
+      await page2.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
+      const fetchedCount = await page2.evaluate(() => fetchWeekendWormRows().then(rows => rows.length));
+      if (fetchedCount !== TOTAL_ROWS) {
+        fail(`expected fetchWeekendWormRows() to paginate past a single 500-row page and return all ${TOTAL_ROWS} rows, got ${fetchedCount}`);
+      }
+    } finally {
+      await context2.close();
+    }
+
     console.log('All #299 weekend-worm assertions passed.');
   } catch (e) {
     console.log('Error:', e.message);
