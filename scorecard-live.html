@@ -1313,6 +1313,7 @@ body{padding-top:58px;padding-bottom:52px}
          .sc-panel rather than living inside one, so it renders at the
          bottom of whichever tab is open, not just one specific tab. -->
     <div class="app-footer">
+      <button class="sync-btn sec" id="music-toggle-btn" onclick="toggleMusicMute()" aria-pressed="false">🔇 Unmute Music</button>
       <button class="sync-btn sec resync-btn" onclick="forceFullResync()" title="Rebuilds this device's scores from the shared server log, from scratch. Only this device is affected -- nothing on the server changes.">↻ Full Resync</button>
       <div class="app-footer-note">Score looks wrong even though you're synced? Full Resync rebuilds it from the shared log.</div>
     </div>
@@ -5794,6 +5795,7 @@ window.addEventListener('pagehide', () => {
 function startMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   sessionStorage.setItem('musicConsented', '1');
+  sessionStorage.removeItem('musicMuted');
   const audio = document.getElementById('bg-audio');
   seekToSavedMusicTime(audio);
   audio.play().catch(() => {});
@@ -5803,6 +5805,37 @@ function dismissMusic() {
   document.getElementById('music-modal').classList.add('hidden');
   sessionStorage.setItem('musicConsented', 'dismissed');
 }
+
+/* Issue #297 parity: a persistent mute/unmute control, independent of the
+   initial consent modal -- lives in .app-footer (there's no masthead-right
+   room here the way the marketing pages have; this page's masthead only
+   ever carries the help button). Mirrors site.js's mute toggle: clicking
+   "unmute" before consent has ever been given counts as the explicit
+   gesture the modal would otherwise have collected. */
+function toggleMusicMute() {
+  const audio = document.getElementById('bg-audio');
+  if (audio.paused) {
+    document.getElementById('music-modal').classList.add('hidden');
+    sessionStorage.setItem('musicConsented', '1');
+    sessionStorage.removeItem('musicMuted');
+    seekToSavedMusicTime(audio);
+    audio.play().catch(() => {});
+  } else {
+    sessionStorage.setItem('musicTime', String(audio.currentTime));
+    audio.pause();
+    sessionStorage.setItem('musicMuted', '1');
+  }
+}
+function renderMusicToggle() {
+  const audio = document.getElementById('bg-audio');
+  const btn = document.getElementById('music-toggle-btn');
+  if (!audio || !btn) return;
+  const muted = audio.paused;
+  btn.textContent = muted ? '🔇 Unmute Music' : '🔊 Mute Music';
+  btn.setAttribute('aria-pressed', String(!muted));
+}
+document.getElementById('bg-audio').addEventListener('play', renderMusicToggle);
+document.getElementById('bg-audio').addEventListener('pause', renderMusicToggle);
 
 /* ─────────────────────────────────────
    HELP / TUTORIAL (issue #245)
@@ -5824,7 +5857,7 @@ function closeHelpModal() {
 ───────────────────────────────────── */
 if (!sessionStorage.getItem('musicConsented')) {
   document.getElementById('music-modal').classList.remove('hidden');
-} else if (sessionStorage.getItem('musicConsented') === '1') {
+} else if (sessionStorage.getItem('musicConsented') === '1' && sessionStorage.getItem('musicMuted') !== '1') {
   // Autoplay policy can reject a gesture-less play() on a revisit (or the
   // file can 404) -- fall back to asking again rather than leaving an
   // unhandled promise rejection in the console.
@@ -5834,6 +5867,7 @@ if (!sessionStorage.getItem('musicConsented')) {
     document.getElementById('music-modal').classList.remove('hidden');
   });
 }
+renderMusicToggle();
 // Hitting Back/Forward often restores this page from the browser's
 // bfcache instead of a fresh navigation (this file's own polling code
 // above already accounts for that same restore for pollOnce()) -- no
@@ -5845,6 +5879,7 @@ if (!sessionStorage.getItem('musicConsented')) {
 window.addEventListener('pageshow', (e) => {
   if (!e.persisted) return;
   if (sessionStorage.getItem('musicConsented') !== '1') return;
+  if (sessionStorage.getItem('musicMuted') === '1') return;
   const audio = document.getElementById('bg-audio');
   if (audio && audio.paused) {
     audio.play().catch(() => { document.getElementById('music-modal').classList.remove('hidden'); });

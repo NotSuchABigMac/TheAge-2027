@@ -422,7 +422,6 @@ hr.rule-ink { border-top-width: 1.5px; border-top-color: var(--ink); }
   border: none;
   border-bottom: 1px solid var(--rule);
   margin: 0;
-  font: inherit;
   text-align: left;
   cursor: pointer;
 }
