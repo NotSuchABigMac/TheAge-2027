@@ -324,6 +324,24 @@ Composes correctly with issue #149's anthem adjustment: `anthemAdjustedHandicap(
 is applied to whatever `.hcp` value it's given, override or not, so an
 overridden base handicap still gets its per-round anthem nudge on top.
 
+Editing is gated behind the Admin tab (organiser-only) *and* the same
+admin-PIN prompt (`requireAdminToken()`) Rollback Scores uses — a bad
+handicap silently changes every derived score rather than failing loudly
+like a bad hole score would, so it gets the stronger gate even though it
+isn't destructive.
+
+**Mid-tournament change semantics** (a question the issue left open,
+resolved here rather than blocked on, per the organiser's explicit go-ahead
+to pick a default and document it): there's no reliable way to *block* an
+edit once Day 1 has teed off — the organiser is the only actor who could
+enforce that, and a genuine late correction should still be possible even
+mid-tournament. Instead, `renderAdminHandicaps()` swaps in a stronger
+warning (rather than disabling the field) once `daysUntilDay1(new Date())
+<= 0` — the same calendar-day granularity `phaseFor()`/`defaultDay()`
+already use elsewhere, not the exact tee time. This is the "simplest
+honest rule" the issue itself suggested: allow it, but make the organiser
+stop and think before saving a retroactive change.
+
 ## Fetch timeout on every Supabase call (issue #285)
 
 Reported as "scores desynced after everyone entered the tournament PIN" —
@@ -377,23 +395,51 @@ are untouched, so a bar with nothing to say never gets in the way.
 `test/repro-287-frozen-error-bar.mjs` covers all of it, including that the
 bar's bounding rect actually stays on-screen after a large scroll.
 
-Editing is gated behind the Admin tab (organiser-only) *and* the same
-admin-PIN prompt (`requireAdminToken()`) Rollback Scores uses — a bad
-handicap silently changes every derived score rather than failing loudly
-like a bad hole score would, so it gets the stronger gate even though it
-isn't destructive.
+## Self-service full resync (issue #290)
 
-**Mid-tournament change semantics** (a question the issue left open,
-resolved here rather than blocked on, per the organiser's explicit go-ahead
-to pick a default and document it): there's no reliable way to *block* an
-edit once Day 1 has teed off — the organiser is the only actor who could
-enforce that, and a genuine late correction should still be possible even
-mid-tournament. Instead, `renderAdminHandicaps()` swaps in a stronger
-warning (rather than disabling the field) once `daysUntilDay1(new Date())
-<= 0` — the same calendar-day granularity `phaseFor()`/`defaultDay()`
-already use elsewhere, not the exact tee time. This is the "simplest
-honest rule" the issue itself suggested: allow it, but make the organiser
-stop and think before saving a retroactive change.
+Follow-up to #285/#287: those fixed a device that's visibly stuck offline,
+but a device can also silently *diverge* while looking perfectly healthy.
+Reported live: a device's sync bar showed a normal "Live Scores" state —
+`isOffline`/`pendingWrites`/`authNeeded` all clean, `lastSyncedAt` seconds
+old, its cursor fully caught up to the newest row in the log — yet its
+computed team totals were far below every other device's. Since
+`loadFromSupabase()` only ever fetches rows *newer* than its cursor, a
+device whose cursor is already fully caught up has no way to recover from
+an earlier silent per-row apply failure (a JS exception mid-replay, a
+timing glitch — the kind `processUpdateRows()` deliberately skips rather
+than retrying forever, see the `tournament_updates` section above) except
+a full replay from row one; incremental sync never revisits a row once the
+cursor's past it.
+
+`resyncFromScratch()` is the one shared primitive for "wipe every locally
+cached score/cursor key and reload" — `STATE_KEY`, `LAST_SYNC_KEY`,
+`LAST_SYNC_IDS_KEY`, `PENDING_KEY`, and `PROVENANCE_KEY` all together, plus
+resetting in-memory `pendingWrites`. It replaces two previously-separate,
+inconsistent call sites:
+
+- The rollback-marker handler in `applyUpdate()` (issue #212) already did
+  exactly this inline; now it just calls the shared function.
+- The corrupted-saved-data init fallback's "Reset & Reload" button (shown
+  when `loadState()`/the initial render throws) used to clear only
+  `STATE_KEY` — leaving the cursor intact meant the post-reload blank
+  state only ever replayed rows *after* that stale cursor, permanently
+  losing everything before it instead of actually starting over. This was
+  a real, live bug: the most plausible mechanism for the report above.
+
+A third call site is new: **"↻ Full Resync"**, a button in the sync bar
+next to Refresh, available to any scorer (not just the admin) since the
+underlying operation is purely local — nothing on the server changes, no
+other device is affected. `forceFullResync()` guards it with a `confirm()`
+that names exactly how many not-yet-synced `pendingWrites` would be
+discarded (a full resync only rebuilds from what the server already has,
+so it can't retry them) rather than silently destroying real unsynced
+entries; accepting anyway proceeds. `test/repro-290-force-resync.mjs`
+proves the fix end-to-end — seeds real rows, captures the correct total
+from a clean load, corrupts the device's own local state to a wrong
+(lower) total while leaving its cursor fully caught up (reproducing the
+reported symptom exactly), forces a resync, and confirms the total
+converges back to the correct one — plus the `forceFullResync()`
+confirm-gating in isolation.
 
 ## Admin: field history + restore (issues #129, #132)
 

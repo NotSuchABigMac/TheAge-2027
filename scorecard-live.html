@@ -434,6 +434,8 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .sync-frozen .live-dot.offline{background:#fff;animation:blink 1s ease-in-out infinite}
 .sync-frozen .refresh-btn{background:rgba(255,255,255,.18);color:#fff;border-color:#fff}
 .sync-frozen .refresh-btn:hover{background:rgba(255,255,255,.3)}
+.sync-frozen .sync-btn.sec{color:#fff;border-color:rgba(255,255,255,.7)}
+.sync-frozen .sync-btn.sec:hover{color:#fff;border-color:#fff;background:rgba(255,255,255,.12)}
 .sync-btn{padding:7px 16px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
 .sync-btn:hover{background:var(--gold-light)}
 .sync-btn.sec{background:transparent;color:var(--ink-mute);border:1px solid var(--rule-strong)}
@@ -797,6 +799,14 @@ body{padding-top:58px;padding-bottom:52px}
   <div class="sync-bar">
     <span class="sync-label"><span class="live-dot"></span><span class="sync-text">Live Scores</span></span>
     <button class="refresh-btn" onclick="manualRefresh(this)">🔄 Refresh</button>
+    <!-- Issue #290: self-service recovery for "my score looks wrong but
+         the app says I'm synced" -- a device's own replay can silently
+         diverge from everyone else's (one row failing to apply at some
+         earlier point, never retried since incremental sync doesn't
+         revisit rows the cursor's already past). Always visible, not
+         gated on an error state, since this exact bug looks like a
+         perfectly normal "Live" sync bar. -->
+    <button class="sync-btn sec resync-btn" onclick="forceFullResync()" title="Rebuilds this device's scores from the shared server log, from scratch. Only this device is affected -- nothing on the server changes.">↻ Full Resync</button>
     <span class="sync-spacer"></span>
   </div>
 
@@ -4217,6 +4227,61 @@ function markRollbackHandled(id) {
   }
 }
 
+// Issue #290: the one true way to force this device into a full,
+// from-epoch replay of the shared server log -- clears every locally
+// cached score/cursor key (not just STATE_KEY: LAST_SYNC_KEY/
+// LAST_SYNC_IDS_KEY too, otherwise the post-reload blank state only
+// replays rows *after* wherever the stale cursor already pointed,
+// permanently losing everything before it instead of actually starting
+// over) and reloads. Shared by: the rollback-marker handler below (a
+// server-driven wipe), the corrupted-saved-data init fallback further
+// down (a crashed page's own "Reset & Reload" button), and the
+// user-facing "Full Resync" button (forceFullResync(), for the case a
+// device's own replay has quietly diverged from everyone else's --
+// confirmed in the field: one row failing to apply on a single device at
+// some earlier point, silently and permanently, since incremental sync
+// never revisits a row once the cursor has moved past it).
+function resyncFromScratch() {
+  // Issue #212: location.reload() schedules a navigation, it doesn't stop
+  // execution -- without this flag, the rest of whatever's currently on
+  // the stack (a poll pass still looping in loadFromSupabase(), then
+  // flushPendingWrites(), then refreshAllDays() -> ... -> saveState())
+  // keeps running and rewrites every key just removed below, using the
+  // untouched in-memory state/pendingWrites -- so the reloaded page reads
+  // back exactly the data it was supposed to have wiped.
+  rollbackInProgress = true;
+  localStorage.removeItem(STATE_KEY);
+  localStorage.removeItem(LAST_SYNC_KEY);
+  localStorage.removeItem(LAST_SYNC_IDS_KEY);
+  localStorage.removeItem(PENDING_KEY);
+  // Issue #200: the provenance map is purely derived from the replay,
+  // same as state itself -- without wiping it here too, a since-rebuilt
+  // score's "who/when" would linger forever pointing at stale data.
+  localStorage.removeItem(PROVENANCE_KEY);
+  pendingWrites = [];
+  location.reload();
+}
+
+// Issue #290: any scorer's own self-service recovery for "my score looks
+// wrong but the app insists I'm synced" -- previously the only fix was an
+// admin rollback (a blunt, tournament-wide, server-side operation) or a
+// devtools/bookmarklet session with someone who could read this code.
+// Purely local: nothing on the server changes, no other device is
+// affected, and it's exactly the operation resyncFromScratch() already
+// performs for a server-driven rollback -- just user-triggered instead.
+function forceFullResync() {
+  if (pendingWrites.length > 0) {
+    const n = pendingWrites.length;
+    if (!confirm(`You have ${n} ${n === 1 ? 'entry' : 'entries'} that haven't reached the server yet. A full resync only rebuilds from what the server already has, and will discard ${n === 1 ? 'it' : 'them'} rather than retry.\n\nPress Cancel to wait for ${n === 1 ? 'it' : 'them'} to sync first, or OK to discard and resync anyway.`)) {
+      return;
+    }
+  } else if (!confirm("This rebuilds your scores from scratch by replaying the entire shared log -- only this device is affected, nothing on the server changes. Use this if your score looks wrong even though the app says you're synced.\n\nContinue?")) {
+    return;
+  }
+  showSaveToast('Resyncing from scratch…', 'saving');
+  setTimeout(resyncFromScratch, 500);
+}
+
 // Issue #140: a rollback deletes rows server-side, which produces no sync
 // signal a normal replay could act on -- every other device is already
 // past those rows in its cursor and would keep them forever. The
@@ -4229,26 +4294,7 @@ function applyUpdate(row) {
   if (row.update_type === 'rollback') {
     if (getHandledRollbacks().includes(row.id)) return; // already actioned on this device
     markRollbackHandled(row.id);
-    // Issue #212: location.reload() schedules a navigation, it doesn't stop
-    // execution -- without this flag, the rest of this same poll pass (back
-    // in loadFromSupabase()'s loop, then flushPendingWrites(), then whatever
-    // called loadFromSupabase() in the first place, e.g. refreshAllDays() ->
-    // ... -> saveState()) kept running and rewrote every key just removed
-    // below, using the untouched in-memory state/pendingWrites -- so the
-    // reloaded page read back exactly the pre-rollback data it was supposed
-    // to have wiped.
-    rollbackInProgress = true;
-    localStorage.removeItem(STATE_KEY);
-    localStorage.removeItem(LAST_SYNC_KEY);
-    localStorage.removeItem(LAST_SYNC_IDS_KEY);
-    localStorage.removeItem(PENDING_KEY);
-    // Issue #200: the provenance map is purely derived from the replay,
-    // same as state itself -- without wiping it here too, a rolled-back
-    // score's "who/when" would linger forever pointing at a row that no
-    // longer exists. The from-epoch replay after this reload rebuilds it
-    // from whatever rows actually survived.
-    localStorage.removeItem(PROVENANCE_KEY);
-    location.reload();
+    resyncFromScratch();
     return;
   }
   dismissUndoToastIfSuperseded(row);
@@ -5760,7 +5806,12 @@ try {
   document.getElementById('page-scorecard').innerHTML =
     '<div class="info-box" style="margin:40px 24px">' +
     '⚠ Saved data on this device is corrupted and the scorecard could not start.<br><br>' +
-    '<button class="tc sync-btn" onclick="localStorage.removeItem(\'' + STATE_KEY + '\'); location.reload();">Reset &amp; Reload</button>' +
+    // Issue #290: used to only clear STATE_KEY, leaving the sync cursor
+    // (LAST_SYNC_KEY) intact -- the post-reload blank state then only
+    // replayed rows *after* wherever that stale cursor already pointed,
+    // permanently losing everything before it rather than actually
+    // starting over. resyncFromScratch() clears the cursor too.
+    '<button class="tc sync-btn" onclick="resyncFromScratch()">Reset &amp; Reload</button>' +
     '</div>';
 }
 // Load from Supabase on init if configured
