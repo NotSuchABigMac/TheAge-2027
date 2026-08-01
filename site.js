@@ -1,8 +1,8 @@
-// site.js — shared page chrome (music modal, masthead scroll, mobile menu)
-// for the five marketing pages (index/golfers/practical/records/format).
-// scorecard-live.html has no mobile menu and its own bespoke modal
-// accessibility handling (it also covers the username modal), so it isn't
-// a consumer of this file.
+// site.js — shared page chrome (music modal + mute toggle, masthead scroll,
+// mobile menu) for the marketing pages (index/golfers/practical/records/
+// format/print-cards/404). scorecard-live.html has no mobile menu and its
+// own bespoke modal accessibility handling (it also covers the username
+// modal), so it isn't a consumer of this file.
 //
 // Issue #182: this was inline-duplicated in all five pages and had
 // already diverged three ways -- the #144 masthead fix only existed on
@@ -44,6 +44,7 @@
   window.startMusic = function startMusic() {
     document.getElementById('music-modal').classList.add('hidden');
     sessionStorage.setItem('musicConsented', '1');
+    sessionStorage.removeItem('musicMuted');
     const audio = document.getElementById('bg-audio');
     seekToSavedMusicTime(audio);
     audio.play().catch(() => {});
@@ -54,12 +55,22 @@
   };
   const musicModal = document.getElementById('music-modal');
   if (musicModal) {
-    if (!sessionStorage.getItem('musicConsented')) {
-      musicModal.classList.remove('hidden');
-    } else if (sessionStorage.getItem('musicConsented') === '1') {
+    // Issue #297: the consent popup used to fire on whichever page
+    // happened to load first in a session, which is jarring on a
+    // deep-linked/shared link straight to an inner page. Now it only
+    // ever shows itself on the homepage -- every other page silently
+    // respects the existing musicConsented session state (autoplay if
+    // '1' and not explicitly muted, stay silent otherwise) without
+    // re-prompting, even if that autoplay attempt gets rejected.
+    const path = location.pathname.split('/').pop();
+    const isHomepage = path === '' || path === 'index.html';
+    const consented = sessionStorage.getItem('musicConsented');
+    if (!consented) {
+      if (isHomepage) musicModal.classList.remove('hidden');
+    } else if (consented === '1' && sessionStorage.getItem('musicMuted') !== '1') {
       const audio = document.getElementById('bg-audio');
       seekToSavedMusicTime(audio);
-      audio.play().catch(() => { musicModal.classList.remove('hidden'); });
+      audio.play().catch(() => { if (isHomepage) musicModal.classList.remove('hidden'); });
     }
     // Hitting Back/Forward often restores this page from the browser's
     // bfcache instead of a fresh navigation -- no script re-executes, so
@@ -70,10 +81,56 @@
     window.addEventListener('pageshow', (e) => {
       if (!e.persisted) return;
       if (sessionStorage.getItem('musicConsented') !== '1') return;
+      if (sessionStorage.getItem('musicMuted') === '1') return;
       const audio = document.getElementById('bg-audio');
-      if (audio && audio.paused) audio.play().catch(() => { musicModal.classList.remove('hidden'); });
+      if (audio && audio.paused) audio.play().catch(() => { if (isHomepage) musicModal.classList.remove('hidden'); });
     });
   }
+
+  /* ─────────────────────────────────────
+     MUTE BUTTON (issue #297)
+     Persistent, independent of the initial consent modal -- once shown,
+     toggles bg-audio playback at any time. Injected into the masthead
+     here rather than duplicated as per-page markup, so every page that
+     loads site.js gets it for free. Clicking "unmute" before consent
+     has ever been given counts as the explicit gesture the consent
+     modal would otherwise have collected, so it also grants consent
+     (mirrors startMusic()); clicking "mute" persists musicMuted so a
+     later navigation/bfcache-restore doesn't silently resume playback.
+  ───────────────────────────────────── */
+  (function initMusicToggle() {
+    const audio = document.getElementById('bg-audio');
+    const mastheadRight = document.querySelector('.masthead-right');
+    if (!audio || !mastheadRight) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'music-toggle';
+    mastheadRight.insertBefore(btn, document.getElementById('hamburger') || null);
+
+    function render() {
+      const muted = audio.paused;
+      btn.textContent = muted ? '🔇' : '🔊';
+      btn.setAttribute('aria-label', muted ? 'Unmute music' : 'Mute music');
+      btn.setAttribute('aria-pressed', String(!muted));
+    }
+    btn.addEventListener('click', () => {
+      if (audio.paused) {
+        const modal = document.getElementById('music-modal');
+        if (modal) modal.classList.add('hidden');
+        sessionStorage.setItem('musicConsented', '1');
+        sessionStorage.removeItem('musicMuted');
+        seekToSavedMusicTime(audio);
+        audio.play().catch(() => {});
+      } else {
+        sessionStorage.setItem('musicTime', String(audio.currentTime));
+        audio.pause();
+        sessionStorage.setItem('musicMuted', '1');
+      }
+    });
+    audio.addEventListener('play', render);
+    audio.addEventListener('pause', render);
+    render();
+  })();
 
   /* ─────────────────────────────────────
      MASTHEAD SCROLL

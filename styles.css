@@ -332,6 +332,29 @@ hr.rule-ink { border-top-width: 1.5px; border-top-color: var(--ink); }
   opacity: 1;
 }
 
+/* ── music mute toggle (issue #297) -- lives in .masthead-right, injected
+   by site.js, so it survives whether the nav links or the hamburger are
+   the visible sibling at a given viewport width ── */
+.music-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.85;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.music-toggle:hover { opacity: 1; }
+
 /* ── hamburger ── */
 .hamburger {
   display: none;
