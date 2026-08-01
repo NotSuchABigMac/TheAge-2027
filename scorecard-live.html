@@ -1469,6 +1469,29 @@ let rollbackInProgress = false;
 // leaking the shared write token back out to anyone loading the page.
 const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,field_key,value,updated_by,updated_at';
 
+// Issue #285: a fetch has no default timeout -- on a flaky course wifi/cell
+// connection it can hang indefinitely instead of failing. loadFromSupabase()
+// awaits this inside pollOnce(), which only resets syncInFlight in its
+// finally block once the await settles -- a fetch that never settles means
+// syncInFlight never clears, and pollOnce()'s very next 30s tick early-
+// returns on `if (syncInFlight) return`, permanently wedging this device's
+// sync with nothing to show for it but the easy-to-miss grey "Syncing…"
+// sync-bar text (isOffline is never set, since the catch that would set it
+// never runs either) -- every other device on the same connection keeps
+// updating normally while this one silently freezes on a stale score. A
+// hard timeout turns the hang into an ordinary failed request, which the
+// existing offline handling already surfaces loudly (red banner, retry).
+const FETCH_TIMEOUT_MS = 15000;
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ─────────────────────────────────────
    DATA
 ───────────────────────────────────── */
@@ -4060,7 +4083,7 @@ async function sendUpdateRow(updateType, fields) {
   // message for a bad write_token) -- either way distinguishable from a
   // network failure (fetch throwing, no response at all).
   try {
-    const resp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates`, {
+    const resp = await fetchWithTimeout(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_CONFIG.apiKey,
@@ -4485,7 +4508,7 @@ async function loadFromSupabase() {
       const cursor = localStorage.getItem(LAST_SYNC_KEY) || '1970-01-01T00:00:00.000Z';
       const seenAtCursor = new Set(getSyncedIdsAtCursor());
       const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?select=${SAFE_SELECT_COLUMNS}&tournament_id=eq.${SUPABASE_CONFIG.tournamentId}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
-      const resp = await fetch(url, {
+      const resp = await fetchWithTimeout(url, {
         headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' }
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -4586,7 +4609,7 @@ async function insertRollbackMarker(cutoffIso) {
     // excludes write_token) -- a bare `return=representation` with no
     // select= filter would otherwise ask Postgres to return every column,
     // including one anon is no longer allowed to read.
-    const resp = await fetch(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?select=id`, {
+    const resp = await fetchWithTimeout(`${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?select=id`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_CONFIG.apiKey,
@@ -4644,7 +4667,7 @@ async function rollbackScores() {
   showSaveToast('Rolling back...', 'saving');
   try {
     const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/rpc/rollback_tournament_updates`;
-    const resp = await fetch(url, {
+    const resp = await fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({
@@ -4804,7 +4827,7 @@ async function loadFieldHistory() {
     if (coords.player_id !== null) params.set('player_id', `eq.${coords.player_id}`);
     if (coords.field_key !== null) params.set('field_key', `eq.${coords.field_key}`);
     const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?${params.toString()}`;
-    const resp = await fetch(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
+    const resp = await fetchWithTimeout(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     _lastHistoryRows = await resp.json();
     renderHistoryResults();
@@ -5044,7 +5067,7 @@ async function fetchLastFieldChanges(coord, limit) {
   if (coord.player_id !== null && coord.player_id !== undefined) params.set('player_id', `eq.${coord.player_id}`);
   if (coord.field_key !== null && coord.field_key !== undefined) params.set('field_key', `eq.${coord.field_key}`);
   const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?${params.toString()}`;
-  const resp = await fetch(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
+  const resp = await fetchWithTimeout(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const rows = await resp.json();
   _fieldHistoryCache.set(key, { rows, fetchedAt: Date.now() });
