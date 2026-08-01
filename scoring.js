@@ -723,15 +723,16 @@
   /* ── WEEKEND WORM (issue #299) ──
      Same "worm" idea as matchWormFor() above (issue #270), but for the
      whole tournament rather than one match: replays the full,
-     already-synced tournament_updates log -- oldest row first, the same
-     order loadFromSupabase()'s query and processUpdateRows() already
-     expect -- through applyUpdateToState() into a scratch state (never
-     the live page state), calling computeSeasonTotals() after each row
-     to get the team-point differential (totalA - totalB) at that point
-     in the weekend. Purely derived from data already synced -- no new
-     writes, no new schema, no sync changes -- and it's the exact same
+     already-synced tournament_updates log through applyUpdateToState()
+     into a scratch state (never the live page state), calling
+     computeSeasonTotals() after each row to get the team-point
+     differential (totalA - totalB) at that point in the weekend.
+     Purely derived from data already synced -- no new writes, no new
+     schema, no sync changes -- and it's the exact same
      applyUpdateToState()/computeSeasonTotals() driving the live
-     scoreboard, so the worm can never disagree with it.
+     scoreboard, so the worm can never disagree with it. `rows` doesn't
+     need to arrive pre-sorted -- lastRowPerField() below always
+     re-derives replay order from each surviving row's own updated_at.
 
      Only records a new point when the differential actually changes --
      most rows (an in-progress hole score, a Day 2 group assignment)
@@ -755,7 +756,30 @@
      sync path (issue #63). Unlike processUpdateRows(), this can't just
      hand the batch to that helper: it needs a differential snapshot
      after every row, succeeded or not, so the try/catch is inline here
-     instead. */
+     instead.
+
+     Before any of that, `rows` is collapsed via lastRowPerField() to just
+     the LAST write ever made to each distinct field -- a scorer's
+     typo-then-correction (or an admin's Field History restore) otherwise
+     shows up as a spurious extra step in the worm right at the moment of
+     the mistake, immediately followed by another step undoing it once
+     it's fixed. Crediting only each field's real final value, at the
+     time it was actually last set (not first, possibly wrongly,
+     entered), keeps the worm reading as the tournament's true
+     progression rather than a replay of every keystroke. */
+  // Coordinate identity mirrors undoCoordKey()/describeUpdateRow() in
+  // scorecard-live.html -- same (update_type, match_idx, player_id,
+  // field_key) tuple those already use to mean "the same field".
+  function lastRowPerField(rows) {
+    const latest = new Map();
+    rows.forEach(row => {
+      const key = [row.update_type, row.match_idx ?? '', row.player_id ?? '', row.field_key ?? ''].join('|');
+      const existing = latest.get(key);
+      if (!existing || row.updated_at > existing.updated_at) latest.set(key, row);
+    });
+    return [...latest.values()].sort((a, b) => a.updated_at < b.updated_at ? -1 : a.updated_at > b.updated_at ? 1 : 0);
+  }
+
   function weekendWormFor(rows, players, courses, initialTeams) {
     if (!Array.isArray(rows) || rows.length === 0) return null;
     const state = normalizeState({
@@ -764,7 +788,7 @@
     });
     const series = [];
     let last = 0;
-    rows.forEach(row => {
+    lastRowPerField(rows).forEach(row => {
       try { applyUpdateToState(state, row); } catch { /* malformed row, skip it */ }
       const totals = computeSeasonTotals(state, players, courses);
       const diff = totals.totalA - totals.totalB;

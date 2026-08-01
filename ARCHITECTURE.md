@@ -654,12 +654,11 @@ total.
   that already sets `resultClass`.
 - **Whole-weekend, team-wide (#299):** `weekendWormFor(rows, players,
   courses, initialTeams)` (`scoring.js`) takes the *entire*
-  `tournament_updates` history (oldest row first — the same order
-  `loadFromSupabase()`'s query and `processUpdateRows()` already expect)
-  and replays it through `applyUpdateToState()` into a scratch state —
-  never the live page state — calling `computeSeasonTotals()` after each
-  row to track the team-point differential (`totalA - totalB`) over the
-  course of the whole tournament. Since it's the exact same
+  `tournament_updates` history and replays it through
+  `applyUpdateToState()` into a scratch state — never the live page
+  state — calling `computeSeasonTotals()` after each row to track the
+  team-point differential (`totalA - totalB`) over the course of the
+  whole tournament. Since it's the exact same
   `applyUpdateToState()`/`computeSeasonTotals()` driving the live
   scoreboard, the worm can never disagree with it. Only records a new
   point when the differential actually changes (most rows — an
@@ -670,6 +669,23 @@ total.
   `teamA`/`teamB`, since `normalizeState()` has no opinion on team
   membership, only on `day1`/`day2`/`day3` shape — the page passes its own
   pre-draft default roster (`DEFAULT_A`/`DEFAULT_B`).
+
+  Before replaying, `rows` is collapsed via `lastRowPerField()` down to
+  just the LAST write ever made to each distinct field (same
+  `(update_type, match_idx, player_id, field_key)` coordinate identity
+  `undoCoordKey()`/`describeUpdateRow()` already use elsewhere), then
+  those survivors are re-sorted by each one's own `updated_at` — replay
+  order comes from real timestamps, not from whatever order `rows`
+  happened to arrive in. Without this, a scorer's typo-then-correction
+  (or an admin's Field History restore) shows up as two spurious steps in
+  the worm: one for the mistake, immediately followed by another undoing
+  it once it's fixed — exactly the kind of pre-tournament testing/typo
+  noise a from-scratch full-history replay is otherwise defenseless
+  against, since it has no notion of "this value was superseded" the way
+  the live page (which only ever sees the latest applied value per field
+  anyway) does. Crediting only each field's real final value, at the time
+  it was actually last set, keeps the worm reading as the tournament's
+  true progression.
 
   Rendered in the `.scoreboard-pin` header (`#weekend-worm-slot`), fed by
   `fetchWeekendWormRows()` — a direct fetch of the *full* table,
