@@ -53,7 +53,11 @@
 }
 
 /* ── SCORECARD PAGE ── */
-.scoreboard-pin{position:sticky;top:58px;z-index:900;background:linear-gradient(90deg,var(--navy),var(--navy-mid),var(--navy));border-bottom:3px solid var(--gold)}
+/* Issue #301: this panel stays in normal document flow (was position:sticky)
+   so it's visible once at the top of the page and then scrolls away like
+   ordinary content -- .mini-sb below is the one that now follows down the
+   page, taking over the "always visible" job. */
+.scoreboard-pin{background:linear-gradient(90deg,var(--navy),var(--navy-mid),var(--navy));border-bottom:3px solid var(--gold)}
 .scoreboard-inner{max-width:1200px;margin:0 auto;padding:10px 24px;display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:12px}
 .sb-team{text-align:center}
 .sb-team-name{font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-bottom:2px}
@@ -63,6 +67,13 @@
 .sb-total{font-family:var(--font-d);font-size:1.5rem;line-height:1}
 .team-a .sb-team-name,.team-a .sb-total{color:var(--team-a)}
 .team-b .sb-team-name,.team-b .sb-total{color:var(--team-b)}
+/* Issue #295: Team A sits in the left grid column, so left-aligned text
+   (the default) pushes its name/score/chips out to the panel's far edge,
+   away from VS -- Team B's right-hand column is already naturally close.
+   Right-align Team A's column (and its day chips, which otherwise center)
+   so both totals sit next to VS for an at-a-glance comparison. */
+.team-a{text-align:right}
+.team-a .sb-day-chips{justify-content:flex-end}
 /* Issue #230: mascot emoji next to the currently-leading team on the
    pinned scoreboard -- Team A/flamingo, Team B/gorilla per this year's
    team names (organiser's call if that ever needs to flip). Purely
@@ -534,7 +545,12 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 }
 
 /* ── MINI SCOREBOARD ── */
-.mini-sb{background:rgba(11,26,13,.97);border-bottom:1px solid rgba(240,180,41,.2);padding:7px 24px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+/* Issue #301: this bar now takes over the "follows down the page" job that
+   .scoreboard-pin used to do -- position:sticky docked directly under the
+   fixed masthead (same top offset .scoreboard-pin used to use), so it's
+   the one still visible once a scorer has scrolled down into the entry
+   grids. */
+.mini-sb{position:sticky;top:58px;z-index:900;background:rgba(11,26,13,.97);border-bottom:1px solid rgba(240,180,41,.2);padding:7px 24px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
 .mini-sb-team{display:flex;align-items:center;gap:8px;font-family:var(--font-h);font-size:.72rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase}
 .mini-sb-name{color:var(--grey)}
 .mini-sb-score{font-family:var(--font-d);font-size:1.4rem;line-height:1}
@@ -6035,20 +6051,21 @@ function updateSyncGatedInputs() {
 
 // Issue #287: the frozen/red treatment only kicks in once there's actually
 // something to act on (offline, queued writes, wrong PIN) -- docks the bar
-// (position:sticky) directly under whatever height .scoreboard-pin is
-// currently rendering at (masthead height + the scoreboard's own, both
-// read live rather than hardcoded, so this never gaps or overlaps
-// regardless of which day chips/tiebreak row/win banner happen to be
-// showing) so it stays visible even after scrolling down into the entry
-// grids -- exactly where the original bug report's stuck device was
-// scrolled to when nobody noticed the subtle grey "Syncing…" text.
+// (position:sticky) directly under whatever height .mini-sb is currently
+// rendering at (masthead height + the mini scoreboard's own, both read live
+// rather than hardcoded, so this never gaps or overlaps) so it stays
+// visible even after scrolling down into the entry grids -- exactly where
+// the original bug report's stuck device was scrolled to when nobody
+// noticed the subtle grey "Syncing…" text. Docks under .mini-sb rather than
+// .scoreboard-pin (issue #301 made .mini-sb the sticky "follows down the
+// page" bar and .scoreboard-pin a normal-flow panel that scrolls away).
 function setSyncBarFrozen(bar, frozen) {
   if (!bar) return;
   bar.classList.toggle('sync-frozen', frozen);
   if (frozen) {
-    const pin = document.querySelector('.scoreboard-pin');
+    const miniSb = document.querySelector('.mini-sb');
     const masthead = document.querySelector('.masthead');
-    const top = (masthead ? masthead.offsetHeight : 58) + (pin ? pin.offsetHeight : 0);
+    const top = (masthead ? masthead.offsetHeight : 58) + (miniSb ? miniSb.offsetHeight : 0);
     bar.style.top = top + 'px';
   } else {
     bar.style.top = '';
@@ -6269,14 +6286,20 @@ function updateTeamNames() {
   if (ib) ib.value = b;
 }
 
+// Issue #300: shows the "as it stands" projected score (same figure as the
+// pinned scoreboard's #projected-line -- see updateScoreboard()) rather than
+// the literal, currently-locked total. projectedTotals() degrades to the
+// real score once nothing's in progress, so this is safe to always show,
+// no separate in-progress/decided branching needed here.
 function updateMiniScoreboard() {
   const d1 = calcDay1();
   const d2 = calcDay2();
   const d3 = calcDay3();
-  const totalA = d1.a + d2.a + d3.a;
-  const totalB = d1.b + d2.b + d3.b;
-  document.getElementById('mini-score-a').textContent = fmt(totalA);
-  document.getElementById('mini-score-b').textContent = fmt(totalB);
+  const proj = projectedTotals(state, currentPlayers(), COURSES);
+  const projTotalA = proj.totalA + d3.a;
+  const projTotalB = proj.totalB + d3.b;
+  document.getElementById('mini-score-a').textContent = fmt(projTotalA);
+  document.getElementById('mini-score-b').textContent = fmt(projTotalB);
   const days = [
     { label: 'D1', a: d1.a, b: d1.b },
     { label: 'D2', a: d2.a, b: d2.b },

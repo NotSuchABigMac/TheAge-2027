@@ -15,9 +15,11 @@
        (no need to freeze a bar with nothing to say),
      - once a write queues offline, the bar gains .sync-frozen, a
        position:sticky `top` that docks it directly under the live
-       .scoreboard-pin height (masthead height + scoreboard height, not a
-       hardcoded pixel guess), and stays reachable (still in the DOM,
-       still showing its text) after scrolling the page down,
+       .mini-sb height (masthead height + mini scoreboard height, not a
+       hardcoded pixel guess -- .mini-sb rather than .scoreboard-pin since
+       issue #301 made .mini-sb the sticky bar that follows down the page),
+       and stays reachable (still in the DOM, still showing its text)
+       after scrolling the page down,
      - a wrong-PIN ('auth') rejection freezes it too,
      - and once the connection recovers and the queue drains, the frozen
        treatment is lifted again.
@@ -176,18 +178,18 @@ async function main() {
     await page.waitForTimeout(150);
     const offlineState = await page.evaluate(() => {
       const bar = document.querySelector('.sync-bar');
-      const pin = document.querySelector('.scoreboard-pin');
+      const miniSb = document.querySelector('.mini-sb');
       const masthead = document.querySelector('.masthead');
       return {
         frozen: bar.classList.contains('sync-frozen'),
         top: bar.style.top,
-        expectedTop: `${masthead.offsetHeight + pin.offsetHeight}px`,
+        expectedTop: `${masthead.offsetHeight + miniSb.offsetHeight}px`,
         text: bar.textContent
       };
     });
     if (!offlineState.frozen) fail('expected the bar to gain .sync-frozen once a write queues offline');
     if (offlineState.top !== offlineState.expectedTop) {
-      fail(`expected the frozen bar's top to match masthead+scoreboard height (${offlineState.expectedTop}), got ${offlineState.top}`);
+      fail(`expected the frozen bar's top to match masthead+mini-sb height (${offlineState.expectedTop}), got ${offlineState.top}`);
     }
     if (!/queued/.test(offlineState.text)) fail(`expected the frozen bar to still show queue text, got "${offlineState.text}"`);
 
