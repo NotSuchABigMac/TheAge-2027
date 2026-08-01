@@ -434,8 +434,6 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .sync-frozen .live-dot.offline{background:#fff;animation:blink 1s ease-in-out infinite}
 .sync-frozen .refresh-btn{background:rgba(255,255,255,.18);color:#fff;border-color:#fff}
 .sync-frozen .refresh-btn:hover{background:rgba(255,255,255,.3)}
-.sync-frozen .sync-btn.sec{color:#fff;border-color:rgba(255,255,255,.7)}
-.sync-frozen .sync-btn.sec:hover{color:#fff;border-color:#fff;background:rgba(255,255,255,.12)}
 .sync-btn{padding:7px 16px;font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
 .sync-btn:hover{background:var(--gold-light)}
 .sync-btn.sec{background:transparent;color:var(--ink-mute);border:1px solid var(--rule-strong)}
@@ -575,6 +573,23 @@ body{padding-top:58px;padding-bottom:52px}
 .dormant-tab-btn:hover{background:var(--gold-light)}
 .music-no:hover{color:#efe7d3}
 
+/* Issue #293: repeated-manual-refresh nudge -- same visual family as
+   .dormant-tab-modal/.help-modal (dimmed backdrop, gold-bordered card),
+   lower z-index than either since it's dismissable and not blocking the
+   way those two are. */
+.resync-nudge-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9998;backdrop-filter:blur(4px);padding:24px}
+.resync-nudge-modal.hidden{display:none}
+.resync-nudge-card{background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:32px;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.resync-nudge-icon{font-size:2.2rem;margin-bottom:14px}
+.resync-nudge-title{font-family:var(--font-d);font-size:1.3rem;letter-spacing:1px;color:var(--gold);margin-bottom:10px}
+.resync-nudge-body{font-size:.88rem;color:var(--ink-mute);line-height:1.6;margin-bottom:22px}
+.resync-nudge-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.resync-nudge-btn{padding:10px 20px;font-family:var(--font-h);font-size:.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
+.resync-nudge-btn.primary{background:var(--gold);color:#0b1a0d;border:none}
+.resync-nudge-btn.primary:hover{background:var(--gold-light)}
+.resync-nudge-btn.sec{background:transparent;color:var(--ink-mute);border:1px solid var(--rule-strong)}
+.resync-nudge-btn.sec:hover{color:var(--ink);border-color:var(--ink-mute)}
+
 /* ── HELP / TUTORIAL (issue #245) ── */
 .help-btn{width:26px;height:26px;border-radius:50%;border:1px solid currentColor;background:none;color:inherit;font-family:var(--font-h);font-size:.72rem;font-weight:700;cursor:pointer;line-height:1;opacity:.85;transition:var(--tr)}
 .help-btn:hover{opacity:1;background:rgba(240,180,41,.12)}
@@ -600,6 +615,13 @@ body{padding-top:58px;padding-bottom:52px}
 #page-scorecard .page-content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
 #page-scorecard .section-header { padding: 48px 0 24px; border-bottom: 1px solid color-mix(in srgb, var(--gold) 22%, transparent); margin-bottom: 32px; }
 #page-scorecard .section-label { font-family: var(--font-h); font-size: .72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+/* Issue #293: a quiet, out-of-the-way home for secondary/utility actions
+   (currently just Full Resync) -- deliberately understated so it doesn't
+   compete with the primary sync bar/scoring controls for attention. A
+   sibling of every .sc-panel (not nested inside one), so it renders at
+   the bottom of whichever tab happens to be open. */
+.app-footer{margin-top:56px;padding-top:24px;border-top:1px solid var(--rule);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.app-footer-note{font-size:.78rem;color:var(--ink-mute);max-width:420px}
 #page-scorecard .section-title { font-family: var(--font-d); font-size: clamp(2.4rem,5vw,3.8rem); line-height: 1; letter-spacing: 1px; }
 
 /* ── PRINT (issue #210) ── the day panels already render the draw and
@@ -611,7 +633,7 @@ body{padding-top:58px;padding-bottom:52px}
   #username-badge, #offline-banner, .mini-sb, .sync-bar, .sc-tabs,
   #save-toast, #undo-toast, #update-toast, #confirm-toast, #wire-toast, #projected-line,
   #provenance-popover, .username-modal, .countdown-bar, .help-btn, .help-modal,
-  #field-history-panel, .dormant-tab-modal {
+  #field-history-panel, .dormant-tab-modal, .resync-nudge-modal, .app-footer {
     display: none !important;
   }
   input[type=number], .hole-grid-table input {
@@ -678,6 +700,23 @@ body{padding-top:58px;padding-bottom:52px}
   <button type="button" class="confirm-toast-btn confirm-toast-keep" onclick="resolveNtpConfirm(true)">Keep</button>
 </div>
 <div id="field-history-panel" class="field-history-panel" role="tooltip"></div>
+
+<!-- Issue #293: repeated manual Refresh taps in a short window is a strong
+     signal that Refresh itself isn't fixing whatever the scorer suspects
+     is wrong -- exactly the case Full Resync solves and Refresh can't (a
+     device whose cursor is already caught up but whose own replay has
+     silently diverged, see issue #290). noteManualRefresh() shows this. -->
+<div id="resync-nudge-modal" class="resync-nudge-modal hidden" role="dialog" aria-modal="true" aria-labelledby="resync-nudge-title">
+  <div class="resync-nudge-card">
+    <div class="resync-nudge-icon">🔁</div>
+    <div class="resync-nudge-title" id="resync-nudge-title">Still not looking right?</div>
+    <div class="resync-nudge-body">Refreshing a few times hasn't changed anything. If your score looks wrong even though the app says you're synced, a Full Resync rebuilds it from scratch instead of just checking for new updates.</div>
+    <div class="resync-nudge-actions">
+      <button type="button" class="resync-nudge-btn sec" onclick="dismissResyncNudge()">Not Now</button>
+      <button type="button" class="resync-nudge-btn primary" onclick="dismissResyncNudge(); forceFullResync();">Resync Now</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════
      NEW MASTHEAD
@@ -799,14 +838,6 @@ body{padding-top:58px;padding-bottom:52px}
   <div class="sync-bar">
     <span class="sync-label"><span class="live-dot"></span><span class="sync-text">Live Scores</span></span>
     <button class="refresh-btn" onclick="manualRefresh(this)">🔄 Refresh</button>
-    <!-- Issue #290: self-service recovery for "my score looks wrong but
-         the app says I'm synced" -- a device's own replay can silently
-         diverge from everyone else's (one row failing to apply at some
-         earlier point, never retried since incremental sync doesn't
-         revisit rows the cursor's already past). Always visible, not
-         gated on an error state, since this exact bug looks like a
-         perfectly normal "Live" sync bar. -->
-    <button class="sync-btn sec resync-btn" onclick="forceFullResync()" title="Rebuilds this device's scores from the shared server log, from scratch. Only this device is affected -- nothing on the server changes.">↻ Full Resync</button>
     <span class="sync-spacer"></span>
   </div>
 
@@ -1210,6 +1241,16 @@ body{padding-top:58px;padding-bottom:52px}
       </div>
       <button class="username-btn" style="max-width:280px;margin-top:12px" onclick="loadFieldHistory()">Show History</button>
       <div id="history-results" style="margin-top:20px"></div>
+    </div>
+
+    <!-- Issue #293: Full Resync moved out of the sync bar and down here --
+         sitting right next to Refresh read as a normal everyday control
+         and confused scorers who didn't need it. It's a sibling of every
+         .sc-panel rather than living inside one, so it renders at the
+         bottom of whichever tab is open, not just one specific tab. -->
+    <div class="app-footer">
+      <button class="sync-btn sec resync-btn" onclick="forceFullResync()" title="Rebuilds this device's scores from the shared server log, from scratch. Only this device is affected -- nothing on the server changes.">↻ Full Resync</button>
+      <div class="app-footer-note">Score looks wrong even though you're synced? Full Resync rebuilds it from the shared log.</div>
     </div>
 
   </div><!-- /page-content -->
@@ -5688,6 +5729,7 @@ function setupModalA11y(modalId, onEscape) {
 setupModalA11y('music-modal', dismissMusic);
 setupModalA11y('username-modal', closeUsernameModal);
 setupModalA11y('help-modal', closeHelpModal);
+setupModalA11y('resync-nudge-modal', dismissResyncNudge);
 
 initUsername();
 initJoinHandoff();
@@ -6011,8 +6053,43 @@ async function pollOnce() {
 // Refresh button wrapper -- gives in-flight feedback and surfaces a
 // failed refresh instead of it being indistinguishable from "no new
 // scores" (both previously silent, issue #117).
+// Issue #293: a scorer who keeps tapping Refresh and seeing nothing
+// change is very likely the exact case Full Resync exists for (issue
+// #290) -- a device whose cursor is already caught up, so Refresh
+// (loadFromSupabase() against that same cursor) has nothing new to find,
+// no matter how many times it's tapped. Manual refresh is already a
+// deliberate, impatient action (the app already auto-polls every 30s on
+// its own), so a handful of taps in a short window is a strong, low-
+// false-positive signal -- not something an idly curious scorer does.
+//
+// REFRESH_NUDGE_COUNT/WINDOW are a first guess, not a measured constant:
+// 3 taps inside 5 minutes. Easy to retune here in one place once there's
+// real usage data on how scorers actually behave when something's stuck.
+const REFRESH_NUDGE_COUNT = 3;
+const REFRESH_NUDGE_WINDOW_MS = 5 * 60 * 1000;
+let manualRefreshTimestamps = [];
+function noteManualRefresh() {
+  const now = Date.now();
+  manualRefreshTimestamps = manualRefreshTimestamps.filter(t => now - t < REFRESH_NUDGE_WINDOW_MS);
+  manualRefreshTimestamps.push(now);
+  if (manualRefreshTimestamps.length >= REFRESH_NUDGE_COUNT) {
+    // Reset rather than just leaving the window full -- otherwise the
+    // very next tap after a dismissed nudge would immediately re-trigger
+    // it, since the window would still be sitting at/over the threshold.
+    manualRefreshTimestamps = [];
+    showResyncNudge();
+  }
+}
+function showResyncNudge() {
+  document.getElementById('resync-nudge-modal').classList.remove('hidden');
+}
+function dismissResyncNudge() {
+  document.getElementById('resync-nudge-modal').classList.add('hidden');
+}
+
 async function manualRefresh(btn) {
   if (btn.disabled) return;
+  noteManualRefresh();
   btn.disabled = true;
   const prev = btn.textContent;
   btn.textContent = '⏳ Refreshing…';

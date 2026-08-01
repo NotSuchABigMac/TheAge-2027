@@ -426,20 +426,46 @@ inconsistent call sites:
   losing everything before it instead of actually starting over. This was
   a real, live bug: the most plausible mechanism for the report above.
 
-A third call site is new: **"↻ Full Resync"**, a button in the sync bar
-next to Refresh, available to any scorer (not just the admin) since the
-underlying operation is purely local — nothing on the server changes, no
-other device is affected. `forceFullResync()` guards it with a `confirm()`
-that names exactly how many not-yet-synced `pendingWrites` would be
-discarded (a full resync only rebuilds from what the server already has,
-so it can't retry them) rather than silently destroying real unsynced
-entries; accepting anyway proceeds. `test/repro-290-force-resync.mjs`
-proves the fix end-to-end — seeds real rows, captures the correct total
-from a clean load, corrupts the device's own local state to a wrong
-(lower) total while leaving its cursor fully caught up (reproducing the
-reported symptom exactly), forces a resync, and confirms the total
-converges back to the correct one — plus the `forceFullResync()`
-confirm-gating in isolation.
+A third call site is new: **"↻ Full Resync"**, available to any scorer
+(not just the admin) since the underlying operation is purely local —
+nothing on the server changes, no other device is affected.
+`forceFullResync()` guards it with a `confirm()` that names exactly how
+many not-yet-synced `pendingWrites` would be discarded (a full resync
+only rebuilds from what the server already has, so it can't retry them)
+rather than silently destroying real unsynced entries; accepting anyway
+proceeds. `test/repro-290-force-resync.mjs` proves the fix end-to-end —
+seeds real rows, captures the correct total from a clean load, corrupts
+the device's own local state to a wrong (lower) total while leaving its
+cursor fully caught up (reproducing the reported symptom exactly), forces
+a resync, and confirms the total converges back to the correct one — plus
+the `forceFullResync()` confirm-gating in isolation.
+
+## Full Resync placement + a nudge for scorers stuck on Refresh (issue #293)
+
+Follow-up to #290: the "↻ Full Resync" button originally sat in the sync
+bar right next to Refresh — feedback was that it read as an everyday
+control there and confused scorers who didn't need it, so it moved to a
+new `.app-footer` at the bottom of the page content. `.app-footer` is a
+sibling of every `.sc-panel` (not nested inside just one), so it renders
+at the bottom of whichever tab happens to be open, with a one-line note
+explaining what it's for.
+
+Moving it out of the way raised a new problem: a scorer hitting exactly
+the case Full Resync solves (a device whose cursor is already caught up,
+so Refresh has nothing new to fetch no matter how many times it's tapped)
+would have no way to discover the button unless told. `noteManualRefresh()`
+tracks manual Refresh taps (`REFRESH_NUDGE_COUNT` inside
+`REFRESH_NUDGE_WINDOW_MS` — 3 taps inside 5 minutes as a first guess, not
+a measured constant, both named as one easy-to-retune pair) and shows a
+dismissable `#resync-nudge-modal` once the threshold is crossed, wired
+into the same `setupModalA11y()` focus-trap/Escape-to-close pattern every
+other modal here already uses. "Not Now" dismisses without touching
+anything; "Resync Now" calls `forceFullResync()` directly. The tap counter
+resets the moment the nudge fires, so a single tap right after a dismissal
+can't immediately re-trigger it — it takes a fresh full count.
+`test/repro-293-refresh-nudge.mjs` covers the button's new placement, the
+under-threshold/at-threshold/reset-after-firing counter behavior, and both
+modal actions.
 
 ## Admin: field history + restore (issues #129, #132)
 
