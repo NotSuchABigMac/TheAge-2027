@@ -118,10 +118,11 @@
 .sc-panel{display:none}
 .sc-panel.active{display:block}
 
-/* ── ADMIN-ONLY LOCKS: Teams tab (always organiser-only) and the
-   per-day "Lock Day" button. Blocks interaction and dims the content for
-   anyone who isn't the organiser -- same soft, client-side gate as the
-   Admin tab itself (see updateAdminVisibility/isAdmin), not real auth. ── */
+/* ── ADMIN-ONLY LOCKS: "Lock Teams" (issue #302) and the per-day "Lock
+   Day" button, both inside the admin-only Admin tab. Dims the content
+   while locked as a self-guard against an accidental edit -- same soft,
+   client-side gate as the Admin tab itself (see updateAdminVisibility/
+   isAdmin), not real auth. ── */
 .locked-for-viewer{pointer-events:none;opacity:.55;filter:grayscale(.35)}
 .day-lock-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-8px 0 20px}
 .day-lock-btn{padding:7px 16px;font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;border-radius:var(--r);cursor:pointer;transition:var(--tr);border:1px solid var(--rule-strong);background:transparent;color:var(--ink-mute)}
@@ -893,7 +894,6 @@ body{padding-top:58px;padding-bottom:52px}
     <button class="sc-tab active" data-tab="day1" role="tab" id="tab-day1" aria-selected="true" aria-controls="sc-day1" tabindex="0">Day 1</button>
     <button class="sc-tab" data-tab="day2" role="tab" id="tab-day2" aria-selected="false" aria-controls="sc-day2" tabindex="-1">Day 2</button>
     <button class="sc-tab" data-tab="day3" role="tab" id="tab-day3" aria-selected="false" aria-controls="sc-day3" tabindex="-1">Day 3</button>
-    <button class="sc-tab" data-tab="teams" role="tab" id="tab-teams" aria-selected="false" aria-controls="sc-teams" tabindex="-1">Teams</button>
     <button class="sc-tab" data-tab="wire" role="tab" id="tab-wire" aria-selected="false" aria-controls="sc-wire" tabindex="-1">Wire</button>
     <button class="sc-tab" data-tab="admin" role="tab" id="tab-admin" aria-selected="false" aria-controls="sc-admin" tabindex="-1" style="display:none">Admin</button>
   </div>
@@ -1104,14 +1104,41 @@ body{padding-top:58px;padding-bottom:52px}
       </div>
     </div>
 
-    <!-- ── TEAMS PANEL — organiser-only (issue: was previously open to
-         anyone once the draft is done, moved last and locked down) ── -->
-    <div class="sc-panel" id="sc-teams" role="tabpanel" aria-labelledby="tab-teams" tabindex="0">
+    <!-- Issue #186: "Wonga Wire" live commentary feed. Purely a read of
+         data already collected -- no new schema, no new writes -- every
+         line here comes from describeEvent() (scoring.js) classifying a
+         row already applied to state. -->
+    <div class="sc-panel" id="sc-wire" role="tabpanel" aria-labelledby="tab-wire" tabindex="0">
       <div class="section-header" style="padding-top:28px">
-        <div class="section-label">Setup</div>
-        <div class="section-title">Team Names</div>
+        <div class="section-label">Live Commentary</div>
+        <div class="section-title">Wonga Wire</div>
       </div>
-      <div id="teams-locked-notice" class="info-box" style="display:none">🔒 Only the tournament organiser can edit teams from here.</div>
+      <div class="wire-controls">
+        <button type="button" class="wire-bell-btn" id="wire-bell-btn" onclick="toggleWireNotifications()" aria-pressed="false">🔔 Notify me of big moments</button>
+        <div id="wire-bell-note" class="wire-bell-note"></div>
+      </div>
+      <div id="wire-feed-list" class="wire-feed-list"></div>
+    </div>
+
+    <div class="sc-panel" id="sc-admin" role="tabpanel" aria-labelledby="tab-admin" tabindex="0">
+      <!-- Issue #302: team editing used to live in its own always-visible
+           "Teams" tab, dimmed and click-through-disabled for anyone who
+           wasn't an unlocked admin. That per-viewer gate is redundant now
+           that this whole panel is already admin-PIN-gated (activateTab()),
+           so it's moved here and unlocked for editing -- an admin who can
+           reach this tab at all can already change anything on it via
+           Supabase directly. "Lock Teams" below is a new, separate guard:
+           an explicit admin-toggled switch (same pattern as the per-day
+           locks) so the draft doesn't get bumped by accident once it's
+           final, with a confirmation on unlock since reassigning a player
+           after their matches have recorded scores won't retroactively fix
+           those results. -->
+      <div class="section-header" style="padding-top:28px">
+        <div class="section-label">Admin</div>
+        <div class="section-title">Team Setup</div>
+      </div>
+      <div class="info-box">Edit team names and the Captain's Draft assignment. Lock teams once the draft is final to guard against an accidental change mid-tournament.</div>
+      <div class="day-lock-row" id="teams-lock-row"></div>
       <div id="teams-editable">
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-end">
           <div style="flex:1;min-width:140px">
@@ -1152,26 +1179,8 @@ body{padding-top:58px;padding-bottom:52px}
         </div>
         <button onclick="resetTeams()" style="padding:10px 22px;font-family:var(--font-h);font-size:.8rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:var(--r);cursor:pointer">Clear Teams</button>
       </div>
-    </div>
 
-    <!-- Issue #186: "Wonga Wire" live commentary feed. Purely a read of
-         data already collected -- no new schema, no new writes -- every
-         line here comes from describeEvent() (scoring.js) classifying a
-         row already applied to state. -->
-    <div class="sc-panel" id="sc-wire" role="tabpanel" aria-labelledby="tab-wire" tabindex="0">
-      <div class="section-header" style="padding-top:28px">
-        <div class="section-label">Live Commentary</div>
-        <div class="section-title">Wonga Wire</div>
-      </div>
-      <div class="wire-controls">
-        <button type="button" class="wire-bell-btn" id="wire-bell-btn" onclick="toggleWireNotifications()" aria-pressed="false">🔔 Notify me of big moments</button>
-        <div id="wire-bell-note" class="wire-bell-note"></div>
-      </div>
-      <div id="wire-feed-list" class="wire-feed-list"></div>
-    </div>
-
-    <div class="sc-panel" id="sc-admin" role="tabpanel" aria-labelledby="tab-admin" tabindex="0">
-      <div class="section-header" style="padding-top:28px">
+      <div class="section-header" style="padding-top:32px">
         <div class="section-label">Admin</div>
         <div class="section-title">Share Access</div>
       </div>
@@ -1652,7 +1661,8 @@ const state = {
   },
   day3: { scores:{}, holes:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string; holes: id -> 18-entry gross array (issue #188)
   tiebreak: null, // null | 'A' | 'B' — sudden-death putt-off winner
-  hcp: {} // player id -> admin-overridden handicap string, absent = players.js default (issue #206)
+  hcp: {}, // player id -> admin-overridden handicap string, absent = players.js default (issue #206)
+  teamsLocked: false // organiser-only "Lock Teams" toggle -- blocks accidental edits once the draft is final (issue #302)
 };
 
 // Pure scoring math lives in scoring.js (shared with the Node test suite)
@@ -1784,7 +1794,8 @@ function saveState() {
       day1:  JSON.parse(JSON.stringify(state.day1)),
       day2:  state.day2,
       day3:  state.day3,
-      tiebreak: state.tiebreak
+      tiebreak: state.tiebreak,
+      teamsLocked: state.teamsLocked
     };
     localStorage.setItem(STATE_KEY, JSON.stringify(s));
   } catch(e) {}
@@ -1811,6 +1822,7 @@ function loadState() {
     if (s.day2)  state.day2  = s.day2;
     if (s.day3)  state.day3  = s.day3;
     if (s.tiebreak !== undefined) state.tiebreak = s.tiebreak;
+    if (s.teamsLocked !== undefined) state.teamsLocked = !!s.teamsLocked;
   } catch(e) {}
   normalizeState();
 }
@@ -1842,16 +1854,16 @@ function activateTab(btn, { focus = false, updateHash = true } = {}) {
     showSaveToast('Admin PIN required', 'error');
     return;
   }
-  // Day/Teams locks are admin controls too (issue #168) but their buttons
-  // live on the Day/Teams tabs themselves, not inside Admin -- the gate
-  // above doesn't reach them. Unlike the Admin tab, these tabs stay open
-  // to everyone (there's a real read-only view to show); an isAdmin() name
-  // match with no cached PIN yet just gets offered the prompt on arrival,
-  // and renders read-only same as a non-admin if it's skipped or wrong.
-  if (['day1', 'day2', 'day3', 'teams'].includes(btn.dataset.tab) && isAdmin() && !currentAdminToken) {
+  // Day locks are admin controls too (issue #168) but their buttons live on
+  // the Day tabs themselves, not inside Admin -- the gate above doesn't
+  // reach them. Unlike the Admin tab (which now also holds Team Setup and
+  // its Lock Teams button, issue #302), the Day tabs stay open to everyone
+  // (there's a real read-only view to show); an isAdmin() name match with no
+  // cached PIN yet just gets offered the prompt on arrival, and renders
+  // read-only same as a non-admin if it's skipped or wrong.
+  if (['day1', 'day2', 'day3'].includes(btn.dataset.tab) && isAdmin() && !currentAdminToken) {
     requireAdminToken();
     renderAllDayLocks();
-    updateTeamsLockUI();
   }
   scTabs.forEach(x => {
     x.classList.remove('active');
@@ -5503,7 +5515,7 @@ async function confirmUsername() {
 // tool with no real auth layer.
 function updateAdminVisibility() {
   document.getElementById('tab-admin').style.display = isAdmin() ? '' : 'none';
-  updateTeamsLockUI();
+  renderTeamsLockUI();
   renderAllDayLocks();
   renderShareAccess();
   // Issue #208: the seed-sample-data button is admin-only (same gate as
@@ -5589,17 +5601,37 @@ function isAdminUnlocked() {
   return isAdmin() && !!currentAdminToken;
 }
 
-// Teams tab (issue #168): unlike the per-day locks below, this one isn't a
-// toggle -- team setup is always organiser-only once the draft is entered,
-// so anyone else just sees the notice and a dimmed, click-through-disabled
-// panel.
-function updateTeamsLockUI() {
+// Team Setup lives inside the admin-only panel now (issue #302) -- viewer
+// gating is redundant since activateTab() already requires the admin PIN
+// just to reach this tab. This lock is a separate, explicit admin toggle
+// (same pattern as the per-day locks) so the draft doesn't get bumped by
+// accident once it's final; toggleTeamsLock() below adds a confirmation
+// on unlock since day-lock has no equivalent one-way-ish risk to warn about.
+function isTeamsLocked() {
+  return !!state.teamsLocked;
+}
+
+function renderTeamsLockUI() {
+  const row = document.getElementById('teams-lock-row');
   const editable = document.getElementById('teams-editable');
-  const notice = document.getElementById('teams-locked-notice');
-  if (!editable || !notice) return;
-  const admin = isAdminUnlocked();
-  editable.classList.toggle('locked-for-viewer', !admin);
-  notice.style.display = admin ? 'none' : '';
+  if (!row || !editable) return;
+  const locked = isTeamsLocked();
+  editable.classList.toggle('locked-for-viewer', locked);
+  row.innerHTML = locked
+    ? `<span class="day-locked-badge">🔒 Teams Locked</span><button class="day-lock-btn is-locked" onclick="toggleTeamsLock()">Unlock Teams</button>`
+    : `<button class="day-lock-btn" onclick="toggleTeamsLock()">Lock Teams</button>`;
+}
+
+function toggleTeamsLock() {
+  if (!isAdminUnlocked()) return;
+  const next = !isTeamsLocked();
+  if (!next && !window.confirm("Unlock team editing? Reassigning a player after their matches have recorded scores won't retroactively fix those results -- you'll need to fix affected Day 1 matches by hand.")) {
+    return;
+  }
+  state.teamsLocked = next;
+  saveState();
+  insertUpdate('team_lock', { value: String(next) });
+  renderTeamsLockUI();
 }
 
 function isDayLocked(day) {
@@ -5957,7 +5989,7 @@ try {
   renderDay3();
   updateScoreboard();
   renderAllDayLocks();
-  updateTeamsLockUI();
+  renderTeamsLockUI();
   renderAdminHandicaps();
   maybeAutoPin(); // issue #272 -- covers a restored (already-logged-in) session
   renderWireFeed(); // issue #186 -- shows the empty state immediately, before the first sync populates it via recordWireEvent()
@@ -5991,7 +6023,7 @@ function refreshAllDays() {
     updateScoreboard();
     console.log('Scoreboard updated');
     renderAllDayLocks();
-    updateTeamsLockUI();
+    renderTeamsLockUI();
     renderAdminHandicaps();
     maybeAutoPin(); // issue #272 -- catches a lineup change that lands after login
   } catch(e) {

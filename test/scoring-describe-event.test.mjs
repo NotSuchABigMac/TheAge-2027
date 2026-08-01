@@ -55,6 +55,37 @@ test('day1_hole: no holes played at all (thru 0) is not commentary-worthy', () =
   assert.equal(describeEvent(row, prev, next, PLAYERS, COURSES_FIXTURE, TEAM_NAMES), null);
 });
 
+test('day1_hole: entering only one player\'s score for a hole (still incomplete) is not commentary-worthy (issue #304)', () => {
+  // Hole 1 already complete (thru=1). This row enters A's gross score for
+  // hole 2, but B hasn't entered theirs yet -- hole 2 isn't "thru" until
+  // both are in, so this shouldn't fire a duplicate/premature event.
+  const prevMatch = emptyMatch({ holesA: [4, null, ...Array(16).fill(null)], holesB: [5, null, ...Array(16).fill(null)] });
+  const nextMatch = emptyMatch({ holesA: [4, 4, ...Array(16).fill(null)], holesB: [5, null, ...Array(16).fill(null)] });
+  const row = { update_type: 'day1_hole', match_idx: 0, field_key: 'A2', value: '4' };
+  const got = describeEvent(row, stateWithMatch(prevMatch), stateWithMatch(nextMatch), PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.equal(got, null);
+});
+
+test('day1_hole: the second player\'s entry completing the hole is the one that fires the event (issue #304)', () => {
+  // Continuing from the row above: B now enters their hole 2 score,
+  // completing it -- thru advances from 1 to 2, so this is the row that
+  // should produce the commentary, not the earlier half-entered one.
+  const prevMatch = emptyMatch({ holesA: [4, 4, ...Array(16).fill(null)], holesB: [5, null, ...Array(16).fill(null)] });
+  const nextMatch = emptyMatch({ holesA: [4, 4, ...Array(16).fill(null)], holesB: [5, 5, ...Array(16).fill(null)] });
+  const row = { update_type: 'day1_hole', match_idx: 0, field_key: 'B2', value: '5' };
+  const got = describeEvent(row, stateWithMatch(prevMatch), stateWithMatch(nextMatch), PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.equal(got.importance, 'feed');
+  assert.match(got.headline, /A\. One 2UP thru 2/);
+});
+
+test('day1_hole: clearing a score back out (thru regresses) is not commentary-worthy (issue #304)', () => {
+  const prevMatch = emptyMatch({ holesA: [4, 4, ...Array(16).fill(null)], holesB: [5, 5, ...Array(16).fill(null)] });
+  const nextMatch = emptyMatch({ holesA: [4, null, ...Array(16).fill(null)], holesB: [5, 5, ...Array(16).fill(null)] });
+  const row = { update_type: 'day1_hole', match_idx: 0, field_key: 'A2', value: null };
+  const got = describeEvent(row, stateWithMatch(prevMatch), stateWithMatch(nextMatch), PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.equal(got, null);
+});
+
 test('day1_hole: routine progress with no lead change is feed-only, not notify', () => {
   // A led by 1 before this row (holesA[0]=4 beats holesB[0]=5), stays
   // led by 1 after this row too (holesA[1]=4 beats holesB[1]=5) --

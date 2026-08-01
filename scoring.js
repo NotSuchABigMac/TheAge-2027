@@ -1204,6 +1204,13 @@
         // field the way every other update_type does.
         if (row.field_key && state[row.field_key]) state[row.field_key].locked = v === 'true';
         break;
+      case 'team_lock':
+        // No field_key -- a single global toggle, same shape as tiebreak
+        // (issue #302). Team Setup now lives in the admin-only panel, so
+        // unlike day_lock this exists purely as an admin self-guard against
+        // an accidental edit, not a viewer-facing gate.
+        state.teamsLocked = v === 'true';
+        break;
     }
   }
 
@@ -1234,7 +1241,8 @@
     team_assign:     { label: 'Team Roster (legacy snapshot)',   addressing: 'field',       fieldKeys: ['A', 'B'], restorable: false },
     player_team:     { label: 'Player Team Assignment',          addressing: 'player',      restorable: true, cascadeWarning: 'May also clear Day 1 match assignments for this player.' },
     player_hcp:      { label: 'Player Handicap (override)',      addressing: 'player',      restorable: true, cascadeWarning: 'Retroactively changes every derived match/scramble/Stableford score for this player.' },
-    day_lock:        { label: 'Day Lock',                        addressing: 'field',       fieldKeys: ['day1', 'day2', 'day3'], restorable: true }
+    day_lock:        { label: 'Day Lock',                        addressing: 'field',       fieldKeys: ['day1', 'day2', 'day3'], restorable: true },
+    team_lock:       { label: 'Team Lock',                       addressing: 'none',        restorable: true }
   };
 
   // Decodes one tournament_updates row into human-readable {fieldLabel,
@@ -1318,6 +1326,8 @@
         const dayLabel = { day1: 'Day 1', day2: 'Day 2', day3: 'Day 3' }[row.field_key] || row.field_key || '?';
         return { fieldLabel: `Day Lock · ${dayLabel}`, valueLabel: isCleared ? '(cleared)' : (v === 'true' ? 'Locked' : 'Unlocked') };
       }
+      case 'team_lock':
+        return { fieldLabel: 'Team Lock', valueLabel: isCleared ? '(cleared)' : (v === 'true' ? 'Locked' : 'Unlocked') };
       default:
         // An update_type this version of the app doesn't recognize (e.g. a
         // future type, or a forged row) must render *something* rather than
@@ -1403,6 +1413,17 @@
     const status = nineStatusFor(match);
     if (status.thru === 0) return null;
     const prevStatus = nineStatusFor(prevMatch);
+    // Issue #304: holeResult() (and so nineStatus()'s `thru` count) already
+    // requires BOTH players' gross scores before a hole counts as played --
+    // but until now that only gated the *first* branch below (status.thru
+    // === 0). Every other day1_hole row still fell through to the plain
+    // "thru N" feed line at the bottom even when THIS row didn't complete a
+    // new hole: entering player A's score fires one event, then entering
+    // player B's score for the very same hole fires a second, near-identical
+    // one (or a no-op admin edit fires a redundant one). Only proceed once
+    // `thru` actually advanced -- i.e. this row is the one that completed a
+    // hole both players now have a score for.
+    if (status.thru <= prevStatus.thru) return null;
 
     const nameA = playerLabelFor(match.pA, players);
     const nameB = playerLabelFor(match.pB, players);

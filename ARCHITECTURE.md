@@ -154,6 +154,7 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 | `team_assign` | `A` / `B` | JSON array of player ids on that team — only emitted by the "Clear Teams" reset; individual moves use `player_team` below so two concurrent moves of different players don't clobber each other |
 | `player_team` | — (uses `player_id`) | `'A'` or `'B'` — the team that player was just moved to |
 | `player_hcp` | — (uses `player_id`) | an admin-entered handicap override, or `null`/unparseable to clear it and revert to the `players.js` default (issue #206) |
+| `team_lock` | — | `'true'` \| `'false'` — admin-only "Lock Teams" toggle guarding Team Setup (now in the Admin tab) against an accidental edit once the draft is final; unlocking warns in the UI first (issue #302) |
 | `rollback` | — | ISO timestamp of the rollback cutoff — a synced marker (issue #140, page-layer-only, not in `applyUpdateToState`) telling every device to wipe its local cache and reload after an admin rollback, since a server-side `DELETE` alone produces no sync signal a normal replay could act on |
 
 - **Save:** insert one row per change (no PATCH/GET logic needed).
