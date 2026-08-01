@@ -90,13 +90,22 @@
   /* ─────────────────────────────────────
      MUTE BUTTON (issue #297)
      Persistent, independent of the initial consent modal -- once shown,
-     toggles bg-audio playback at any time. Injected into the masthead
-     here rather than duplicated as per-page markup, so every page that
-     loads site.js gets it for free. Clicking "unmute" before consent
-     has ever been given counts as the explicit gesture the consent
-     modal would otherwise have collected, so it also grants consent
-     (mirrors startMusic()); clicking "mute" persists musicMuted so a
-     later navigation/bfcache-restore doesn't silently resume playback.
+     toggles bg-audio playback at any time. Injected here rather than
+     duplicated as per-page markup, so every page that loads site.js
+     gets it for free. Clicking "unmute" before consent has ever been
+     given counts as the explicit gesture the consent modal would
+     otherwise have collected, so it also grants consent (mirrors
+     startMusic()); clicking "mute" persists musicMuted so a later
+     navigation/bfcache-restore doesn't silently resume playback.
+
+     Two mirrored buttons, not one: the fixed-width masthead bar has no
+     spare room next to the (nowrap, non-truncating) page title on a
+     narrow phone -- a second icon there visibly collided with the
+     title text below ~360px. `.music-toggle` is CSS-hidden in the
+     masthead under that breakpoint (see styles.css); this injects a
+     second, labeled copy into the roomier mobile-menu dropdown so the
+     control is never actually lost, just relocated. Both stay in sync
+     off the same `render()`.
   ───────────────────────────────────── */
   (function initMusicToggle() {
     const audio = document.getElementById('bg-audio');
@@ -107,13 +116,28 @@
     btn.className = 'music-toggle';
     mastheadRight.insertBefore(btn, document.getElementById('hamburger') || null);
 
+    const mobileMenu = document.getElementById('mobile-menu');
+    let mobileBtn = null;
+    if (mobileMenu) {
+      mobileBtn = document.createElement('button');
+      mobileBtn.type = 'button';
+      mobileBtn.className = 'mm-link mm-music-toggle';
+      mobileMenu.insertBefore(mobileBtn, mobileMenu.querySelector('.mm-cta'));
+    }
+
     function render() {
       const muted = audio.paused;
-      btn.textContent = muted ? '🔇' : '🔊';
-      btn.setAttribute('aria-label', muted ? 'Unmute music' : 'Mute music');
+      const icon = muted ? '🔇' : '🔊';
+      const label = muted ? 'Unmute music' : 'Mute music';
+      btn.textContent = icon;
+      btn.setAttribute('aria-label', label);
       btn.setAttribute('aria-pressed', String(!muted));
+      if (mobileBtn) {
+        mobileBtn.textContent = `${icon} ${label}`;
+        mobileBtn.setAttribute('aria-pressed', String(!muted));
+      }
     }
-    btn.addEventListener('click', () => {
+    function toggle() {
       if (audio.paused) {
         const modal = document.getElementById('music-modal');
         if (modal) modal.classList.add('hidden');
@@ -126,7 +150,9 @@
         audio.pause();
         sessionStorage.setItem('musicMuted', '1');
       }
-    });
+    }
+    btn.addEventListener('click', toggle);
+    if (mobileBtn) mobileBtn.addEventListener('click', toggle);
     audio.addEventListener('play', render);
     audio.addEventListener('pause', render);
     render();

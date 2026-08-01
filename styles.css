@@ -413,6 +413,19 @@ hr.rule-ink { border-top-width: 1.5px; border-top-color: var(--ink); }
   border-bottom: none;
   margin-top: 8px;
 }
+/* Mirrors .music-toggle -- see the @media block below for why this exists
+   as a separate element instead of just being .music-toggle relocated. */
+.mm-music-toggle {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 
 /* add scroll margin so fixed header doesn't cover section anchors */
 [id] { scroll-margin-top: 64px; }
@@ -423,6 +436,12 @@ hr.rule-ink { border-top-width: 1.5px; border-top-color: var(--ink); }
   .masthead-left .moto { display: none; }
   .hamburger { display: flex; }
   .mobile-menu { top: 49px; }
+  /* Issue #297 follow-up: the masthead-center title is nowrap/
+     non-truncating, and a second icon in .masthead-right left it no
+     room on a narrow phone -- the title visibly ran under the mute
+     button below ~360px. Hide it here; .mm-music-toggle (injected into
+     the mobile-menu dropdown by site.js) is the mobile equivalent. */
+  .music-toggle { display: none; }
 }
 @media (min-width: 821px) {
   .mobile-menu { display: none; }
