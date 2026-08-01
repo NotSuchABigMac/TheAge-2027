@@ -334,6 +334,27 @@ asserts the device recovers (`syncInFlight` resets, `isOffline` flips true,
 the banner becomes visible) and that the very next poll against a working
 connection succeeds normally.
 
+## Frozen red sync-bar on an actual error (issue #287)
+
+Follow-up to #285: even a correctly-detected error was easy to miss, because
+the sync-bar (the "Live Scores"/"Syncing…"/"Offline" pill just under the
+scoreboard) sits in normal document flow — it scrolls out of view the
+moment a scorer scrolls down into the entry grids to actually score a hole,
+exactly when a sync problem most needs to be seen.
+
+`renderSyncBar()` now computes a `needsAttention` boolean (true for the
+`authNeeded` and `isOffline`/`pendingWrites.length > 0` branches — the same
+conditions that already colour the dot red) and passes it to
+`setSyncBarFrozen()`, which toggles a `.sync-frozen` class (solid red,
+white blinking dot, bold text) and switches the bar to `position: sticky`
+with `top` set to `.masthead`'s + `.scoreboard-pin`'s live `offsetHeight` —
+read at freeze-time rather than hardcoded, so it docks directly under the
+scoreboard with no gap or overlap regardless of which day chips/tiebreak
+row/win banner happen to be showing. The ordinary "Live"/"Syncing…" states
+are untouched, so a bar with nothing to say never gets in the way.
+`test/repro-287-frozen-error-bar.mjs` covers all of it, including that the
+bar's bounding rect actually stays on-screen after a large scroll.
+
 Editing is gated behind the Admin tab (organiser-only) *and* the same
 admin-PIN prompt (`requireAdminToken()`) Rollback Scores uses — a bad
 handicap silently changes every derived score rather than failing loudly
