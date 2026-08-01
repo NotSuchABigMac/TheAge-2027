@@ -720,6 +720,53 @@
     };
   }
 
+  /* ── WEEKEND WORM (issue #299) ──
+     Same "worm" idea as matchWormFor() above (issue #270), but for the
+     whole tournament rather than one match: replays the full,
+     already-synced tournament_updates log -- oldest row first, the same
+     order loadFromSupabase()'s query and processUpdateRows() already
+     expect -- through applyUpdateToState() into a scratch state (never
+     the live page state), calling computeSeasonTotals() after each row
+     to get the team-point differential (totalA - totalB) at that point
+     in the weekend. Purely derived from data already synced -- no new
+     writes, no new schema, no sync changes -- and it's the exact same
+     applyUpdateToState()/computeSeasonTotals() driving the live
+     scoreboard, so the worm can never disagree with it.
+
+     Only records a new point when the differential actually changes --
+     most rows (an in-progress hole score, a Day 2 group assignment)
+     don't move a team's total until a nine/match/scramble round/NTP hole
+     resolves, so recording every single row would mostly repeat the same
+     value with nothing to show for it.
+
+     `initialTeams` seeds the scratch replay's starting teamA/teamB --
+     normalizeState() has no opinion on team membership (only on
+     day1/day2/day3 shape), so the pre-draft default roster must be
+     passed in by the caller rather than assumed here.
+
+     Returns null when there's nothing to draw: no rows at all, or the
+     differential never once left 0 -- same "hole data or nothing"
+     precedent as matchWormFor(). */
+  function weekendWormFor(rows, players, courses, initialTeams) {
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const state = normalizeState({
+      teamA: new Set((initialTeams && initialTeams.teamA) || []),
+      teamB: new Set((initialTeams && initialTeams.teamB) || [])
+    });
+    const series = [];
+    let last = 0;
+    rows.forEach(row => {
+      applyUpdateToState(state, row);
+      const totals = computeSeasonTotals(state, players, courses);
+      const diff = totals.totalA - totals.totalB;
+      if (diff !== last) {
+        series.push(diff);
+        last = diff;
+      }
+    });
+    return series.length > 0 ? series : null;
+  }
+
   /* ── PROJECTED "IF IT ENDED RIGHT NOW" (issue #260) ──
      The real scoreboard only counts a match/round once it's decided or
      complete -- an in-progress result contributes nothing until then,
@@ -1689,7 +1736,7 @@
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
     day3CourseHolesFor, effectiveDay3ScoreFor,
-    computeSeasonTotals, phaseFor, daysUntilDay1,
+    computeSeasonTotals, weekendWormFor, phaseFor, daysUntilDay1,
     projectedNinePoints, projectedMatchPoints, projectedMatchPointsFor, sumProjectedMatchPoints,
     projectedDay2Field, projectedDay2Totals, projectedTotals,
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,

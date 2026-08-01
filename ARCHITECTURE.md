@@ -634,3 +634,48 @@ goes into `scrambleTeamHandicap()` in `day2GroupHandicap()` — so it rides
 the same lowest-handicap-first divisor logic unchanged, and reflects the
 confirmed "individual" scope rather than a flat adjustment to the team's
 final handicap number.
+
+## Score progression "worm" charts (issues #270, #299)
+
+Two small inline SVG line charts, no charting library, both purely visual
+and purely derived from data already synced — no new writes, no new
+schema, no sync changes, and neither ever feeds back into an actual point
+total.
+
+- **Per-match, Day 1 (#270):** `matchWormFor(match, players,
+  day1StrokeIndexes)` (`scoring.js`) replays `holeResult()` across all 18
+  holes and returns `{front9, back9}` — each nine's own cumulative
+  A-minus-B lead sequence, reset to 0 at the turn, since front 9/back 9
+  are each their own 1pt contest (`matchPoints()`). Returns `null` when the
+  match has no hole-by-hole data at all (decided only via the manual
+  `front9`/`back9` toggle) — same "hole data or nothing" precedent as
+  `effectiveNines()`. Rendered by `renderDay1()` via `wormSvg()`, gated on
+  the same `decided` flag (`eff.front9 !== null && eff.back9 !== null`)
+  that already sets `resultClass`.
+- **Whole-weekend, team-wide (#299):** `weekendWormFor(rows, players,
+  courses, initialTeams)` (`scoring.js`) takes the *entire*
+  `tournament_updates` history (oldest row first — the same order
+  `loadFromSupabase()`'s query and `processUpdateRows()` already expect)
+  and replays it through `applyUpdateToState()` into a scratch state —
+  never the live page state — calling `computeSeasonTotals()` after each
+  row to track the team-point differential (`totalA - totalB`) over the
+  course of the whole tournament. Since it's the exact same
+  `applyUpdateToState()`/`computeSeasonTotals()` driving the live
+  scoreboard, the worm can never disagree with it. Only records a new
+  point when the differential actually changes (most rows — an
+  in-progress hole score, a Day 2 group assignment — don't move a team's
+  total until a nine/match/scramble round/NTP hole resolves), and returns
+  `null` when there's nothing to draw: no rows, or the differential never
+  once left 0. `initialTeams` seeds the scratch replay's starting
+  `teamA`/`teamB`, since `normalizeState()` has no opinion on team
+  membership, only on `day1`/`day2`/`day3` shape — the page passes its own
+  pre-draft default roster (`DEFAULT_A`/`DEFAULT_B`).
+
+  Rendered in the `.scoreboard-pin` header (`#weekend-worm-slot`), fed by
+  `fetchWeekendWormRows()` — a direct fetch of the *full* table,
+  independent of the sync cursor, same precedent as the Admin Field
+  History panel's own direct fetch. Deliberately **not** wired into
+  `pollOnce()`'s 30s cycle, since re-fetching the entire table on every
+  poll would multiply a full-table read for no benefit that a one-shot
+  load at boot (`loadWeekendWorm()`) plus a manual refresh button doesn't
+  already cover.

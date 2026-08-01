@@ -27,7 +27,7 @@ const {
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   day3CourseHolesFor, effectiveDay3ScoreFor, stablefordPoints, day3PointsThru, groupStrokes,
   scrambleTeamHandicap, anthemAdjustedHandicap,
-  computeSeasonTotals, phaseFor, playersWithOverrides
+  computeSeasonTotals, weekendWormFor, phaseFor, playersWithOverrides
 } = require('../scoring.js');
 
 const SI_ASCENDING = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -422,6 +422,56 @@ test('computeSeasonTotals: an admin handicap override (issue #206), layered via 
   const after = computeSeasonTotals(state, overridden, COURSES_FIXTURE);
   assert.equal(after.day1.a, 0.5);
   assert.equal(after.day1.b, 0.5);
+});
+
+/* ── weekendWormFor (issue #299) ── */
+
+test('weekendWormFor returns null when there are no rows to replay', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const teams = { teamA: new Set([0]), teamB: new Set([1]) };
+  assert.equal(weekendWormFor([], players, COURSES_FIXTURE, teams), null);
+});
+
+test('weekendWormFor returns null when the team differential never once leaves 0 (a hole score alone resolves no nine/match)', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const teams = { teamA: new Set([0]), teamB: new Set([1]) };
+  const rows = [
+    { update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: '4', updated_at: '2026-08-07T09:00:00Z' }
+  ];
+  assert.equal(weekendWormFor(rows, players, COURSES_FIXTURE, teams), null);
+});
+
+test('weekendWormFor accumulates the team-point differential as NTP holes resolve, in row order', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const teams = { teamA: new Set([0]), teamB: new Set([1]) };
+  const rows = [
+    { update_type: 'day1_ntp', field_key: 'h8', value: '0', updated_at: '2026-08-07T09:00:00Z' },  // player 0 (A) -> +1 A
+    { update_type: 'day2_ntp', field_key: 'h4', value: '0', updated_at: '2026-08-08T09:00:00Z' },  // player 0 (A) again -> +1 A
+    { update_type: 'day1_ntp', field_key: 'h17', value: '1', updated_at: '2026-08-07T15:00:00Z' }  // player 1 (B) -> +1 B
+  ];
+  assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1, 2, 1]);
+});
+
+test('weekendWormFor only records a point when the differential actually changes -- a row that resolves nothing is not a duplicate flat entry', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const teams = { teamA: new Set([0]), teamB: new Set([1]) };
+  const rows = [
+    { update_type: 'day1_ntp', field_key: 'h8', value: '0', updated_at: '2026-08-07T09:00:00Z' },   // +1 A
+    { update_type: 'day1_hole', match_idx: 1, field_key: 'A1', value: '4', updated_at: '2026-08-07T09:01:00Z' }, // no points yet
+    { update_type: 'day1_ntp', field_key: 'h17', value: '0', updated_at: '2026-08-07T15:00:00Z' }   // +1 A again
+  ];
+  assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1, 2]);
+});
+
+test('weekendWormFor seeds team membership from initialTeams, not any hardcoded default -- a later player_team row can then move it', () => {
+  const players = [{ id: 0, hcp: '10.0' }];
+  // Player 0 starts on Team B per the seeded initialTeams...
+  const teams = { teamA: [], teamB: [0] };
+  const rows = [
+    { update_type: 'player_team', player_id: 0, value: 'A', updated_at: '2026-08-07T08:00:00Z' }, // ...moved to Team A
+    { update_type: 'day1_ntp', field_key: 'h8', value: '0', updated_at: '2026-08-07T09:00:00Z' }  // now scores for A, not B
+  ];
+  assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1]);
 });
 
 /* ── phaseFor ── */
