@@ -211,6 +211,19 @@ select option{background:var(--canvas)}
 .worm-seg{stroke-width:2}
 @media(max-width:600px){.match-worm-row{flex-direction:column;gap:10px}}
 
+/* ── WEEKEND WORM (issue #299): same idea as the match worm above, but
+   for the whole tournament's team-point lead, shown in the scoreboard
+   header rather than on one match card. Sits on .scoreboard-pin's dark
+   navy background, so the shared .match-worm-label/.match-worm classes
+   above get light-on-dark + taller overrides scoped under this class
+   rather than changed globally (which would also affect the per-match
+   worm's light-panel context). ── */
+.weekend-worm-slot{position:relative;padding:8px 22px 16px}
+.weekend-worm-slot .match-worm-label{color:rgba(255,255,255,.75)}
+.weekend-worm-slot .match-worm{height:52px}
+.weekend-worm-refresh{position:absolute;top:6px;right:18px;background:none;border:none;color:rgba(255,255,255,.65);font-size:.9rem;line-height:1;cursor:pointer;padding:4px 6px}
+.weekend-worm-refresh:hover{color:#fff}
+
 /* ── PIN TO TOP (issue #271) + AUTO-PIN (issue #272): a per-device
    shortcut, never synced -- lets a scorer keep their own match/group/entry
    at the top of a busy list instead of hunting for it every time. ── */
@@ -873,6 +886,7 @@ body{padding-top:58px;padding-bottom:52px}
         </div>
       </div>
     </div>
+    <div id="weekend-worm-slot" class="weekend-worm-slot" style="display:none"></div>
     <div id="projected-line" style="display:none"></div>
     <div id="win-banner" style="display:none"></div>
     <div id="tiebreak-control" class="tiebreak-row" style="display:none">
@@ -1685,7 +1699,7 @@ const {
   // the parameterized versions; the local functions of the same name
   // below are now thin wrappers passing this page's PLAYERS/COURSES/state.
   day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
-  matchWormFor,
+  matchWormFor, weekendWormFor,
   ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
@@ -2173,7 +2187,7 @@ function matchWormForMatch(match) {
 // single color for the whole line -- the worm visibly changes color the
 // moment the lead changes hands, rather than only reflecting who wins the
 // nine overall.
-function wormSvg(points, label) {
+function wormSvg(points, label, ariaLabel) {
   const w = 240, h = 32, pad = 4;
   const series = [0, ...points];
   const max = Math.max(1, ...series.map(Math.abs));
@@ -2185,10 +2199,38 @@ function wormSvg(points, label) {
   const segments = series.slice(1).map((v, i) =>
     `<line x1="${x(i)}" y1="${y(series[i])}" x2="${x(i + 1)}" y2="${y(v)}" class="worm-seg" style="stroke:${colorFor(v)}"/>`
   ).join('');
-  return `<div class="match-worm-wrap"><div class="match-worm-label">${escapeHtml(label)}</div><svg class="match-worm" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Hole-by-hole lead through the ${escapeHtml(label)}">` +
+  const finalAriaLabel = ariaLabel || `Hole-by-hole lead through the ${label}`;
+  return `<div class="match-worm-wrap"><div class="match-worm-label">${escapeHtml(label)}</div><svg class="match-worm" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(finalAriaLabel)}">` +
     `<line x1="${pad}" y1="${h / 2}" x2="${w - pad}" y2="${h / 2}" class="worm-zero"/>` +
     segments +
     `</svg></div>`;
+}
+
+// Issue #299: the "worm" chart's cumulative team-lead sequence for the
+// whole weekend, not just one match -- see weekendWormFor()'s comment in
+// scoring.js for how the replay works. `rows` is the full
+// tournament_updates row set (oldest-first), already fetched by
+// fetchWeekendWormRows() below.
+function weekendWormForRows(rows) {
+  return weekendWormFor(rows, currentPlayers(), COURSES, { teamA: DEFAULT_A, teamB: DEFAULT_B });
+}
+
+// Renders (or hides) the weekend worm into #weekend-worm-slot from an
+// already-fetched row set -- split from the fetch itself so it's testable
+// without a live Supabase call, same pattern as renderDay1()'s per-match
+// worm test: mutate/inject data directly, then call the render function.
+function renderWeekendWorm(rows) {
+  const slot = document.getElementById('weekend-worm-slot');
+  if (!slot) return;
+  const worm = weekendWormForRows(rows);
+  if (!worm) {
+    slot.innerHTML = '';
+    slot.style.display = 'none';
+    return;
+  }
+  slot.innerHTML = wormSvg(worm, 'Lead Over The Weekend', 'Team lead over the whole tournament so far') +
+    `<button type="button" class="weekend-worm-refresh" onclick="loadWeekendWorm()" aria-label="Refresh weekend lead chart">↻</button>`;
+  slot.style.display = '';
 }
 
 function nineStatusLabel(nineResults) {
@@ -5258,6 +5300,49 @@ function formatProvenanceTime(iso) {
 }
 
 /* ─────────────────────────────────────
+   WEEKEND WORM (issue #299)
+   Fetches the FULL tournament_updates history (not the incremental,
+   cursor-based rows loadFromSupabase()'s poll fetches) so weekendWormFor()
+   can replay the whole weekend from row one -- same direct,
+   sync-cursor-independent fetch precedent as the Field History panel
+   below: viewing this must never disturb live scoring state or the poll
+   cursor. Deliberately NOT wired into pollOnce()'s 30s cycle -- the worm
+   needs the entire log every time, not just what's new, so refetching it
+   on every poll would multiply a full-table read for no benefit; a
+   one-shot load at boot plus a manual refresh button covers it.
+───────────────────────────────────── */
+const WEEKEND_WORM_ROW_LIMIT = 5000;
+
+async function fetchWeekendWormRows() {
+  const params = new URLSearchParams({
+    select: SAFE_SELECT_COLUMNS,
+    tournament_id: `eq.${SUPABASE_CONFIG.tournamentId}`,
+    order: 'updated_at.asc,id.asc',
+    limit: String(WEEKEND_WORM_ROW_LIMIT)
+  });
+  const url = `${SUPABASE_CONFIG.apiUrl}/rest/v1/tournament_updates?${params.toString()}`;
+  const resp = await fetchWithTimeout(url, { headers: { 'apikey': SUPABASE_CONFIG.apiKey, 'Content-Type': 'application/json' } });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
+
+async function loadWeekendWorm() {
+  const slot = document.getElementById('weekend-worm-slot');
+  if (!slot) return;
+  try {
+    const rows = await fetchWeekendWormRows();
+    renderWeekendWorm(rows);
+  } catch (err) {
+    // Purely decorative -- a failed fetch just means the worm doesn't
+    // show this load, same degrade-to-nothing-rather-than-an-error-state
+    // precedent as index.html's ribbon.
+    console.error('Weekend worm load failed:', err.message);
+    slot.innerHTML = '';
+    slot.style.display = 'none';
+  }
+}
+
+/* ─────────────────────────────────────
    FIELD HISTORY PANEL (issue #200 follow-up)
    Focusing into a field that already has a value shows its last 3
    changes (value, who, when). An ordinary focusin/focusout pair, not a
@@ -6261,6 +6346,11 @@ if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   // reload or a visibilitychange event -- resync explicitly on those too.
   window.addEventListener('pageshow', () => { if (!tabDormant && !document.hidden) pollOnce(); });
   window.addEventListener('online', () => { if (!tabDormant && !document.hidden) pollOnce(); });
+  // Issue #299: one independent, one-shot load -- deliberately outside
+  // pollOnce()'s cursor-based cycle, see the fetchWeekendWormRows() comment
+  // above for why. A manual refresh button on the chart covers anyone
+  // watching it update live during play.
+  if (!tabDormant) loadWeekendWorm();
 }
 /* ─────────────────────────────────────
    MINI SCOREBOARD
