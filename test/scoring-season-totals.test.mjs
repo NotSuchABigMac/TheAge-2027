@@ -463,6 +463,17 @@ test('weekendWormFor only records a point when the differential actually changes
   assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1, 2]);
 });
 
+test('weekendWormFor skips a row that throws when applied (e.g. a malformed legacy team_assign value) instead of aborting the whole replay -- same tolerance processUpdateRows() gives the real sync path (issue #63)', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const teams = { teamA: new Set([0]), teamB: new Set([1]) };
+  const rows = [
+    { update_type: 'day1_ntp', field_key: 'h8', value: '0', updated_at: '2026-08-07T09:00:00Z' },        // +1 A
+    { update_type: 'team_assign', field_key: 'A', value: 'not-json', updated_at: '2026-08-07T09:01:00Z' }, // JSON.parse() throws -- must be skipped, not fatal
+    { update_type: 'day1_ntp', field_key: 'h17', value: '0', updated_at: '2026-08-07T15:00:00Z' }         // +1 A again
+  ];
+  assert.deepEqual(weekendWormFor(rows, players, COURSES_FIXTURE, teams), [1, 2]);
+});
+
 test('weekendWormFor seeds team membership from initialTeams, not any hardcoded default -- a later player_team row can then move it', () => {
   const players = [{ id: 0, hcp: '10.0' }];
   // Player 0 starts on Team B per the seeded initialTeams...

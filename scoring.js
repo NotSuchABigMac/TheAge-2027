@@ -746,7 +746,16 @@
 
      Returns null when there's nothing to draw: no rows at all, or the
      differential never once left 0 -- same "hole data or nothing"
-     precedent as matchWormFor(). */
+     precedent as matchWormFor().
+
+     A row that throws when applied (e.g. a malformed/legacy `team_assign`
+     value JSON.parse() can't handle) is skipped rather than left to abort
+     the whole replay -- same "a single malformed row must never wedge
+     everything" tolerance processUpdateRows() already gives the real
+     sync path (issue #63). Unlike processUpdateRows(), this can't just
+     hand the batch to that helper: it needs a differential snapshot
+     after every row, succeeded or not, so the try/catch is inline here
+     instead. */
   function weekendWormFor(rows, players, courses, initialTeams) {
     if (!Array.isArray(rows) || rows.length === 0) return null;
     const state = normalizeState({
@@ -756,7 +765,7 @@
     const series = [];
     let last = 0;
     rows.forEach(row => {
-      applyUpdateToState(state, row);
+      try { applyUpdateToState(state, row); } catch { /* malformed row, skip it */ }
       const totals = computeSeasonTotals(state, players, courses);
       const diff = totals.totalA - totals.totalB;
       if (diff !== last) {
