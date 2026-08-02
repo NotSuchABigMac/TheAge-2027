@@ -1088,6 +1088,25 @@
     day_lock:   ['day1', 'day2', 'day3']
   };
 
+  // Classifies a Day 1 match's given side ('pA'/'pB') for the cross-match
+  // double-booking rule below: 'double' is a Captain's Challenge match's
+  // 2-opponent side (issue #256, direction flipped by issue #326), 'lone'
+  // is that same match's single spare-player side, 'ordinary' is either
+  // side of a plain Singles match. day1SeatsCompatible() says which pairs
+  // of seats a single player may legitimately hold at once (issue #328):
+  // only an 'ordinary' seat plus a 'double' seat, since the short-handed
+  // team's 2 Challenge opponents are drawn from players already playing
+  // their own singles match. Every other pairing -- including anything
+  // touching a 'lone' seat, which must stay exclusive to that one player --
+  // keeps the original one-seat-per-day rule (issue #147).
+  function day1SeatKind(match, side) {
+    if (match.type !== 'challenge') return 'ordinary';
+    return match.challengeSide === (side === 'pA' ? 'A' : 'B') ? 'double' : 'lone';
+  }
+  function day1SeatsCompatible(kindA, kindB) {
+    return (kindA === 'ordinary' && kindB === 'double') || (kindA === 'double' && kindB === 'ordinary');
+  }
+
   // Interprets one synced `tournament_updates` row and mutates `state`
   // in place accordingly -- the single place every device (regardless of
   // whether it initiated the change) ends up applying a given field
@@ -1127,19 +1146,23 @@
           // setMatchPlayer() clears on a manual reassignment -- is undone.
           // Checks both slots of both sides (issue #256's Captain's
           // Challenge 2nd slot included) since a player can only ever hold
-          // one seat across the whole day regardless of which slot it is.
+          // one seat across the whole day regardless of which slot it is --
+          // UNLESS this assignment and the other seat are an
+          // ordinary-singles/Challenge-opponent pair, the one legitimate
+          // double-booking the format now requires (issue #328).
           if (id !== null) {
+            const hereKind = day1SeatKind(match, side);
             state.day1.matches.forEach((other, oi) => {
               if (oi === row.match_idx) return;
               ['pA', 'pB'].forEach(s => {
                 [0, 1].forEach(si => {
-                  if (other[s][si] === id) {
-                    other[s][si] = null;
-                    other.front9 = null;
-                    other.back9 = null;
-                    other.holesA = Array(18).fill(null);
-                    other.holesB = Array(18).fill(null);
-                  }
+                  if (other[s][si] !== id) return;
+                  if (day1SeatsCompatible(hereKind, day1SeatKind(other, s))) return;
+                  other[s][si] = null;
+                  other.front9 = null;
+                  other.back9 = null;
+                  other.holesA = Array(18).fill(null);
+                  other.holesB = Array(18).fill(null);
                 });
               });
             });
@@ -1764,7 +1787,7 @@
     DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints, day3PointsThru,
     resolveOverallWinner,
     day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
-    matchWormFor,
+    matchWormFor, day1SeatKind, day1SeatsCompatible,
     teamOfSets, ntpPointsFor, scoreToParSymbol,
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
