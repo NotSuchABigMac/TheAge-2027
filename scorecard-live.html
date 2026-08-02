@@ -4021,7 +4021,6 @@ function renderDay3HoleEntries() {
     // in-progress scorer's open panel shut on every poll.
     const prev = document.getElementById(`day3-details-${p.id}`);
     const wasOpen = prev ? prev.open : false;
-    const hasData = holes.some(h => h !== null);
     const pinnedNow = isPinned('day3', p.id);
     html += `
     <details class="hole-grid-details" id="day3-details-${p.id}"${wasOpen ? ' open' : ''}>
@@ -4031,7 +4030,6 @@ function renderDay3HoleEntries() {
       </summary>
       ${day3HoleGridNineHtml(p.id, holes, strokes, courseHoles, 0)}
       ${day3HoleGridNineHtml(p.id, holes, strokes, courseHoles, 9)}
-      ${hasData ? `<div class="nine-status-line"><button type="button" class="clear-btn" onclick="clearDay3PlayerHoles(${p.id})">Clear hole scores</button></div>` : ''}
     </details>`;
   });
   container.innerHTML = html;
@@ -4083,26 +4081,6 @@ function setDay3HoleScore(playerId, holeNum, rawVal) {
       if (gridHasFocus) patchDay3HoleMark(playerId, holeNum);
       else renderDay3HoleEntries();
     }, 0);
-  });
-}
-
-// Clears every hole score for one player, letting them re-enter the round
-// from scratch -- referenced by the "Clear hole scores" hint. Unlike Day
-// 1/Day 2's equivalent, this doesn't fall back to a manual box (Day 3 has
-// none any more): it just empties the grid.
-function clearDay3PlayerHoles(playerId) {
-  requireUsername(() => {
-    const holes = state.day3.holes[playerId];
-    if (!Array.isArray(holes)) return;
-    holes.forEach((v, i) => {
-      if (v !== null) {
-        holes[i] = null;
-        insertUpdate('day3_hole', { player_id: playerId, field_key: `h${i + 1}`, value: null });
-      }
-    });
-    saveState();
-    renderDay3HoleEntries();
-    renderDay3();
   });
 }
 

@@ -143,6 +143,14 @@ async function main() {
       return { aId: pA.id, bId: pB.id, aShort: pA.short, bShort: pB.short };
     });
 
+    /* ── #4: no "Clear hole scores" escape hatch on Day 3 -- with manual
+       entry gone, a bulk clear has no safe fallback (Day 1/Day 2 keep
+       theirs since they still fall back to a manual box). ── */
+    const clearButtonCount = await page.evaluate((pid) => {
+      return document.querySelectorAll(`#day3-details-${pid} .clear-btn`).length;
+    }, seeded.aId);
+    if (clearButtonCount !== 0) fail(`expected no "Clear hole scores" button on a Day 3 player with hole data entered, found ${clearButtonCount}`);
+
     const rows = await page.evaluate(() => {
       return [...document.querySelectorAll('#sf-tbody tr')].map(tr => {
         const cells = [...tr.querySelectorAll('td')].map(td => td.textContent.trim());
