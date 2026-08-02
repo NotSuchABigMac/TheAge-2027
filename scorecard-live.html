@@ -1090,7 +1090,7 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">House Rule</div>
         <div class="section-title" style="font-size:1.3rem">National Anthem</div>
       </div>
-      <div class="info-box">+2 strokes to a player's own handicap if they didn't sing the national anthem, -1 if they did — folded into that player's share of their scramble group's team handicap, individually rather than as a team-wide adjustment.</div>
+      <div class="info-box">+2 strokes added to a player's scramble group score if they didn't sing the national anthem, -1 if they did — applied directly to their group's score, individually rather than as a team-wide adjustment.</div>
       <div id="day2-anthem"></div>
       </div>
       <div class="day-lock-row day-lock-row-bottom" id="day2-lock-row"></div>
@@ -1758,7 +1758,7 @@ const state = {
     a4:null, a3:null, b4:null, b3:null, ntp: { h4:null, h16:null },
     groups: { a4: [], a3: [], b4: [], b3: [] }, // player ids assigned to each scramble group (issue #128)
     holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
-    anthem: {}, // player id -> true (sang, -1) | false (didn't sing, +2) (issue #149); absent = no adjustment
+    anthem: {}, // player id -> true (sang, -1 stroke) | false (didn't sing, +2 strokes) (issue #149); absent = no adjustment; added directly to the group's score, not the handicap
     locked: false
   },
   day3: { scores:{}, holes:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string; holes: id -> 18-entry gross array (issue #188)
@@ -1790,7 +1790,7 @@ const {
   matchWormFor, weekendWormFor, day1SeatKind, day1SeatsCompatible,
   ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
-  day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
+  day2CourseHolesFor, day2GroupHandicapFor, day2AnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   projectedTotals,
   day3CourseHolesFor, effectiveDay3ScoreFor,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
@@ -3125,8 +3125,8 @@ function setDay2Ntp(hole, val) {
 // National anthem house rule (issue #149) -- per-player, Day 2 only (scope
 // confirmed via issue comment): each player gets an independent three-way
 // toggle (sang / no adjustment / didn't sing) rather than a team-wide
-// setting, feeding into that player's own handicap contribution to their
-// scramble group's team handicap (day2GroupHandicap() above).
+// setting, added straight to their scramble group's score
+// (day2AnthemStrokes() below) rather than to anyone's handicap.
 function renderDay2Anthem() {
   const container = document.getElementById('day2-anthem');
   if (!container) return;
@@ -3365,11 +3365,15 @@ function day2CourseHoles() {
   return day2CourseHolesFor(COURSES);
 }
 
-// National anthem house rule (issue #149, Day 2 only): each player's own
-// handicap is adjusted (-1 sang, +2 didn't sing) before it goes into the
-// team handicap calc, per the confirmed "individual, not team-wide" scope.
 function day2GroupHandicap(code) {
   return day2GroupHandicapFor(code, state.day2, currentPlayers());
+}
+
+// National anthem house rule (issue #149, Day 2 only): -1 stroke per
+// player who sang, +2 per player who didn't, summed across the group and
+// added straight to its score -- see day2AnthemStrokesFor() in scoring.js.
+function day2AnthemStrokes(code) {
+  return day2AnthemStrokesFor(code, state.day2);
 }
 
 // Lake Course par/stroke index per hole (issue #188), same
@@ -3502,7 +3506,8 @@ function renderDay2Derived(code) {
   const strokes = handicap === null ? Array(18).fill(0) : groupStrokes(handicap, sis);
   const complete = scrambleRoundComplete(holes);
   const { netToPar, played } = scrambleNetToParThru(holes, strokes, pars);
-  const ntpStr = netToPar === null ? '—' : (netToPar > 0 ? '+' + netToPar : String(netToPar));
+  const adjusted = netToPar === null ? null : netToPar + day2AnthemStrokes(code);
+  const ntpStr = adjusted === null ? '—' : (adjusted > 0 ? '+' + adjusted : String(adjusted));
   derivedEl.innerHTML = `
     <span class="dv-big">${ntpStr}</span> to par ${complete ? '' : `(thru ${played})`}
     ${handicap !== null ? ` · Team HCP ${handicap}` : ' · assign players to compute handicap'}
@@ -3517,8 +3522,11 @@ function day2ManualDisplayLabel(code) {
   if (val === null || val === undefined || val === '') return 'Not started';
   const n = parseInt(val, 10);
   if (isNaN(n)) return 'Not started';
-  const str = n > 0 ? '+' + n : String(n);
-  return `${str} to par (admin-entered)`;
+  const anthemStrokes = day2AnthemStrokes(code);
+  const adjusted = n + anthemStrokes;
+  const str = adjusted > 0 ? '+' + adjusted : String(adjusted);
+  const suffix = anthemStrokes ? ', incl. anthem' : '';
+  return `${str} to par (admin-entered${suffix})`;
 }
 
 function renderDay2GroupCard(code) {

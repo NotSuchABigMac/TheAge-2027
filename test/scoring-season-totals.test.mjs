@@ -24,9 +24,9 @@ const {
   matchStrokes, effectiveNines, sumMatchPoints, ntpTeamPoints,
   day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor, matchWormFor,
   teamOfSets, ntpPointsFor,
-  day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
+  day2CourseHolesFor, day2GroupHandicapFor, day2AnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   day3CourseHolesFor, effectiveDay3ScoreFor, stablefordPoints, day3PointsThru, groupStrokes,
-  scrambleTeamHandicap, anthemAdjustedHandicap,
+  scrambleTeamHandicap,
   computeSeasonTotals, weekendWormFor, phaseFor, playersWithOverrides
 } = require('../scoring.js');
 
@@ -173,16 +173,18 @@ test('day2CourseHolesFor reads Black Bull\'s (courses[2]) holes, degrading grace
   assert.equal(day2CourseHolesFor(null).length, 18);
 });
 
-test('day2GroupHandicapFor applies the anthem adjustment per player before scrambleTeamHandicap, same as day2GroupHandicap() used to inline', () => {
+test('day2GroupHandicapFor is unaffected by the anthem rule (issue #149\'s adjustment lands on the score, not the handicap)', () => {
   const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '20.0' }, { id: 2, hcp: '15.0' }];
+  const withAnthem = { groups: { a3: [0, 1, 2] }, anthem: { 0: true, 1: false } };
+  const withoutAnthem = { groups: { a3: [0, 1, 2] }, anthem: {} };
+  const got = day2GroupHandicapFor('a3', withAnthem, players);
+  assert.equal(got, day2GroupHandicapFor('a3', withoutAnthem, players));
+  assert.equal(got, scrambleTeamHandicap(['10.0', '20.0', '15.0']));
+});
+
+test('day2AnthemStrokesFor sums the per-player adjustment across a group\'s roster, ignoring players/handicaps entirely', () => {
   const day2 = { groups: { a3: [0, 1, 2] }, anthem: { 0: true, 1: false } }; // player 2: no adjustment
-  const got = day2GroupHandicapFor('a3', day2, players);
-  const want = scrambleTeamHandicap([
-    anthemAdjustedHandicap('10.0', true),
-    anthemAdjustedHandicap('20.0', false),
-    anthemAdjustedHandicap('15.0', undefined)
-  ]);
-  assert.equal(got, want);
+  assert.equal(day2AnthemStrokesFor('a3', day2), -1 + 2);
 });
 
 test('day2GroupHandicapFor returns null when a group id no longer maps to a real player (stale id)', () => {
@@ -207,6 +209,24 @@ test('effectiveDay2FieldFor: an incomplete hole-by-hole round (some holes played
     holes: { a4: [4, 4, ...Array(16).fill(null)] }
   };
   assert.equal(effectiveDay2FieldFor('a4', day2, players, COURSES_FIXTURE), null);
+});
+
+test('effectiveDay2FieldFor: anthem strokes are added to a manually-entered score, not just a hole-derived one (issue report: was previously silently ignored on the manual path)', () => {
+  const players = [{ id: 0, hcp: '10.0' }, { id: 1, hcp: '10.0' }];
+  const day2 = {
+    a4: '-5', groups: { a4: [0, 1] }, anthem: { 0: false }, // player 0 didn't sing: +2
+    holes: { a4: Array(18).fill(null) }
+  };
+  assert.equal(effectiveDay2FieldFor('a4', day2, players, COURSES_FIXTURE), '-3');
+});
+
+test('effectiveDay2FieldFor: anthem strokes are added on top of the hole-derived net-to-par, after handicap strokes are allocated', () => {
+  const players = [{ id: 0, hcp: '0.0' }, { id: 1, hcp: '0.0' }, { id: 2, hcp: '0.0' }]; // scratch -- net == gross
+  const day2 = {
+    groups: { a3: [0, 1, 2] }, anthem: { 0: true, 1: false }, // -1 + 2 = +1
+    holes: { a3: Array(18).fill(4) } // even par
+  };
+  assert.equal(effectiveDay2FieldFor('a3', day2, players, COURSES_FIXTURE), '1');
 });
 
 test('effectiveDay2StateFor computes all four codes independently', () => {
