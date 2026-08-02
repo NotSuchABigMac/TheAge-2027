@@ -626,24 +626,29 @@ hole-by-hole entry work, all in `scorecard-live.html`:
 ## National anthem house rule (issue #149)
 
 Day 2 only (scope confirmed via issue comment — not Day 1 match play or
-Day 3 Stableford), and per-player rather than team-wide: each player gets
-an independent sang/not-sung toggle (`state.day2.anthem`, synced via
-`day2_anthem`, see the `update_type` table above) rendered in a plain list
-under the Day 2 tab (`renderDay2Anthem()`/`setDay2Anthem()`). The +2/-1
-adjustment (`ANTHEM_STROKE_ADJUSTMENT` in `scoring.js`) is a stroke
-penalty/bonus added directly to that player's scramble group's final
-score — summed per player across the group via `day2AnthemStrokesFor(code,
-day2)` and added to the group's net-to-par *after* `scrambleTeamHandicap()`/
+Day 3 Stableford). Each player gets an independent sang/not-sung toggle
+(`state.day2.anthem`, synced via `day2_anthem`, see the `update_type`
+table above) rendered in a plain list under the Day 2 tab
+(`renderDay2Anthem()`/`setDay2Anthem()`) — that part is per-player, not
+team-wide. But the resulting +2/-1 stroke adjustment
+(`ANTHEM_STROKE_ADJUSTMENT` in `scoring.js`) reaches **both** of that
+player's team's Day 2 groups (a4+a3 for Team A, b4+b3 for Team B), not
+just the one group the player happens to be sitting in — a player's
+anthem showing reflects on their whole team, not just their own foursome.
+`day2AnthemStrokesFor(code, day2)` sums one group's own roster;
+`day2TeamAnthemStrokesFor(code, day2)` — the one actually applied to a
+group's score — adds that group's sum to its sibling group's sum. It's
+added to the group's net-to-par *after* `scrambleTeamHandicap()`/
 `groupStrokes()` have already allocated handicap strokes, in both
 `effectiveDay2FieldFor()` (real score) and `projectedDay2Field()`
 (projection), and applied identically whether the group's score comes from
-hole-by-hole entry or the manual net-to-par fallback. This reflects the
-confirmed "individual" scope without changing the team's handicap or how
-strokes get allocated across holes — earlier revisions folded the
-adjustment into the player's handicap before `scrambleTeamHandicap()`,
-which diluted it through that group-size percentage table and had no
-effect at all on a manually-entered score; see git history for that
-version.
+hole-by-hole entry or the manual net-to-par fallback. This doesn't touch
+the team's handicap or how strokes get allocated across holes — earlier
+revisions folded the adjustment into the player's handicap before
+`scrambleTeamHandicap()`, which diluted it through that group-size
+percentage table and had no effect at all on a manually-entered score;
+a revision after that added the adjustment to only the player's own group
+rather than the whole team; see git history for both.
 
 ## Score progression "worm" charts (issues #270, #299)
 

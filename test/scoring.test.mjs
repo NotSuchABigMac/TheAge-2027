@@ -16,7 +16,7 @@ const {
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
-  ANTHEM_STROKE_ADJUSTMENT, day2AnthemStrokesFor, HCP_MIN, HCP_MAX, playersWithOverrides,
+  ANTHEM_STROKE_ADJUSTMENT, day2AnthemStrokesFor, day2TeamAnthemStrokesFor, HCP_MIN, HCP_MAX, playersWithOverrides,
   POS_PTS, computeStableford, sumStablefordPoints,
   DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX,
   resolveOverallWinner,
@@ -1319,6 +1319,21 @@ test('day2AnthemStrokesFor is independent of handicap/hcp overrides -- added str
   const day2 = { groups: { a4: [0, 1, 2, 3] }, anthem: { 0: true, 1: true, 2: false } }; // player 3: no adjustment
   assert.equal(day2AnthemStrokesFor('a4', day2), -1 + -1 + 2);
   assert.equal(day2AnthemStrokesFor('a4', { groups: { a4: [0, 1] } }), 0); // no anthem object at all
+});
+
+test('day2TeamAnthemStrokesFor: reaches BOTH of a team\'s Day 2 groups, not just the group the player is actually in', () => {
+  const day2 = {
+    groups: { a4: [0, 1], a3: [2, 3], b4: [4, 5], b3: [6, 7] },
+    anthem: { 0: false, 2: true, 4: false } // player 0 in a4, player 2 in a3, player 4 in b4
+  };
+  // Team A's total (+2 from a4's player 0, -1 from a3's player 2 = +1)
+  // lands on BOTH a4 and a3, regardless of which one is asked for.
+  assert.equal(day2TeamAnthemStrokesFor('a4', day2), 1);
+  assert.equal(day2TeamAnthemStrokesFor('a3', day2), 1);
+  // Team B's total (+2 from b4's player 4, nothing recorded for b3) lands
+  // on both b4 and b3 the same way.
+  assert.equal(day2TeamAnthemStrokesFor('b4', day2), 2);
+  assert.equal(day2TeamAnthemStrokesFor('b3', day2), 2);
 });
 
 /* ── Admin handicap overrides (issue #206) ── */
