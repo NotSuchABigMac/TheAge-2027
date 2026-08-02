@@ -280,19 +280,25 @@
     return Math.round(total);
   }
 
-  // National anthem house rule (issue #149, Day 2 only): +2 strokes to a
-  // player's handicap if they didn't sing, -1 if they did -- folded into
-  // that player's own handicap *before* it goes into scrambleTeamHandicap()
-  // above, so it's applied per-player (per the confirmed scope) rather
-  // than as a flat team-wide adjustment, and rides the same
-  // lowest-handicap-first divisor logic unchanged. `sang` is `true`
+  // National anthem house rule (issue #149, Day 2 only; mechanism revised
+  // per issue report -- was previously folded into the player's handicap,
+  // see git history): +2 strokes added directly to a player's scramble
+  // group's final score if they didn't sing, -1 if they did. Summed per
+  // player across the whole group (per the confirmed "individual, not
+  // team-wide" scope) and applied to the group's net-to-par *after*
+  // handicap strokes are allocated, so it's a straightforward score
+  // penalty/bonus rather than something that reshapes how strokes get
+  // divided up via scrambleTeamHandicap()/groupStrokes(). `sang` is `true`
   // (sang), `false` (didn't sing), or null/undefined (no adjustment).
   const ANTHEM_STROKE_ADJUSTMENT = { sang: -1, notSung: 2 };
-  function anthemAdjustedHandicap(hcp, sang) {
-    const n = parseFloat(hcp);
-    if (sang === true) return n + ANTHEM_STROKE_ADJUSTMENT.sang;
-    if (sang === false) return n + ANTHEM_STROKE_ADJUSTMENT.notSung;
-    return n;
+  function day2AnthemStrokesFor(code, day2) {
+    const ids = (day2.groups && day2.groups[code]) || [];
+    const anthem = day2.anthem || {};
+    return ids.reduce((sum, id) => {
+      if (anthem[id] === true) return sum + ANTHEM_STROKE_ADJUSTMENT.sang;
+      if (anthem[id] === false) return sum + ANTHEM_STROKE_ADJUSTMENT.notSung;
+      return sum;
+    }, 0);
   }
 
   // Admin-entered handicap overrides (issue #206): players.js ships the
@@ -637,25 +643,32 @@
 
   function day2GroupHandicapFor(code, day2, players) {
     const ids = day2.groups[code];
-    const anthem = day2.anthem || {};
     const hcps = ids.map(id => {
       const p = players.find(p => p.id === id);
-      return p === undefined ? undefined : anthemAdjustedHandicap(p.hcp, anthem[id]);
+      return p === undefined ? undefined : p.hcp;
     }).filter(h => h !== undefined);
     if (hcps.length !== ids.length) return null; // stale id no longer a real player
     return scrambleTeamHandicap(hcps);
   }
 
+  // National anthem strokes (see day2AnthemStrokesFor above) are added to
+  // the group's score here -- on both the manual and hole-derived paths,
+  // so the house rule takes effect the same way regardless of which entry
+  // method a group happens to be using.
   function effectiveDay2FieldFor(code, day2, players, courses) {
     const holes = day2.holes[code];
-    if (!holes.some(h => h !== null)) return day2[code];
+    const anthemStrokes = day2AnthemStrokesFor(code, day2);
+    if (!holes.some(h => h !== null)) {
+      const manual = parseScoreToPar(day2[code]);
+      return manual === null ? day2[code] : String(manual + anthemStrokes);
+    }
     if (!scrambleRoundComplete(holes)) return null;
     const handicap = day2GroupHandicapFor(code, day2, players);
     if (handicap === null) return null;
     const courseHoles = day2CourseHolesFor(courses);
     const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
     const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
-    return netToPar === null ? null : String(netToPar);
+    return netToPar === null ? null : String(netToPar + anthemStrokes);
   }
 
   function effectiveDay2StateFor(day2, players, courses) {
@@ -873,13 +886,17 @@
   // at all, same fallback effectiveDay2FieldFor() already uses.
   function projectedDay2Field(code, day2, players, courses) {
     const holes = day2.holes[code];
-    if (!holes.some(h => h !== null)) return parseScoreToPar(day2[code]);
+    const anthemStrokes = day2AnthemStrokesFor(code, day2);
+    if (!holes.some(h => h !== null)) {
+      const manual = parseScoreToPar(day2[code]);
+      return manual === null ? null : manual + anthemStrokes;
+    }
     const handicap = day2GroupHandicapFor(code, day2, players);
     if (handicap === null) return null;
     const courseHoles = day2CourseHolesFor(courses);
     const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
     const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
-    return netToPar;
+    return netToPar === null ? null : netToPar + anthemStrokes;
   }
 
   // Projected group differentials via the real day2GroupPoints()/
@@ -1568,7 +1585,8 @@
     const courseHoles = day2CourseHolesFor(courses);
     const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
     const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
-    const parLabel = netToPar === null ? '—' : netToPar === 0 ? 'level par' : netToPar > 0 ? `+${netToPar}` : String(netToPar);
+    const adjusted = netToPar === null ? null : netToPar + day2AnthemStrokesFor(code, day2);
+    const parLabel = adjusted === null ? '—' : adjusted === 0 ? 'level par' : adjusted > 0 ? `+${adjusted}` : String(adjusted);
     const teamLabel = code[0] === 'a' ? ((teamNames && teamNames.A) || 'Team A') : ((teamNames && teamNames.B) || 'Team B');
     const sizeLabel = code[1] === '4' ? 'four-ball' : 'three-ball';
     return { headline: `${teamLabel}'s ${sizeLabel} finishes ${parLabel}`, importance: 'notify' };
@@ -1781,7 +1799,7 @@
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
     SCRAMBLE_HANDICAP_PCT, scrambleTeamHandicap, groupStrokes,
-    ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap, HCP_MIN, HCP_MAX, playersWithOverrides,
+    ANTHEM_STROKE_ADJUSTMENT, day2AnthemStrokesFor, HCP_MIN, HCP_MAX, playersWithOverrides,
     scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
     POS_PTS, computeStableford, sumStablefordPoints,
     DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints, day3PointsThru,

@@ -321,9 +321,11 @@ roster at each call site, rather than threading a new parameter through
 scoring.js's function signatures. `ribbon-status.js` does the same after
 replaying `state.hcp` from the transaction log, so index.html's live score
 never silently disagrees with the scorecard over a corrected handicap.
-Composes correctly with issue #149's anthem adjustment: `anthemAdjustedHandicap()`
-is applied to whatever `.hcp` value it's given, override or not, so an
-overridden base handicap still gets its per-round anthem nudge on top.
+Composes independently of issue #149's anthem adjustment: the anthem rule
+now adds strokes straight to a group's score (`day2AnthemStrokesFor()`,
+see below) rather than touching `.hcp`, so an overridden base handicap
+still feeds `scrambleTeamHandicap()` unchanged and the anthem strokes are
+added on top of whatever score that handicap produces.
 
 Editing is gated behind the Admin tab (organiser-only) *and* the same
 admin-PIN prompt (`requireAdminToken()`) Rollback Scores uses — a bad
@@ -628,12 +630,20 @@ Day 3 Stableford), and per-player rather than team-wide: each player gets
 an independent sang/not-sung toggle (`state.day2.anthem`, synced via
 `day2_anthem`, see the `update_type` table above) rendered in a plain list
 under the Day 2 tab (`renderDay2Anthem()`/`setDay2Anthem()`). The +2/-1
-adjustment (`ANTHEM_STROKE_ADJUSTMENT` in `scoring.js`) is applied to that
-player's own handicap via `anthemAdjustedHandicap(hcp, sang)` *before* it
-goes into `scrambleTeamHandicap()` in `day2GroupHandicap()` — so it rides
-the same lowest-handicap-first divisor logic unchanged, and reflects the
-confirmed "individual" scope rather than a flat adjustment to the team's
-final handicap number.
+adjustment (`ANTHEM_STROKE_ADJUSTMENT` in `scoring.js`) is a stroke
+penalty/bonus added directly to that player's scramble group's final
+score — summed per player across the group via `day2AnthemStrokesFor(code,
+day2)` and added to the group's net-to-par *after* `scrambleTeamHandicap()`/
+`groupStrokes()` have already allocated handicap strokes, in both
+`effectiveDay2FieldFor()` (real score) and `projectedDay2Field()`
+(projection), and applied identically whether the group's score comes from
+hole-by-hole entry or the manual net-to-par fallback. This reflects the
+confirmed "individual" scope without changing the team's handicap or how
+strokes get allocated across holes — earlier revisions folded the
+adjustment into the player's handicap before `scrambleTeamHandicap()`,
+which diluted it through that group-size percentage table and had no
+effect at all on a manually-entered score; see git history for that
+version.
 
 ## Score progression "worm" charts (issues #270, #299)
 

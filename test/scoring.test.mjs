@@ -16,7 +16,7 @@ const {
   parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   scrambleTeamHandicap, groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
-  ANTHEM_STROKE_ADJUSTMENT, anthemAdjustedHandicap, HCP_MIN, HCP_MAX, playersWithOverrides,
+  ANTHEM_STROKE_ADJUSTMENT, day2AnthemStrokesFor, HCP_MIN, HCP_MAX, playersWithOverrides,
   POS_PTS, computeStableford, sumStablefordPoints,
   DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX,
   resolveOverallWinner,
@@ -1304,25 +1304,21 @@ test('scrambleTeamHandicap: a non-numeric handicap in the group returns null, ne
   assert.equal(typeof scrambleTeamHandicap(['8.0', '16.0', '19.0', '23.0']), 'number');
 });
 
-test('anthemAdjustedHandicap: -1 for sang, +2 for not sung, unchanged when no adjustment recorded (issue #149)', () => {
-  assert.equal(anthemAdjustedHandicap('19.0', true), 18);
-  assert.equal(anthemAdjustedHandicap('19.0', false), 21);
-  assert.equal(anthemAdjustedHandicap('19.0', undefined), 19);
-  assert.equal(anthemAdjustedHandicap('19.0', null), 19);
+test('day2AnthemStrokesFor: -1 for sang, +2 for not sung, 0 when no adjustment recorded, summed per player (issue #149)', () => {
+  const day2 = { groups: { a3: [0, 1, 2] }, anthem: { 0: true, 1: false } }; // player 2: no adjustment
+  assert.equal(day2AnthemStrokesFor('a3', day2), ANTHEM_STROKE_ADJUSTMENT.sang + ANTHEM_STROKE_ADJUSTMENT.notSung);
+  assert.equal(day2AnthemStrokesFor('a3', day2), 1);
 });
 
-test('anthemAdjustedHandicap: feeds into scrambleTeamHandicap per player, not as a flat team adjustment', () => {
-  // Same 4 hcps as the divisor test above (19, 8, 30, 16), but the 8.0
-  // player didn't sing (+2 -> 10.0) and the 30.0 player sang (-1 -> 29.0).
-  // Sorted ascending becomes 10, 16, 19, 29 -> 10*.25+16*.20+19*.15+29*.10
-  // = 2.5 + 3.2 + 2.85 + 2.9 = 11.45 -> rounds to 11.
-  const hcps = [
-    anthemAdjustedHandicap('19.0', undefined),
-    anthemAdjustedHandicap('8.0', false),
-    anthemAdjustedHandicap('30.0', true),
-    anthemAdjustedHandicap('16.0', undefined)
-  ];
-  assert.equal(scrambleTeamHandicap(hcps), 11);
+test('day2AnthemStrokesFor is independent of handicap/hcp overrides -- added straight to the group\'s score rather than folded into scrambleTeamHandicap()', () => {
+  // No players/hcp involved at all: day2AnthemStrokesFor only reads
+  // day2.groups/day2.anthem, so it can no longer interact with
+  // playersWithOverrides()/scrambleTeamHandicap() the way the old
+  // anthemAdjustedHandicap(hcp, sang) composition used to (issue report:
+  // the adjustment must land on the score, not the handicap).
+  const day2 = { groups: { a4: [0, 1, 2, 3] }, anthem: { 0: true, 1: true, 2: false } }; // player 3: no adjustment
+  assert.equal(day2AnthemStrokesFor('a4', day2), -1 + -1 + 2);
+  assert.equal(day2AnthemStrokesFor('a4', { groups: { a4: [0, 1] } }), 0); // no anthem object at all
 });
 
 /* ── Admin handicap overrides (issue #206) ── */
@@ -1349,24 +1345,21 @@ test('playersWithOverrides: undefined/null/empty-string entries in the overrides
   assert.equal(playersWithOverrides(players, { 0: '' })[0].hcp, '10.0');
 });
 
-test('playersWithOverrides: an override composes correctly with anthemAdjustedHandicap/scrambleTeamHandicap (issue #149 + #206 together)', () => {
-  // Same 4-player group as the anthem composition test above, but player
-  // with hcp 8.0 has an admin override down to 5.0 -- the anthem
-  // adjustment (didn't sing, +2) must apply on top of the OVERRIDDEN base
-  // (5.0 -> 7.0), not the original roster value (8.0 -> 10.0).
+test('playersWithOverrides: an override still feeds scrambleTeamHandicap normally, unaffected by the anthem rule (issue #149 + #206 together)', () => {
+  // Same 4-player group as before, but player with hcp 8.0 has an admin
+  // override down to 5.0. Since the anthem rule (issue #149) no longer
+  // touches the handicap at all, the resolved handicaps here are exactly
+  // what playersWithOverrides()/scrambleTeamHandicap() would produce with
+  // no anthem involvement whatsoever -- day2AnthemStrokesFor() would be
+  // added separately, straight to the group's score.
   const players = [
     { id: 0, hcp: '19.0' }, { id: 1, hcp: '8.0' }, { id: 2, hcp: '30.0' }, { id: 3, hcp: '16.0' }
   ];
   const resolved = playersWithOverrides(players, { 1: '5.0' });
-  const hcps = [
-    anthemAdjustedHandicap(resolved[0].hcp, undefined),
-    anthemAdjustedHandicap(resolved[1].hcp, false),
-    anthemAdjustedHandicap(resolved[2].hcp, true),
-    anthemAdjustedHandicap(resolved[3].hcp, undefined)
-  ];
-  assert.deepEqual(hcps, [19, 7, 29, 16]);
-  // Sorted ascending: 7, 16, 19, 29 -> 7*.25 + 16*.20 + 19*.15 + 29*.10 = 1.75+3.2+2.85+2.9 = 10.7 -> 11
-  assert.equal(scrambleTeamHandicap(hcps), 11);
+  const hcps = resolved.map(p => p.hcp);
+  assert.deepEqual(hcps, ['19.0', '5.0', '30.0', '16.0']);
+  // Sorted ascending: 5, 16, 19, 30 -> 5*.25 + 16*.20 + 19*.15 + 30*.10 = 1.25+3.2+2.85+3 = 10.3 -> 10
+  assert.equal(scrambleTeamHandicap(hcps), 10);
 });
 
 test('applyUpdateToState: player_hcp sets and clears a player\'s handicap override', () => {
