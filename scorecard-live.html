@@ -470,11 +470,16 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
    element by layoutToastStack() so multiple visible toasts stack without
    overlapping; --toast-keyboard-inset is kept live by a visualViewport
    listener so a toast fired while the on-screen keyboard is open still
-   lands above it. .toast-slot (display) is toggled a frame before .show
-   (opacity/transform) so the fade-in still transitions instead of
-   popping straight in from display:none -- same reflow-forcing trick as
-   the sb-total .pop animation elsewhere in this file. */
-.save-toast,.undo-toast,.update-toast,.confirm-toast,.wire-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom) + var(--toast-keyboard-inset,0px) + var(--toast-offset,0px));transform:translateX(-50%) translateY(8px);display:none;align-items:center;gap:10px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:100;max-width:calc(100vw - 48px)}
+   lands above it. --toast-bar-inset is kept live by updateCountdown()
+   so a toast doesn't render underneath the fixed, higher-z-index
+   countdown-bar (#countdown-bar sits at z-index:990 vs the toasts'
+   z-index:100 -- without this a toast at the base 24px offset renders
+   mostly hidden behind the bar). .toast-slot (display) is toggled a
+   frame before .show (opacity/transform) so the fade-in still
+   transitions instead of popping straight in from display:none -- same
+   reflow-forcing trick as the sb-total .pop animation elsewhere in this
+   file. */
+.save-toast,.undo-toast,.update-toast,.confirm-toast,.wire-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom) + var(--toast-keyboard-inset,0px) + var(--toast-bar-inset,0px) + var(--toast-offset,0px));transform:translateX(-50%) translateY(8px);display:none;align-items:center;gap:10px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:100;max-width:calc(100vw - 48px)}
 .save-toast.toast-slot,.undo-toast.toast-slot,.update-toast.toast-slot,.confirm-toast.toast-slot,.wire-toast.toast-slot{display:flex}
 .save-toast.show,.undo-toast.show,.update-toast.show,.confirm-toast.show,.wire-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
 .save-toast{font-family:var(--font-h);font-size:.75rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:12px 16px;border-radius:var(--r)}
@@ -6597,6 +6602,7 @@ function updateCountdown() {
     // Remove it outright and reclaim the space reserved for it.
     bar.style.display = 'none';
     document.body.style.paddingBottom = '0';
+    document.documentElement.style.setProperty('--toast-bar-inset', '0px');
     if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
     return;
   }
@@ -6613,6 +6619,10 @@ function updateCountdown() {
     `<span class="cd-unit"><span class="cd-num">${String(minutes).padStart(2,'0')}</span><span class="cd-sub">Min</span></span>` +
     `<span class="cd-sep">:</span>` +
     `<span class="cd-unit"><span class="cd-num">${String(seconds).padStart(2,'0')}</span><span class="cd-sub">Sec</span></span>`;
+  // Keep the toast stack's bottom offset clear of the bar's actual
+  // rendered height (varies slightly across the 600px breakpoint) --
+  // see the --toast-bar-inset comment on the toast CSS above.
+  document.documentElement.style.setProperty('--toast-bar-inset', `${bar.getBoundingClientRect().height}px`);
 }
 updateCountdown();
 // Don't bother starting the tick at all if tee-off has already passed by
