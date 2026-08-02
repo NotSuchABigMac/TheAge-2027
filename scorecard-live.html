@@ -832,6 +832,24 @@ body{padding-top:58px;padding-bottom:52px}
   </div>
 </div>
 
+<!-- iOS "Add to Home Screen" instructions -- every iOS browser (Safari,
+     Chrome, Firefox, all WebKit under Apple's rules) lacks beforeinstall-
+     prompt entirely, so there's no way to trigger the real install flow
+     from JS. The footer's Install App button opens this instead when a
+     beforeinstallprompt was never captured but the device looks like iOS. -->
+<div id="ios-install-modal" class="help-modal hidden" role="dialog" aria-modal="true" aria-labelledby="ios-install-modal-title">
+  <div class="help-modal-card">
+    <div class="help-modal-title" id="ios-install-modal-title">Add to Home Screen</div>
+    <div class="help-modal-subtitle">iOS doesn't let a website trigger this automatically -- three taps gets you there.</div>
+    <div class="help-section">
+      <p>1. Tap the <strong>Share</strong> icon in your browser's toolbar.</p>
+      <p>2. Scroll down and tap <strong>Add to Home Screen</strong>.</p>
+      <p>3. Tap <strong>Add</strong> — the Wonga Cup then opens full-screen from your home screen, same as any other app.</p>
+    </div>
+    <button type="button" class="help-modal-close" onclick="closeIosInstallModal()">Got it</button>
+  </div>
+</div>
+
 <!-- Practice Mode banner (issue #208) -- always in normal document flow
      (never position:fixed, unlike the badges below), so it just needs
      the same body padding-top clearance every other in-flow element
@@ -1458,14 +1476,40 @@ window.addEventListener('beforeinstallprompt', (e) => {
   const btn = document.getElementById('pwa-install-btn');
   if (btn) btn.style.display = '';
 });
-async function installPwa() {
-  if (!deferredInstallPrompt) return;
-  const prompt = deferredInstallPrompt;
-  deferredInstallPrompt = null;
-  document.getElementById('pwa-install-btn').style.display = 'none';
-  prompt.prompt();
-  await prompt.userChoice.catch(() => {});
+
+// iOS never fires beforeinstallprompt (no WebKit browser implements it), so
+// there's nothing to capture there -- show the same button unconditionally
+// on a non-installed iOS device instead, and route its click to the manual
+// instructions modal further down rather than a native prompt.
+const isIOSInstallCandidate = (() => {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandalone = window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  return isIOS && !isStandalone;
+})();
+if (isIOSInstallCandidate) {
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.style.display = '';
 }
+
+async function installPwa() {
+  if (deferredInstallPrompt) {
+    const prompt = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    document.getElementById('pwa-install-btn').style.display = 'none';
+    prompt.prompt();
+    await prompt.userChoice.catch(() => {});
+    return;
+  }
+  if (isIOSInstallCandidate) {
+    document.getElementById('ios-install-modal').classList.remove('hidden');
+  }
+}
+function closeIosInstallModal() {
+  document.getElementById('ios-install-modal').classList.add('hidden');
+}
+
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
   const btn = document.getElementById('pwa-install-btn');
