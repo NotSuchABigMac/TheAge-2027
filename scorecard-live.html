@@ -1090,7 +1090,7 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">House Rule</div>
         <div class="section-title" style="font-size:1.3rem">National Anthem</div>
       </div>
-      <div class="info-box">+2 strokes added to a player's scramble group score if they didn't sing the national anthem, -1 if they did — applied directly to their group's score, individually rather than as a team-wide adjustment.</div>
+      <div class="info-box">+2 strokes added to their team's Day 2 scores if a player didn't sing the national anthem, -1 if they did — each player's own toggle, but it reaches both of their team's groups (four-ball and three-ball), not just the group they're personally playing in.</div>
       <div id="day2-anthem"></div>
       </div>
       <div class="day-lock-row day-lock-row-bottom" id="day2-lock-row"></div>
@@ -1758,7 +1758,7 @@ const state = {
     a4:null, a3:null, b4:null, b3:null, ntp: { h4:null, h16:null },
     groups: { a4: [], a3: [], b4: [], b3: [] }, // player ids assigned to each scramble group (issue #128)
     holes: { a4: Array(18).fill(null), a3: Array(18).fill(null), b4: Array(18).fill(null), b3: Array(18).fill(null) },
-    anthem: {}, // player id -> true (sang, -1 stroke) | false (didn't sing, +2 strokes) (issue #149); absent = no adjustment; added directly to the group's score, not the handicap
+    anthem: {}, // player id -> true (sang, -1 stroke) | false (didn't sing, +2 strokes) (issue #149); absent = no adjustment; added to BOTH of that player's team's Day 2 group scores, not the handicap
     locked: false
   },
   day3: { scores:{}, holes:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string; holes: id -> 18-entry gross array (issue #188)
@@ -1790,7 +1790,7 @@ const {
   matchWormFor, weekendWormFor, day1SeatKind, day1SeatsCompatible,
   ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
-  day2CourseHolesFor, day2GroupHandicapFor, day2AnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
+  day2CourseHolesFor, day2GroupHandicapFor, day2TeamAnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   projectedTotals,
   day3CourseHolesFor, effectiveDay3ScoreFor,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
@@ -3124,9 +3124,9 @@ function setDay2Ntp(hole, val) {
 
 // National anthem house rule (issue #149) -- per-player, Day 2 only (scope
 // confirmed via issue comment): each player gets an independent three-way
-// toggle (sang / no adjustment / didn't sing) rather than a team-wide
-// setting, added straight to their scramble group's score
-// (day2AnthemStrokes() below) rather than to anyone's handicap.
+// toggle (sang / no adjustment / didn't sing), added straight to their
+// team's score (both of that team's Day 2 groups -- day2AnthemStrokes()
+// below) rather than to anyone's handicap or just the player's own group.
 function renderDay2Anthem() {
   const container = document.getElementById('day2-anthem');
   if (!container) return;
@@ -3370,10 +3370,11 @@ function day2GroupHandicap(code) {
 }
 
 // National anthem house rule (issue #149, Day 2 only): -1 stroke per
-// player who sang, +2 per player who didn't, summed across the group and
-// added straight to its score -- see day2AnthemStrokesFor() in scoring.js.
+// player who sang, +2 per player who didn't, summed across BOTH of that
+// player's team's groups (not just the one they're in) and added straight
+// to a group's score -- see day2TeamAnthemStrokesFor() in scoring.js.
 function day2AnthemStrokes(code) {
-  return day2AnthemStrokesFor(code, state.day2);
+  return day2TeamAnthemStrokesFor(code, state.day2);
 }
 
 // Lake Course par/stroke index per hole (issue #188), same

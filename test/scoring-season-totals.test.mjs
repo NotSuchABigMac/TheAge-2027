@@ -24,7 +24,7 @@ const {
   matchStrokes, effectiveNines, sumMatchPoints, ntpTeamPoints,
   day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor, matchWormFor,
   teamOfSets, ntpPointsFor,
-  day2CourseHolesFor, day2GroupHandicapFor, day2AnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
+  day2CourseHolesFor, day2GroupHandicapFor, day2AnthemStrokesFor, day2TeamAnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   day3CourseHolesFor, effectiveDay3ScoreFor, stablefordPoints, day3PointsThru, groupStrokes,
   scrambleTeamHandicap,
   computeSeasonTotals, weekendWormFor, phaseFor, playersWithOverrides
@@ -187,6 +187,12 @@ test('day2AnthemStrokesFor sums the per-player adjustment across a group\'s rost
   assert.equal(day2AnthemStrokesFor('a3', day2), -1 + 2);
 });
 
+test('day2TeamAnthemStrokesFor sums BOTH of a team\'s groups (a4+a3, or b4+b3), not just the one asked for', () => {
+  const day2 = { groups: { a4: [0], a3: [1] }, anthem: { 0: false, 1: true } }; // a4: +2, a3: -1
+  assert.equal(day2TeamAnthemStrokesFor('a4', day2), 1);
+  assert.equal(day2TeamAnthemStrokesFor('a3', day2), 1);
+});
+
 test('day2GroupHandicapFor returns null when a group id no longer maps to a real player (stale id)', () => {
   const players = [{ id: 0, hcp: '10.0' }];
   const day2 = { groups: { a3: [0, 999] }, anthem: {} };
@@ -227,6 +233,21 @@ test('effectiveDay2FieldFor: anthem strokes are added on top of the hole-derived
     holes: { a3: Array(18).fill(4) } // even par
   };
   assert.equal(effectiveDay2FieldFor('a3', day2, players, COURSES_FIXTURE), '1');
+});
+
+test('effectiveDay2FieldFor: an anthem adjustment reaches BOTH of a team\'s Day 2 groups, not just the group the player is actually in', () => {
+  const players = [{ id: 0, hcp: '0.0' }, { id: 1, hcp: '0.0' }, { id: 2, hcp: '0.0' }];
+  const day2 = {
+    a4: '-5', // manual score for the sibling group
+    groups: { a4: [0], a3: [1, 2] },
+    anthem: { 0: false }, // player 0 -- in a4, NOT a3 -- didn't sing: +2
+    holes: { a4: Array(18).fill(null), a3: Array(18).fill(4) } // a3 fully played, even par
+  };
+  // a3's own roster (players 1, 2) has no anthem entry at all, but player
+  // 0's +2 from the sibling a4 group still lands here.
+  assert.equal(effectiveDay2FieldFor('a3', day2, players, COURSES_FIXTURE), '2');
+  // ...and it reaches a4 too, on top of a4's own manual score.
+  assert.equal(effectiveDay2FieldFor('a4', day2, players, COURSES_FIXTURE), '-3');
 });
 
 test('effectiveDay2StateFor computes all four codes independently', () => {
