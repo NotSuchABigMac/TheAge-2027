@@ -111,6 +111,10 @@
    isAdmin), not real auth. ── */
 .locked-for-viewer{pointer-events:none;opacity:.55;filter:grayscale(.35)}
 .day-lock-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-8px 0 20px}
+/* The per-day lock row sits at the bottom of its panel (moved off the top
+   in the pwa-admin-lock-positioning change) -- swap the "tuck under the
+   header" negative margin for breathing room above it instead. */
+.day-lock-row.day-lock-row-bottom{margin:24px 0 0}
 .day-lock-btn{padding:7px 16px;font-family:var(--font-h);font-size:.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;border-radius:var(--r);cursor:pointer;transition:var(--tr);border:1px solid var(--rule-strong);background:transparent;color:var(--ink-mute)}
 .day-lock-btn:hover{color:var(--ink)}
 .day-lock-btn.is-locked{background:rgba(220,0,0,.1);border-color:rgba(220,0,0,.4);color:#c00}
@@ -924,7 +928,6 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
         <div class="section-title">Singles Match Play</div>
       </div>
-      <div class="day-lock-row" id="day1-lock-row"></div>
       <div id="day1-lockable">
         <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
         <div id="course-card-day1"></div>
@@ -944,6 +947,7 @@ body{padding-top:58px;padding-bottom:52px}
           </div>
         </div>
       </div>
+      <div class="day-lock-row day-lock-row-bottom" id="day1-lock-row"></div>
     </div>
 
     <!-- ── DAY 2 PANEL ── -->
@@ -952,7 +956,6 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Saturday 8 August · Black Bull · 12:00pm</div>
         <div class="section-title">Team Scramble</div>
       </div>
-      <div class="day-lock-row" id="day2-lock-row"></div>
       <div id="day2-lockable">
       <div class="info-box">Each team splits into a <strong>group of 4</strong> and a <strong>group of 3</strong>. Enter each group's net score <strong>to par</strong> (e.g. <strong>-15</strong> for 15 under). <strong>Scoring:</strong> in each grouping (4v4 and 3v3) the team with the better score wins points equal to the stroke differential — e.g. -15 beats -12 for 3pts. Whichever team's <strong>combined</strong> 4+3 score is better also takes a flat <strong>5pt bonus</strong>.</div>
       <div id="course-card-day2"></div>
@@ -1067,6 +1070,7 @@ body{padding-top:58px;padding-bottom:52px}
       <div class="info-box">+2 strokes to a player's own handicap if they didn't sing the national anthem, -1 if they did — folded into that player's share of their scramble group's team handicap, individually rather than as a team-wide adjustment.</div>
       <div id="day2-anthem"></div>
       </div>
+      <div class="day-lock-row day-lock-row-bottom" id="day2-lock-row"></div>
     </div>
 
     <!-- ── DAY 3 PANEL ── -->
@@ -1075,7 +1079,6 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Sunday 9 August · Lake Course · 10:00am</div>
         <div class="section-title">Individual Stableford</div>
       </div>
-      <div class="day-lock-row" id="day3-lock-row"></div>
       <div id="day3-lockable">
       <div class="info-box">Enter each player's <strong>net Stableford score</strong> either as one 18-hole total, or hole-by-hole below (whichever's easier). Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
       <div id="course-card-day3"></div>
@@ -1121,6 +1124,7 @@ body{padding-top:58px;padding-bottom:52px}
         </div>
       </div>
       </div>
+      <div class="day-lock-row day-lock-row-bottom" id="day3-lock-row"></div>
     </div>
 
     <!-- Issue #186: "Wonga Wire" live commentary feed. Purely a read of
@@ -1324,6 +1328,7 @@ body{padding-top:58px;padding-bottom:52px}
          .sc-panel rather than living inside one, so it renders at the
          bottom of whichever tab is open, not just one specific tab. -->
     <div class="app-footer">
+      <button class="sync-btn sec" id="pwa-install-btn" onclick="installPwa()" style="display:none">📲 Install App</button>
       <button class="sync-btn sec" id="music-toggle-btn" onclick="toggleMusicMute()" aria-pressed="false">🔇 Unmute Music</button>
       <button class="sync-btn sec resync-btn" onclick="forceFullResync()" title="Rebuilds this device's scores from the shared server log, from scratch. Only this device is affected -- nothing on the server changes.">↻ Full Resync</button>
       <div class="app-footer-note">Score looks wrong even though you're synced? Full Resync rebuilds it from the shared log.</div>
@@ -1438,6 +1443,34 @@ let updateAvailable = false;
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+// PWA install button (app-footer, bottom of page): Chrome/Edge/Android fire
+// beforeinstallprompt when the manifest+SW criteria are met -- capture it
+// instead of letting the browser show its own mini-infobar, and surface our
+// own button so it's discoverable in the same quiet, out-of-the-way spot as
+// Full Resync rather than relying on a UA-controlled prompt. No-ops
+// everywhere else (iOS Safari, already-installed) -- the button just never
+// appears.
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.style.display = '';
+});
+async function installPwa() {
+  if (!deferredInstallPrompt) return;
+  const prompt = deferredInstallPrompt;
+  deferredInstallPrompt = null;
+  document.getElementById('pwa-install-btn').style.display = 'none';
+  prompt.prompt();
+  await prompt.userChoice.catch(() => {});
+}
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.style.display = 'none';
+});
 
 async function checkForUpdate() {
   try {
