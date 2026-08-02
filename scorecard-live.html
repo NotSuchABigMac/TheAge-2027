@@ -2754,6 +2754,37 @@ function patchDay1HoleFeedback(matchIdx, team, holeNum, clamped) {
   return true;
 }
 
+// Issue #331: since #328 a player can hold an "ordinary" singles seat and a
+// Captain's Challenge match's "double" opponent seat (front9 or back9) at
+// once -- both play the exact same physical nine for that player. Finds the
+// other (matchIdx, team) holding that same golfer for the nine containing
+// holeNum, if any, so setHoleScore()/clearNineHoles() can mirror the entry
+// there instead of it needing to be typed twice. day1SeatKind()/
+// day1SeatsCompatible() (scoring.js) already define exactly this pairing;
+// this just reuses them to locate the other seat rather than merely label it.
+function linkedDay1HoleSeat(matchIdx, team, holeNum) {
+  const match = state.day1.matches[matchIdx];
+  const side = team === 'A' ? match.pA : match.pB;
+  const hereKind = day1SeatKind(match, team === 'A' ? 'pA' : 'pB');
+  if (hereKind === 'lone') return null;
+  const isBack = holeNum > 9;
+  const playerId = hereKind === 'double' ? side[isBack ? 1 : 0] : side[0];
+  if (playerId === null || playerId === undefined) return null;
+  let found = null;
+  state.day1.matches.forEach((other, oi) => {
+    if (found || oi === matchIdx) return;
+    ['pA', 'pB'].forEach(s => {
+      if (found) return;
+      const otherKind = day1SeatKind(other, s);
+      if (!day1SeatsCompatible(hereKind, otherKind)) return;
+      const otherSide = other[s];
+      const otherPlayerId = otherKind === 'double' ? otherSide[isBack ? 1 : 0] : otherSide[0];
+      if (otherPlayerId === playerId) found = { matchIdx: oi, team: s === 'pA' ? 'A' : 'B' };
+    });
+  });
+  return found;
+}
+
 function setHoleScore(matchIdx, team, holeNum, rawVal) {
   requireUsername(() => {
     const match = state.day1.matches[matchIdx];
@@ -2762,9 +2793,20 @@ function setHoleScore(matchIdx, team, holeNum, rawVal) {
     const clamped = n === null ? null : Math.max(DAY1_GROSS_MIN, Math.min(DAY1_GROSS_MAX, n));
     const previous = arr[holeNum - 1];
     arr[holeNum - 1] = clamped;
+    // Issue #331: mirror onto the linked ordinary/Challenge-opponent seat
+    // (if any) so the same golfer's gross score doesn't need entering twice.
+    const linked = linkedDay1HoleSeat(matchIdx, team, holeNum);
+    if (linked) {
+      const lMatch = state.day1.matches[linked.matchIdx];
+      const lArr = linked.team === 'A' ? lMatch.holesA : lMatch.holesB;
+      lArr[holeNum - 1] = clamped;
+    }
     saveState();
     const fields = { match_idx: matchIdx, field_key: `${team}${holeNum}`, value: clamped };
     insertUpdate('day1_hole', fields);
+    if (linked) {
+      insertUpdate('day1_hole', { match_idx: linked.matchIdx, field_key: `${linked.team}${holeNum}`, value: clamped });
+    }
     if (clamped !== previous) {
       // Issue #228: net-to-par reaction emoji on the undo toast.
       const strokesForReaction = matchStrokesFor(match);
@@ -2775,6 +2817,7 @@ function setHoleScore(matchIdx, team, holeNum, rawVal) {
     notifyIfOutlierScore(clamped);
     updateScoreboard();
     const patched = patchDay1HoleFeedback(matchIdx, team, holeNum, clamped);
+    if (linked) patchDay1HoleFeedback(linked.matchIdx, linked.team, holeNum, clamped);
     // Issue: 'change' fires as part of the outgoing input's blur, before
     // the browser has moved focus to whatever the scorer tapped/tabbed
     // into next -- checking activeElement synchronously here therefore
@@ -2793,6 +2836,19 @@ function setHoleScore(matchIdx, team, holeNum, rawVal) {
 // Clears every hole score in one nine (9 cells across both players) so its
 // manual front9/back9 toggle becomes usable again -- the escape hatch
 // referenced by the "Clear hole scores to enter manually" hint.
+// Issue #331: mirrors a hole-score clear the same way setHoleScore() mirrors
+// an entry, so clearing one seat's grid doesn't leave its linked seat
+// (ordinary singles <-> Captain's Challenge opponent) holding a stale score.
+function clearLinkedHole(matchIdx, team, holeNum) {
+  const linked = linkedDay1HoleSeat(matchIdx, team, holeNum);
+  if (!linked) return;
+  const lMatch = state.day1.matches[linked.matchIdx];
+  const lArr = linked.team === 'A' ? lMatch.holesA : lMatch.holesB;
+  if (lArr[holeNum - 1] === null) return;
+  lArr[holeNum - 1] = null;
+  insertUpdate('day1_hole', { match_idx: linked.matchIdx, field_key: `${linked.team}${holeNum}`, value: null });
+}
+
 function clearNineHoles(matchIdx, startIdx) {
   requireUsername(() => {
     const match = state.day1.matches[matchIdx];
@@ -2801,10 +2857,12 @@ function clearNineHoles(matchIdx, startIdx) {
       if (match.holesA[i] !== null) {
         match.holesA[i] = null;
         insertUpdate('day1_hole', { match_idx: matchIdx, field_key: `A${holeNum}`, value: null });
+        clearLinkedHole(matchIdx, 'A', holeNum);
       }
       if (match.holesB[i] !== null) {
         match.holesB[i] = null;
         insertUpdate('day1_hole', { match_idx: matchIdx, field_key: `B${holeNum}`, value: null });
+        clearLinkedHole(matchIdx, 'B', holeNum);
       }
     }
     saveState();
