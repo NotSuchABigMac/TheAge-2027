@@ -1253,7 +1253,7 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Admin · Day 1</div>
         <div class="section-title">Captain's Challenge</div>
       </div>
-      <div class="info-box">Optional — only needed if the Friday field ends up an odd number. Flip exactly one match to Captain's Challenge (1 vs 2): pick which team supplies the two opponents (either team — whichever ends up with the extra player after the Captain's Draft), and that side gets a separate front-9 and back-9 opponent for the one player on the other side. Leave every match as Singles if the field is even — this can be switched back at any time.</div>
+      <div class="info-box">Optional — only needed if the Friday field ends up an odd number. Flip exactly one match to Captain's Challenge (1 vs 2): pick which team is short-handed after the Captain's Draft — that side supplies the two opponents (front-9 opponent nominated by the short-handed team, back-9 opponent nominated by the other team), facing the single spare player on the over-manned side across both nines. Leave every match as Singles if the field is even — this can be switched back at any time.</div>
       <div id="admin-day1-challenge"></div>
 
       <div class="section-header" style="padding-top:32px">
@@ -2102,18 +2102,19 @@ function renderTeams() {
 // Warns (doesn't block — real-world drafts sometimes have to work around
 // this) when the two teams' Friday-eligible headcounts don't match what
 // the current Day 1 match setup needs: a clean even split (issue #68), or
-// -- if one match has been flipped to a Captain's Challenge (issue #256)
-// -- a split that differs by exactly 1 in favor of whichever team supplies
-// that match's 2 opponents (it fields one extra Friday player overall to
-// cover the Challenge's 2nd slot on top of its share of the normal
-// matches).
+// -- if one match has been flipped to a Captain's Challenge (issue #256,
+// rule flipped by issue #326) -- a split that differs by exactly 1 in
+// favor of the team NOT named by challengeSide (the over-manned side
+// fields the Challenge's lone "player 6", on top of its share of the
+// normal matches, while challengeSide -- the short-handed team -- supplies
+// the Challenge's 2 opponents from players it's already using elsewhere).
 function renderTeamBalanceWarning() {
   const warnEl = document.getElementById('team-balance-warning');
   if (!warnEl) return;
   const fA = fridayPlayers('A');
   const fB = fridayPlayers('B');
   const challengeMatch = state.day1.matches.find(m => m.type === 'challenge' && m.challengeSide);
-  const expectedDiff = challengeMatch ? (challengeMatch.challengeSide === 'A' ? 1 : -1) : 0;
+  const expectedDiff = challengeMatch ? (challengeMatch.challengeSide === 'A' ? -1 : 1) : 0;
   if (fA.length - fB.length === expectedDiff) {
     warnEl.style.display = 'none';
     return;
@@ -2124,7 +2125,7 @@ function renderTeamBalanceWarning() {
   const listB = fB.map(p => escapeHtml(p.short)).join(', ') || '—';
   warnEl.style.display = '';
   const needText = challengeMatch
-    ? `${escapeHtml(challengeMatch.challengeSide === 'A' ? state.teamNameA : state.teamNameB)} needs exactly 1 more Friday player than the other side, to cover the Captain's Challenge match's 2nd opponent.`
+    ? `${escapeHtml(challengeMatch.challengeSide === 'A' ? state.teamNameB : state.teamNameA)} needs exactly 1 more Friday player than the other side, to field the Captain's Challenge's lone player against ${escapeHtml(challengeMatch.challengeSide === 'A' ? state.teamNameA : state.teamNameB)}'s two opponents.`
     : `Day 1 needs an even split across the singles matches.`;
   warnEl.innerHTML = `<strong>⚠ Uneven Friday split:</strong> ${escapeHtml(state.teamNameA)} has ${fA.length} Friday player${fA.length === 1 ? '' : 's'} (${listA}); ${escapeHtml(state.teamNameB)} has ${fB.length} (${listB}). ${needText}`;
 }
