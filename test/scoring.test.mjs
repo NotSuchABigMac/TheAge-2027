@@ -23,7 +23,8 @@ const {
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
   UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
-  normalizeState, flushQueue
+  normalizeState, flushQueue,
+  day1SeatKind, day1SeatsCompatible
 } = require('../scoring.js');
 
 /* ── HTML Escaping (issue #58 — stored XSS via team names) ── */
@@ -809,6 +810,78 @@ test('applyUpdateToState: assigning a player via pA2 evicts them from another ma
   applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA2', value: '9' });
   assert.equal(state.day1.matches[0].pA[1], 9);
   assert.equal(state.day1.matches[1].pB[1], null);
+});
+
+test('day1SeatKind classifies ordinary, double, and lone seats correctly', () => {
+  const singles = { type: 'singles', challengeSide: null };
+  const challengeA = { type: 'challenge', challengeSide: 'A' };
+  assert.equal(day1SeatKind(singles, 'pA'), 'ordinary');
+  assert.equal(day1SeatKind(singles, 'pB'), 'ordinary');
+  assert.equal(day1SeatKind(challengeA, 'pA'), 'double');
+  assert.equal(day1SeatKind(challengeA, 'pB'), 'lone');
+});
+
+test('day1SeatsCompatible only allows an ordinary+double pairing', () => {
+  assert.equal(day1SeatsCompatible('ordinary', 'double'), true);
+  assert.equal(day1SeatsCompatible('double', 'ordinary'), true);
+  assert.equal(day1SeatsCompatible('ordinary', 'ordinary'), false);
+  assert.equal(day1SeatsCompatible('double', 'double'), false);
+  assert.equal(day1SeatsCompatible('lone', 'double'), false);
+  assert.equal(day1SeatsCompatible('lone', 'ordinary'), false);
+});
+
+test('applyUpdateToState: an ordinary singles seat and a Captain\'s Challenge opponent seat may be held by the same player at once (issue #328)', () => {
+  const state = makeState();
+  // Match 0: ordinary singles, player 2 as pA.
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA', value: '2' });
+  // Match 1: flipped to a Challenge with team A as the 2-opponent (double) side.
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'type', value: 'challenge' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'challengeSide', value: 'A' });
+  // The same player is also picked as match 1's front-9 opponent -- must
+  // NOT evict them from their match-0 singles seat, and vice versa.
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'pA', value: '2' });
+  assert.equal(state.day1.matches[0].pA[0], 2, 'ordinary singles seat must survive');
+  assert.equal(state.day1.matches[1].pA[0], 2, 'Challenge opponent seat must be set');
+});
+
+test('applyUpdateToState: assigning the Challenge opponent seat first, then the ordinary singles seat, is also non-evicting (issue #328)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'type', value: 'challenge' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'challengeSide', value: 'B' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pB2', value: '5' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'pB', value: '5' });
+  assert.equal(state.day1.matches[0].pB[1], 5, 'Challenge opponent seat must survive');
+  assert.equal(state.day1.matches[1].pB[0], 5, 'ordinary singles seat must be set');
+});
+
+test('applyUpdateToState: the Captain\'s Challenge lone/single side keeps the strict one-seat rule (issue #328)', () => {
+  const state = makeState();
+  // Match 0: Challenge, team A double (opponents), team B lone (spare player 9).
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'type', value: 'challenge' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'challengeSide', value: 'A' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pB', value: '9' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'front9', value: 'A' });
+  state.day1.matches[0].holesB[0] = 4;
+  // Assigning the same player into an ordinary singles match elsewhere must
+  // still evict them from the Challenge's lone seat -- that seat is
+  // deliberately excluded from the new dual-seat exception.
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'pB', value: '9' });
+  assert.equal(state.day1.matches[1].pB[0], 9);
+  assert.equal(state.day1.matches[0].pB[0], null);
+  assert.equal(state.day1.matches[0].front9, null);
+  assert.equal(state.day1.matches[0].holesB[0], null);
+});
+
+test('applyUpdateToState: two Captain\'s Challenge opponent seats on different matches still evict each other (issue #328)', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'type', value: 'challenge' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'challengeSide', value: 'A' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'type', value: 'challenge' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'challengeSide', value: 'A' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 0, field_key: 'pA', value: '7' });
+  applyUpdateToState(state, { update_type: 'day1_match', match_idx: 1, field_key: 'pA', value: '7' });
+  assert.equal(state.day1.matches[1].pA[0], 7);
+  assert.equal(state.day1.matches[0].pA[0], null);
 });
 
 test('applyUpdateToState: day2_score clamps synced values to +/-20 the same as local input', () => {

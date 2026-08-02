@@ -1787,7 +1787,7 @@ const {
   // the parameterized versions; the local functions of the same name
   // below are now thin wrappers passing this page's PLAYERS/COURSES/state.
   day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
-  matchWormFor, weekendWormFor,
+  matchWormFor, weekendWormFor, day1SeatKind, day1SeatsCompatible,
   ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
   day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
@@ -2209,26 +2209,42 @@ function fridayPlayers(team) {
 
 function playerOptions(team, matchIdx, slot, currentId) {
   const pool = fridayPlayers(team);
-  // Issue #147: usedInOthers -> which OTHER match (1-indexed, for display)
+  const match = state.day1.matches[matchIdx];
+  const side = team === 'A' ? 'pA' : 'pB';
+  const hereKind = day1SeatKind(match, side);
+  // Issue #147: blockedIn -> which OTHER match (1-indexed, for display)
   // each already-assigned player is in, so a disabled option can say why
-  // instead of just appearing greyed out with no explanation.
-  const usedInOthers = new Map();
+  // instead of just appearing greyed out with no explanation. Issue #328:
+  // an ordinary-singles seat and a Captain's Challenge opponent seat are
+  // the one pairing a player may legitimately hold at once, so that
+  // combination is surfaced (alsoIn) rather than disabled.
+  const blockedIn = new Map();
+  const alsoIn = new Map();
   state.day1.matches.forEach((m, mi) => {
     if (mi === matchIdx) return;
-    (m.pA || []).forEach(x => { if (x !== null) usedInOthers.set(x, mi + 1); });
-    (m.pB || []).forEach(x => { if (x !== null) usedInOthers.set(x, mi + 1); });
+    ['pA', 'pB'].forEach(s => {
+      (m[s] || []).forEach(x => {
+        if (x === null) return;
+        if (day1SeatsCompatible(hereKind, day1SeatKind(m, s))) alsoIn.set(x, mi + 1);
+        else blockedIn.set(x, mi + 1);
+      });
+    });
   });
   // Also used in same match different slots
-  const match = state.day1.matches[matchIdx];
   const sameTeamArr = team === 'A' ? match.pA : match.pB;
   const usedSameMatch = new Set(sameTeamArr.filter((x,i) => i !== slot && x !== null));
 
   let opts = `<option value="">— pick player —</option>`;
   pool.forEach(p => {
-    const otherMatch = usedInOthers.get(p.id);
-    const disabled = otherMatch !== undefined || usedSameMatch.has(p.id) ? 'disabled' : '';
+    const blockedMatch = blockedIn.get(p.id);
+    const disabled = blockedMatch !== undefined || usedSameMatch.has(p.id) ? 'disabled' : '';
     const sel = p.id === currentId ? 'selected' : '';
-    const title = otherMatch !== undefined ? ` title="Already assigned in Match ${otherMatch}"` : '';
+    const alsoMatch = alsoIn.get(p.id);
+    const title = blockedMatch !== undefined
+      ? ` title="Already assigned in Match ${blockedMatch}"`
+      : alsoMatch !== undefined
+        ? ` title="Also playing Match ${alsoMatch}"`
+        : '';
     opts += `<option value="${p.id}" ${disabled} ${sel}${title}>${p.short} (${p.hcp})</option>`;
   });
   return opts;
