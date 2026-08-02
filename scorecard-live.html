@@ -288,9 +288,7 @@ input[type=number]:focus{outline:none;border-color:var(--gold)}
 .sf-table td:nth-child(2){white-space:nowrap}
 .sf-table th{background:var(--canvas-2);font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:8px 14px;text-align:left;color:var(--ink-mute);border-bottom:1px solid var(--rule-strong)}
 /* Issue #246: shorter rows -- less vertical td padding and slightly
-   smaller pos/pts type. The .sf-in input below is untouched by this, so
-   its own footprint (and the native number-spinner buttons riding on it)
-   stays exactly the size it was. */
+   smaller pos/pts type. */
 .sf-table td{padding:4px 14px;border-bottom:1px solid var(--rule);font-size:.9rem;color:var(--ink)}
 .sf-table tr:last-child td{border-bottom:none}
 .pos-cell{font-family:var(--font-d);font-size:1.05rem;color:var(--ink-mute);text-align:center;width:44px}
@@ -303,7 +301,6 @@ input[type=number]:focus{outline:none;border-color:var(--gold)}
 .row-unassigned .pts-cell{color:var(--ink-mute)}
 .row-a.top-scorer{background:color-mix(in srgb,var(--team-a) 7%,transparent);border-left:3px solid var(--team-a)}
 .row-b.top-scorer{background:color-mix(in srgb,var(--team-b) 7%,transparent);border-left:3px solid var(--team-b)}
-input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 /* Issue #188: sortable points-per-hole table -- clickable headers, and
    cells color-coded by that hole's Stableford points (0 = muted/worse,
    1 = bogey tint, 2/net-par = plain ink, 3 = birdie green, 4+ = gold),
@@ -517,7 +514,7 @@ input[type=number].sf-in{width:76px;padding:5px 9px;font-size:1.05rem}
 .field-history-loading{opacity:.8}
 /* Prevents iOS's press-and-hold text-selection/magnifier UI from covering
    these cells when a scorer taps a number input on a touch device. */
-.grid-in,.sf-in{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.grid-in{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .sync-spacer{flex:1}
 
 /* ── USERNAME PICKER MODAL ── */
@@ -1103,7 +1100,7 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-title">Individual Stableford</div>
       </div>
       <div id="day3-lockable">
-      <div class="info-box">Enter each player's <strong>net Stableford score</strong> either as one 18-hole total, or hole-by-hole below (whichever's easier). Players are ranked automatically — highest score = 1st. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
+      <div class="info-box">Enter each player's gross scores <strong>hole-by-hole</strong> below — their net Stableford total works out automatically (handicap strokes allocated by the Lake Course's stroke index). The leaderboard is ranked by <strong>points per hole</strong> (points earned so far ÷ holes played), not raw total, so it stays fair before everyone's finished all 18. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
       <div id="course-card-day3"></div>
       <div class="sf-table-wrap">
         <table class="sf-table">
@@ -1114,6 +1111,7 @@ body{padding-top:58px;padding-bottom:52px}
               <th>Team</th>
               <th>HCP</th>
               <th>Net Stableford</th>
+              <th>Pts/Hole</th>
               <th style="text-align:right">Pts</th>
             </tr>
           </thead>
@@ -1792,7 +1790,7 @@ const {
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
   day2CourseHolesFor, day2GroupHandicapFor, day2TeamAnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   projectedTotals,
-  day3CourseHolesFor, effectiveDay3ScoreFor,
+  day3CourseHolesFor, effectiveDay3ScoreFor, effectiveDay3PointsPerHoleFor,
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
   UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
@@ -1822,9 +1820,13 @@ function teamRowClass(team) {
 function teamRgb(team) {
   return team === 'A' ? '240,180,41' : team === 'B' ? '74,158,255' : '148,148,148';
 }
+// Issue: the "Team A"/"Team B" text badge didn't match this year's
+// flamingo/gorilla mascot convention already used everywhere else a
+// team needs a compact, decorative marker (see the .team-a.leading/
+// .team-b.leading rules and hole-win markers up in <style>).
 function teamBadgeHtml(team) {
-  if (team === 'A') return `<span class="ta-badge team-badge">Team A</span>`;
-  if (team === 'B') return `<span class="tb-badge team-badge">Team B</span>`;
+  if (team === 'A') return `<span class="ta-badge team-badge" title="Team A">🦩</span>`;
+  if (team === 'B') return `<span class="tb-badge team-badge" title="Team B">🦍</span>`;
   return `<span class="unassigned-badge team-badge">Unassigned</span>`;
 }
 
@@ -3451,12 +3453,19 @@ function day3StrokesFor(player) {
   return groupStrokes(hcp, day3CourseHoles().map(h => h.si));
 }
 
-// The value that actually feeds computeStableford()/sumStablefordPoints()
-// for this player (issue #188): derived from hole-by-hole entry once any
-// hole has a score, otherwise the manual 18-hole total exactly as before
-// -- see effectiveDay3ScoreFor()'s own comment for the precedence rule.
+// The raw net Stableford total, for display only (issue #188): derived
+// from hole-by-hole entry once any hole has a score, otherwise the manual
+// 18-hole total exactly as before -- see effectiveDay3ScoreFor()'s own
+// comment for the precedence rule.
 function effectiveDay3Score(playerId) {
   return effectiveDay3ScoreFor(playerId, state.day3, currentPlayers(), COURSES);
+}
+
+// The points-per-hole average that actually drives ranking/pts (issue:
+// leaderboard ordered fairly mid-round, not just by raw total) -- see
+// effectiveDay3PointsPerHoleFor()'s own comment.
+function effectiveDay3PointsPerHole(playerId) {
+  return effectiveDay3PointsPerHoleFor(playerId, state.day3, currentPlayers(), COURSES);
 }
 
 // Issue #244: one visual bucket per (team, size) combination, each
@@ -3876,31 +3885,22 @@ function computeDay3() {
     team:  teamOf(p.id),
     // Issue #188: derived from hole-by-hole entry once any hole has a
     // score (a live points-thru-N total), otherwise the manual 18-hole
-    // total exactly as before -- same precedence as Day 1/Day 2.
-    score: effectiveDay3Score(p.id)
+    // total exactly as before -- same precedence as Day 1/Day 2. Display
+    // only -- ranking uses `score` (points-per-hole average) below.
+    total: effectiveDay3Score(p.id),
+    // The leaderboard's actual sort/ranking key: points-per-hole average,
+    // so a player who's only played a handful of holes is ranked on pace
+    // rather than unfairly behind the field just for having played fewer
+    // holes so far.
+    score: effectiveDay3PointsPerHole(p.id)
   }));
   const sorted = computeStableford(entries);
   return { sorted, entries };
 }
 
-function day3HasHoleData(playerId) {
-  const holes = state.day3.holes[playerId];
-  return Array.isArray(holes) && holes.some(h => h !== null);
-}
-
 function renderDay3() {
   const tbody = document.getElementById('sf-tbody');
   if (!tbody) return;
-  // A poll-triggered re-render fully rebuilds every row (destroying and
-  // recreating each <input>) -- doing that while the user is mid-keystroke
-  // in one would drop focus and whatever they'd typed. setStableford()'s
-  // own DOM patch already keeps the edited row's badges in sync locally;
-  // the next poll (once focus moves elsewhere) picks up the full picture.
-  // Day 3's hole-by-hole grids live in a separate #day3-hole-entries
-  // container (renderDay3HoleEntries()), so a scorer typing there never
-  // trips this guard -- rebuilding this table is always safe regardless
-  // of hole-grid focus.
-  if (document.activeElement && document.activeElement.classList.contains('sf-in')) return;
   const { sorted } = computeDay3();
   tbody.innerHTML = '';
   const maxPts = POS_PTS[0];
@@ -3914,19 +3914,18 @@ function renderDay3() {
     const posClass = p.pos === 1 ? 'pos-1' : p.pos === 2 ? 'pos-2' : p.pos === 3 ? 'pos-3' : '';
     const posText  = p.pos ? (p.pos === 1 ? '🥇' : p.pos === 2 ? '🥈' : p.pos === 3 ? '🥉' : p.pos) : '—';
     const ptsText  = p.score !== null ? (p.pts % 1 === 0 ? p.pts : p.pts.toFixed(1)) : '—';
-    // Issue #188: once any hole has a score, the manual box is replaced
-    // by a read-only derived total (same manual-vs-derived precedent as
-    // Day 1's front9/back9 and Day 2's net-to-par) -- editing happens in
-    // the hole-by-hole grid below, not two competing places at once.
-    const scoreCell = day3HasHoleData(p.id)
-      ? `<span class="grey" style="font-size:.85rem">${p.score ?? 0} pts (hole-by-hole)</span>`
-      : `<input type="number" class="sf-in" min="${DAY3_SCORE_MIN}" max="${DAY3_SCORE_MAX}" placeholder="—" value="${escapeHtml(state.day3.scores[p.id]||'')}" data-pid="${p.id}" oninput="setStableford(${p.id},this.value)">`;
+    // Net Stableford total is entered hole-by-hole only (see the grid
+    // below) -- this cell is always a read-only display of the derived
+    // total, never an input.
+    const totalText = p.total !== null && p.total !== undefined ? `${p.total} pts` : '—';
+    const perHoleText = p.score !== null && p.score !== undefined ? p.score.toFixed(2) : '—';
     row.innerHTML = `
       <td class="pos-cell ${posClass}">${posText}</td>
       <td style="color:var(--ink)">${escapeHtml(p.short)}</td>
       <td>${teamBadgeHtml(p.team)}</td>
       <td class="grey" style="font-size:.84rem">${escapeHtml(p.hcp)}</td>
-      <td>${scoreCell}</td>
+      <td><span class="grey" style="font-size:.85rem">${totalText}</span></td>
+      <td class="grey" style="font-size:.85rem">${perHoleText}</td>
       <td class="pts-cell">${ptsText}</td>`;
     tbody.appendChild(row);
   });
@@ -3936,6 +3935,13 @@ function renderDay3() {
   updateScoreboard();
 }
 
+// No longer reachable from the UI -- manual 18-hole entry was removed in
+// favor of hole-by-hole-only entry (the "Net Stableford" column is now
+// always a read-only display, see renderDay3()). Kept as the write path
+// for the historical day3_stableford update_type: still needed so a
+// previously-synced manual total (from before this change) keeps working
+// through admin restore/undo, and it's exercised directly by
+// test/repro-212-rollback-race.mjs.
 function setStableford(pid, val) {
   requireUsername(() => {
     let stored = val;
@@ -3948,24 +3954,8 @@ function setStableford(pid, val) {
     saveState();
     const fields = { player_id: pid, value: stored };
     insertUpdate('day3_stableford', fields);
-    // Issue #228: reaction emoji bucketed off the manual 18-hole total.
-    // Only reachable while this player has no hole-by-hole data at all
-    // (see day3HasHoleData() -- the manual box isn't rendered otherwise).
     if (stored !== previous) showUndoToast({ update_type: 'day3_stableford', ...fields }, previous ?? null, stablefordTotalReaction(stored));
-    const { sorted } = computeDay3();
-    const player = sorted.find(p => p.id === pid);
-    if (player) {
-      const row = document.querySelector(`[data-pid="${pid}"]`)?.closest('tr');
-      if (row) {
-        const input = row.querySelector('.sf-in');
-        if (input && input.value !== stored) input.value = stored;
-        const ptsCell = row.querySelector('.pts-cell');
-        if (ptsCell) ptsCell.textContent = player.pts > 0 ? (player.pts % 1 === 0 ? player.pts : player.pts.toFixed(1)) : '—';
-        const intensity = player.pts > 0 ? 0.05 + (player.pts / POS_PTS[0]) * 0.28 : 0.03;
-        row.style.background = `rgba(${teamRgb(player.team)},${intensity.toFixed(3)})`;
-      }
-    }
-    updateScoreboard();
+    renderDay3();
   });
 }
 
@@ -4041,7 +4031,7 @@ function renderDay3HoleEntries() {
       </summary>
       ${day3HoleGridNineHtml(p.id, holes, strokes, courseHoles, 0)}
       ${day3HoleGridNineHtml(p.id, holes, strokes, courseHoles, 9)}
-      ${hasData ? `<div class="nine-status-line"><button type="button" class="clear-btn" onclick="clearDay3PlayerHoles(${p.id})">Clear hole scores to enter manually</button></div>` : ''}
+      ${hasData ? `<div class="nine-status-line"><button type="button" class="clear-btn" onclick="clearDay3PlayerHoles(${p.id})">Clear hole scores</button></div>` : ''}
     </details>`;
   });
   container.innerHTML = html;
@@ -4096,9 +4086,10 @@ function setDay3HoleScore(playerId, holeNum, rawVal) {
   });
 }
 
-// Clears every hole score for one player so their manual Stableford total
-// box becomes usable again -- the escape hatch referenced by the "Clear
-// hole scores to enter manually" hint, same pattern as Day 1/Day 2.
+// Clears every hole score for one player, letting them re-enter the round
+// from scratch -- referenced by the "Clear hole scores" hint. Unlike Day
+// 1/Day 2's equivalent, this doesn't fall back to a manual box (Day 3 has
+// none any more): it just empties the grid.
 function clearDay3PlayerHoles(playerId) {
   requireUsername(() => {
     const holes = state.day3.holes[playerId];

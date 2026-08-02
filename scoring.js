@@ -691,18 +691,13 @@
     };
   }
 
-  // The value that actually feeds computeStableford()/sumStablefordPoints()
-  // for this player (issue #188): derived from hole-by-hole entry as soon
-  // as any hole has a score -- a live points-thru-N total, no completeness
-  // gate needed (see day3PointsThru()) -- otherwise the manual 18-hole
-  // total exactly as before. Same precedence shape as
-  // effectiveNines()/effectiveDay2FieldFor(): hole data wins once any
-  // exists, manual is only ever read as the no-hole-data fallback.
-  function effectiveDay3ScoreFor(playerId, day3, players, courses) {
+  // Shared by effectiveDay3ScoreFor()/effectiveDay3PointsPerHoleFor(): the
+  // {total, played} points-thru-N figure for a player with hole-by-hole
+  // data, or null if there's no hole data yet or the player/handicap can't
+  // be resolved (stale/removed player id).
+  function day3PointsThruFor(playerId, day3, players, courses) {
     const holes = (day3.holes || {})[playerId];
-    if (!Array.isArray(holes) || !holes.some(h => h !== null)) {
-      return parseScoreToPar(day3.scores[playerId]);
-    }
+    if (!Array.isArray(holes) || !holes.some(h => h !== null)) return null;
     const player = players.find(p => p.id === playerId);
     if (!player) return null;
     const hcp = Math.round(parseFloat(player.hcp));
@@ -710,7 +705,39 @@
     const courseHoles = day3CourseHolesFor(courses);
     const strokes = groupStrokes(hcp, courseHoles.map(h => h.si));
     const pars = courseHoles.map(h => h.par);
-    return day3PointsThru(holes, strokes, pars).total;
+    return day3PointsThru(holes, strokes, pars);
+  }
+
+  // The raw net Stableford total for display (issue #188): derived from
+  // hole-by-hole entry as soon as any hole has a score -- a live
+  // points-thru-N total, no completeness gate needed (see day3PointsThru())
+  // -- otherwise the manual 18-hole total exactly as before. Same
+  // precedence shape as effectiveNines()/effectiveDay2FieldFor(): hole data
+  // wins once any exists, manual is only ever read as the no-hole-data
+  // fallback.
+  function effectiveDay3ScoreFor(playerId, day3, players, courses) {
+    const holes = (day3.holes || {})[playerId];
+    if (!Array.isArray(holes) || !holes.some(h => h !== null)) {
+      return parseScoreToPar(day3.scores[playerId]);
+    }
+    const thru = day3PointsThruFor(playerId, day3, players, courses);
+    return thru ? thru.total : null;
+  }
+
+  // The value that actually feeds computeStableford()/sumStablefordPoints()
+  // for ranking (points-per-hole average, not the raw total) -- a player
+  // who's only played a handful of holes is ranked on pace, not unfairly
+  // behind/ahead of the field purely because they've played fewer holes so
+  // far. A legacy manual 18-hole total is treated as 18 holes played (the
+  // only shape manual entry ever took).
+  function effectiveDay3PointsPerHoleFor(playerId, day3, players, courses) {
+    const holes = (day3.holes || {})[playerId];
+    if (!Array.isArray(holes) || !holes.some(h => h !== null)) {
+      const total = parseScoreToPar(day3.scores[playerId]);
+      return total === null ? null : total / 18;
+    }
+    const thru = day3PointsThruFor(playerId, day3, players, courses);
+    return thru && thru.played > 0 ? thru.total / thru.played : null;
   }
 
   // The one function index.html actually calls: replayed `state` (see
@@ -730,7 +757,7 @@
       id: p.id,
       hcp: p.hcp,
       team: teamOfSets(p.id, state.teamA, state.teamB),
-      score: effectiveDay3ScoreFor(p.id, state.day3, players, courses)
+      score: effectiveDay3PointsPerHoleFor(p.id, state.day3, players, courses)
     }));
     const day3Sorted = computeStableford(day3Entries);
     const day3Base = sumStablefordPoints(day3Sorted);
@@ -1820,7 +1847,7 @@
     teamOfSets, ntpPointsFor, scoreToParSymbol,
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
-    day3CourseHolesFor, effectiveDay3ScoreFor,
+    day3CourseHolesFor, effectiveDay3ScoreFor, effectiveDay3PointsPerHoleFor,
     computeSeasonTotals, weekendWormFor, phaseFor, daysUntilDay1,
     projectedNinePoints, projectedMatchPoints, projectedMatchPointsFor, sumProjectedMatchPoints,
     projectedDay2Field, projectedDay2Totals, projectedTotals,

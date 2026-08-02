@@ -25,7 +25,7 @@ const {
   day1StrokeIndexesFor, matchStrokesForPlayers, effectiveMatchFor, matchWormFor,
   teamOfSets, ntpPointsFor,
   day2CourseHolesFor, day2GroupHandicapFor, day2AnthemStrokesFor, day2TeamAnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
-  day3CourseHolesFor, effectiveDay3ScoreFor, stablefordPoints, day3PointsThru, groupStrokes,
+  day3CourseHolesFor, effectiveDay3ScoreFor, effectiveDay3PointsPerHoleFor, stablefordPoints, day3PointsThru, groupStrokes,
   scrambleTeamHandicap,
   computeSeasonTotals, weekendWormFor, phaseFor, playersWithOverrides
 } = require('../scoring.js');
@@ -337,6 +337,54 @@ test('effectiveDay3ScoreFor: an unknown player id (stale/removed) is null, not a
   assert.equal(effectiveDay3ScoreFor(99, day3, [], COURSES_FIXTURE), null);
 });
 
+/* ── effectiveDay3PointsPerHoleFor (leaderboard ranking, not display) ── */
+
+test('effectiveDay3PointsPerHoleFor: no data at all is null', () => {
+  const players = [{ id: 0, hcp: '10.0' }];
+  const day3 = { scores: {}, holes: {} };
+  assert.equal(effectiveDay3PointsPerHoleFor(0, day3, players, COURSES_FIXTURE), null);
+});
+
+test('effectiveDay3PointsPerHoleFor: a legacy manual total is divided by 18 (the only shape manual entry ever took)', () => {
+  const players = [{ id: 0, hcp: '10.0' }];
+  const day3 = { scores: { 0: '36' }, holes: {} };
+  assert.equal(effectiveDay3PointsPerHoleFor(0, day3, players, COURSES_FIXTURE), 2);
+});
+
+test('effectiveDay3PointsPerHoleFor: hole-by-hole data divides the points-thru-N total by holes actually played, not 18', () => {
+  const players = [{ id: 0, hcp: '0.0' }]; // scratch
+  const day3 = { scores: {}, holes: { 0: [4, 3, ...Array(16).fill(null)] } }; // par, birdie -- 2 holes played
+  // 2 (net par) + 3 (net birdie) = 5 points over 2 holes played -> 2.5/hole.
+  assert.equal(effectiveDay3PointsPerHoleFor(0, day3, players, COURSES_FIXTURE), 2.5);
+});
+
+test('effectiveDay3PointsPerHoleFor: ranks a strong-pace player who has played fewer holes above a weaker full-round total', () => {
+  const players = [
+    { id: 0, hcp: '0.0' }, // 3 holes in, net birdie every time (fast pace)
+    { id: 1, hcp: '0.0' }  // full round, net par every hole (higher raw total)
+  ];
+  const day3 = {
+    scores: {},
+    holes: {
+      0: [3, 3, 3, ...Array(15).fill(null)], // 3 birdies -> 9 pts over 3 holes -> 3.0/hole
+      1: Array(18).fill(4) // par every hole -> 36 pts over 18 holes -> 2.0/hole
+    }
+  };
+  const p0PerHole = effectiveDay3PointsPerHoleFor(0, day3, players, COURSES_FIXTURE);
+  const p1PerHole = effectiveDay3PointsPerHoleFor(1, day3, players, COURSES_FIXTURE);
+  const p0Total = effectiveDay3ScoreFor(0, day3, players, COURSES_FIXTURE);
+  const p1Total = effectiveDay3ScoreFor(1, day3, players, COURSES_FIXTURE);
+  assert.equal(p0Total, 9);
+  assert.equal(p1Total, 36);
+  assert.ok(p0Total < p1Total, 'sanity: player 0 has the lower raw total');
+  assert.ok(p0PerHole > p1PerHole, 'but the higher points-per-hole average, which is what ranking uses');
+});
+
+test('effectiveDay3PointsPerHoleFor: an unknown player id (stale/removed) is null, not a crash', () => {
+  const day3 = { scores: {}, holes: { 99: Array(18).fill(4) } };
+  assert.equal(effectiveDay3PointsPerHoleFor(99, day3, [], COURSES_FIXTURE), null);
+});
+
 /* ── computeSeasonTotals ── */
 
 function emptyDay1() {
@@ -433,6 +481,32 @@ test('computeSeasonTotals: Day 3 hole-by-hole data overrides a stale manual scor
 
   // Player 0's derived total (36) beats player 1's manual total (20), so
   // player 0 is 1st (14pts) and player 1 is 2nd (13pts) per POS_PTS.
+  assert.equal(totals.day3.a, 14);
+  assert.equal(totals.day3.b, 13);
+});
+
+test('computeSeasonTotals: Day 3 ranks by points-per-hole pace, not raw total -- a partway-through leader outranks a lower-pace full round even with a smaller total', () => {
+  const players = [
+    { id: 0, hcp: '0.0' }, // team A, 3 holes in at a birdie-every-hole pace
+    { id: 1, hcp: '0.0' }  // team B, full round at even par every hole
+  ];
+  const teamA = new Set([0]);
+  const teamB = new Set([1]);
+
+  const day1 = emptyDay1();
+  const day2 = emptyDay2();
+  const day3 = emptyDay3();
+  day3.holes = {
+    0: [3, 3, 3, ...Array(15).fill(null)], // 3 net birdies -> 9pts over 3 holes -> 3.0/hole
+    1: Array(18).fill(4) // net par every hole -> 36pts over 18 holes -> 2.0/hole
+  };
+
+  const state = { day1, day2, day3, teamA, teamB };
+  const totals = computeSeasonTotals(state, players, COURSES_FIXTURE);
+
+  // Player 0's raw total (9) is far behind player 1's (36), but player 0's
+  // points-per-hole pace (3.0) beats player 1's (2.0) -- ranking (and so
+  // team points) follows pace, so team A comes out ahead here.
   assert.equal(totals.day3.a, 14);
   assert.equal(totals.day3.b, 13);
 });
