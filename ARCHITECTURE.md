@@ -146,7 +146,7 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 | `day2_group` | — (uses `player_id`) | `'a4'` \| `'a3'` \| `'b4'` \| `'b3'` \| `null` — the scramble group that player was just moved to (or removed from all groups) |
 | `day2_ntp` | `h4` / `h16` | nearest-the-pin winner's player id |
 | `day2_anthem` | — (uses `player_id`) | `'true'` (sang) \| `'false'` (didn't sing) \| `null` (no adjustment) — national anthem house rule, issue #149 |
-| `day3_stableford` | — (uses `player_id`) | manual net stableford score, used only when that player has no hole-by-hole scores — see `day3_hole` below (issue #188) |
+| `day3_stableford` | — (uses `player_id`) | legacy manual net stableford score; no longer enterable from the UI (hole-by-hole is now the only entry path — see `day3_hole` below), kept only so a pre-existing manual score, and Admin History/Restore for it, keep working |
 | `day3_hole` | `h1`..`h18` (uses `player_id` for which player) | gross score for that player on that hole, 1-15 |
 | `day3_ntp` | `h7` / `h14` | nearest-the-pin winner's player id |
 | `tiebreak` | — | `'A'` or `'B'` (sudden-death putt-off winner) |
@@ -285,11 +285,25 @@ fallback), Day 3's derived total has **no completeness gate** for display —
 confirmed scope for #188, since Stableford points are inherently additive
 per hole rather than needing the full round to be meaningful. As soon as any
 hole has a score, `effectiveDay3ScoreFor()` returns a live points-thru-N
-total that immediately feeds the same unchanged `computeStableford()`/
-`sumStablefordPoints()` (and `computeSeasonTotals()`, shared with index.html's
-ribbon) — so the Day 3 ranking table doubles as a running leaderboard mid-round.
-The manual `day3_stableford` box is only ever read as the no-hole-data
-fallback, same manual-vs-derived precedent as Day 1/Day 2.
+total. Manual 18-hole entry (the `day3_stableford` update_type) has since
+been retired from the UI — hole-by-hole is now the only way to enter a Day 3
+score, and the Net Stableford column on the Day 3 tab is always a read-only
+display of the derived total. `day3_stableford`/`effectiveDay3ScoreFor`'s
+manual-fallback branch is kept only so a score entered before that change
+(and its Admin History/Restore entry) keeps working — see
+`test/repro-212-rollback-race.mjs`, which still exercises the write path
+directly.
+
+**Ranking is by points per hole, not raw total.** `effectiveDay3PointsPerHoleFor()`
+divides a player's points-thru-N total by holes actually played (a legacy
+manual total is treated as 18 holes, the only shape it ever took) — *this*,
+not the raw total, is what feeds `computeStableford()`/`sumStablefordPoints()`
+(and `computeSeasonTotals()`, shared with index.html's ribbon, and tv.html's
+live board). A player who's only played a few holes is ranked on pace
+instead of sitting unfairly behind the field purely for having played fewer
+holes so far — so the Day 3 tab's leaderboard doubles as a running
+leaderboard mid-round, ordered by pace, while the "Net Stableford" and
+"Pts/Hole" columns show the raw total and the average side by side.
 
 The **whole-tournament-complete** gate (`isDay3Complete()`, which decides
 when the overall-winner banner/tiebreak control can appear) is deliberately

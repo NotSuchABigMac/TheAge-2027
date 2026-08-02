@@ -231,6 +231,7 @@ body.tv-page {
     computeSeasonTotals, resolveOverallWinner, playersWithOverrides,
     effectiveMatchFor, matchPoints, day1StrokeIndexesFor, matchStrokesForPlayers, holeResult,
     day2CourseHolesFor, day2GroupHandicapFor, groupStrokes, scrambleNetToParThru,
+    day3CourseHolesFor, day3PointsThru,
     parseScoreToPar,
     teamOfSets, computeStableford, escapeHtml
   } = WongaScoring;
@@ -401,19 +402,43 @@ body.tv-page {
     return rows.join('');
   }
 
-  function liveDay3Rows(state) {
-    const entries = PLAYERS.map(p => ({
-      id: p.id,
-      team: teamOfSets(p.id, state.teamA, state.teamB),
-      score: parseScoreToPar(state.day3.scores[p.id])
-    }));
+  // Same "effective" shape as liveDay2Field() above: prefers hole-by-hole
+  // data once any exists (a legacy manual 18-hole total is the only
+  // no-hole-data shape, so it's always treated as 18 holes played). Returns
+  // both the raw total (display) and points-per-hole average (ranking) --
+  // the scorecard's leaderboard ranks on pace, not raw total, so this board
+  // must never disagree with it about who's winning Day 3.
+  function liveDay3Field(playerId, day3, players, courses) {
+    const holes = day3.holes ? day3.holes[playerId] : null;
+    if (!Array.isArray(holes) || !holes.some(h => h !== null)) {
+      const total = parseScoreToPar(day3.scores[playerId]);
+      return { total, perHole: total === null ? null : total / 18, played: null };
+    }
+    const player = players.find(p => p.id === playerId);
+    if (!player) return { total: null, perHole: null, played: null };
+    const hcp = Math.round(parseFloat(player.hcp));
+    if (isNaN(hcp)) return { total: null, perHole: null, played: null };
+    const courseHoles = day3CourseHolesFor(courses);
+    const strokes = groupStrokes(hcp, courseHoles.map(h => h.si));
+    const { total, played } = day3PointsThru(holes, strokes, courseHoles.map(h => h.par));
+    return { total, perHole: played > 0 ? total / played : null, played };
+  }
+
+  function liveDay3Rows(state, players) {
+    const entries = PLAYERS.map(p => {
+      const f = liveDay3Field(p.id, state.day3, players, COURSES);
+      return { id: p.id, team: teamOfSets(p.id, state.teamA, state.teamB), score: f.perHole, total: f.total, played: f.played };
+    });
     const sorted = computeStableford(entries).filter(e => e.score !== null);
     if (!sorted.length) return '';
-    return sorted.map(e => `<div class="tv-row">
+    return sorted.map(e => {
+      const thru = e.played !== null ? ` (thru ${e.played})` : '';
+      return `<div class="tv-row">
       <span class="side">${e.pos}. ${escapeHtml(playerName(e.id))}</span>
-      <span class="mid">${e.score} pts</span>
+      <span class="mid">${e.total} pts${thru}</span>
       <span class="side right">${fmt(e.pts)} pts</span>
-    </div>`).join('');
+    </div>`;
+    }).join('');
   }
 
   function daySection(title, totalLabel, rowsHtml) {
@@ -439,7 +464,7 @@ body.tv-page {
     } else if (day === 'day2') {
       liveBoardEl.innerHTML = daySection('Day 2 · Scramble', `${fmt(totals.day2.a)} – ${fmt(totals.day2.b)}`, liveDay2Rows(state, players, totals.day2.scramble));
     } else {
-      liveBoardEl.innerHTML = daySection('Day 3 · Stableford', `${fmt(totals.day3.a)} – ${fmt(totals.day3.b)}`, liveDay3Rows(state));
+      liveBoardEl.innerHTML = daySection('Day 3 · Stableford', `${fmt(totals.day3.a)} – ${fmt(totals.day3.b)}`, liveDay3Rows(state, players));
     }
   }
 
