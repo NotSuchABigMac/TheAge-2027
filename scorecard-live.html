@@ -675,6 +675,39 @@ body{padding-top:58px;padding-bottom:52px}
 .help-modal-close{width:100%;padding:12px 20px;font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
 .help-modal-close:hover{background:var(--gold-light)}
 
+/* ── DAY 1 WRAP (newspaper-style recap) ──
+   Trigger button lives inline in the Day 1 tab (shown only once every
+   match is decided -- see updateDay1RecapTrigger()); the modal itself
+   follows the same fixed-overlay/.hidden convention as .help-modal
+   above, just with its own "gazette" look instead of the gold card. */
+.day1-recap-trigger{display:block;margin:0 0 20px;width:100%;padding:14px 20px;font-family:var(--font-h);font-size:.85rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
+.day1-recap-trigger:hover{background:var(--gold-light)}
+.day1-recap-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);padding:24px}
+.day1-recap-modal.hidden{display:none}
+.day1-recap-card{position:relative;background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:20px 20px 16px;max-width:720px;width:100%;max-height:calc(100vh - 48px);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.day1-recap-close{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:50%;border:1px solid var(--rule-strong);background:var(--canvas);color:var(--ink-mute);font-size:.9rem;line-height:1;cursor:pointer;z-index:2;transition:var(--tr)}
+.day1-recap-close:hover{color:var(--ink);border-color:var(--ink)}
+.gazette{font-family:var(--body,var(--font-b));color:var(--ink);border:1px solid var(--rule-strong);padding:24px 24px 4px}
+.gazette-masthead{text-align:center;border-bottom:4px double var(--ink);padding-bottom:8px;margin-bottom:18px}
+.gazette-kicker{font-family:var(--font-h);font-size:.66rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--ink-mute)}
+.gazette-title{font-family:var(--font-d);font-size:clamp(2.1rem,6vw,2.9rem);font-weight:700;letter-spacing:1px;line-height:1.1;margin:4px 0}
+.gazette-dateline{font-family:var(--font-h);font-size:.66rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-mute);border-top:1px solid var(--rule);padding-top:6px;margin-top:6px}
+.gazette-headline{font-family:var(--font-d);font-size:clamp(1.4rem,4vw,2rem);font-weight:700;line-height:1.18;text-align:center;margin-bottom:6px}
+.gazette-byline{font-family:var(--font-h);font-size:.7rem;font-style:italic;letter-spacing:.5px;color:var(--ink-mute);text-align:center;margin-bottom:18px}
+.gazette-columns{font-size:.92rem;line-height:1.65;column-count:2;column-gap:28px;column-rule:1px solid var(--rule)}
+.gazette-columns p{margin:0 0 14px;break-inside:avoid-column}
+.gazette-columns p:first-of-type::first-letter{font-family:var(--font-d);font-size:2.7rem;font-weight:700;float:left;line-height:.78;padding:4px 6px 0 0;color:var(--gold)}
+.gazette-boxscore-label{font-family:var(--font-h);font-size:.66rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--ink-mute);border-top:1px solid var(--rule-strong);margin-top:20px;padding-top:12px}
+.gazette-table{width:100%;border-collapse:collapse;font-family:var(--font-h);font-size:.76rem;margin-top:8px}
+.gazette-table th{text-align:left;font-weight:700;letter-spacing:.5px;text-transform:uppercase;font-size:.64rem;color:var(--ink-mute);padding:4px 6px;border-bottom:1px solid var(--rule-strong)}
+.gazette-table td{padding:6px;border-bottom:1px solid var(--rule)}
+.gazette-table td.grbs-nine{white-space:nowrap;color:var(--ink-mute)}
+.gazette-table td.grbs-pts{font-weight:700;text-align:right;white-space:nowrap}
+.gazette-table .grbs-v{color:var(--ink-mute);margin:0 3px}
+.gazette-signoff{text-align:center;font-family:var(--font-d);font-style:italic;font-size:.88rem;color:var(--ink-mute);margin-top:20px;padding-top:12px;border-top:1px solid var(--rule)}
+.day1-recap-foldup{margin-top:16px}
+@media (max-width:560px){.gazette-columns{column-count:1;column-rule:none}.gazette{padding:20px 16px 4px}}
+
 /* Scorecard page body override */
 #page-scorecard { background: var(--canvas); color: var(--ink); min-height: 100vh; }
 #page-scorecard .page-content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
@@ -866,6 +899,31 @@ body{padding-top:58px;padding-bottom:52px}
   </div>
 </div>
 
+<!-- Day 1 Wrap -- a newspaper-style recap shown once every Day 1 match
+     has both nines decided (see updateDay1RecapTrigger()). Content is
+     rebuilt from live `state` every time it opens (renderDay1RecapModal()),
+     never baked in, so it stays correct through any later admin score
+     correction. -->
+<div id="day1-recap-modal" class="day1-recap-modal hidden" role="dialog" aria-modal="true" aria-labelledby="day1-recap-headline">
+  <div class="day1-recap-card">
+    <button type="button" class="day1-recap-close" onclick="closeDay1RecapModal()" aria-label="Close">✕</button>
+    <div class="gazette">
+      <div class="gazette-masthead">
+        <div class="gazette-kicker">A WONGA CUP GAZETTE EXTRA</div>
+        <div class="gazette-title">THE MURRAY BULLETIN</div>
+        <div class="gazette-dateline" id="gazette-dateline">FRIDAY, 7 AUGUST · MURRAY COURSE · SINGLES MATCH PLAY</div>
+      </div>
+      <div class="gazette-headline" id="gazette-headline"></div>
+      <div class="gazette-byline" id="gazette-byline"></div>
+      <div class="gazette-columns" id="gazette-body"></div>
+      <div class="gazette-boxscore-label">Box Score</div>
+      <div class="gazette-boxscore" id="gazette-boxscore"></div>
+      <div class="gazette-signoff">— That's Day One. Onward to Black Bull. —</div>
+    </div>
+    <button type="button" class="help-modal-close day1-recap-foldup" onclick="closeDay1RecapModal()">Fold It Up</button>
+  </div>
+</div>
+
 <!-- Practice Mode banner (issue #208) -- always in normal document flow
      (never position:fixed, unlike the badges below), so it just needs
      the same body padding-top clearance every other in-flow element
@@ -962,6 +1020,7 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
         <div class="section-title">Singles Match Play</div>
       </div>
+      <button type="button" id="day1-recap-trigger" class="day1-recap-trigger" style="display:none" onclick="openDay1RecapModal()">📰 Read the Day 1 Wrap</button>
       <div id="day1-lockable">
         <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
         <div id="course-card-day1"></div>
@@ -2658,6 +2717,172 @@ function renderDay1() {
   renderDay1Ntp();
   renderDay1AdminOverrides();
   renderDay1ChallengeControls();
+  updateDay1RecapTrigger();
+}
+
+// Deliberately looser than isDay1Complete() (which the win-banner/tiebreak
+// flow uses and requires literally all 6 match slots filled and decided):
+// a slot nobody ever assigned two players to isn't a match still being
+// played, it's just unused, and shouldn't hold the recap hostage forever
+// -- "the day's actually-played matches are all finished" is the bar for
+// a wrap-up, not "every physical slot got used".
+function isDay1RecapReady() {
+  const assigned = state.day1.matches.filter(m => m.pA[0] !== null && m.pB[0] !== null);
+  if (assigned.length === 0) return false;
+  return assigned.every(m => {
+    const eff = effectiveMatch(m);
+    return eff.front9 !== null && eff.back9 !== null;
+  });
+}
+
+// Shows the "Read the Day 1 Wrap" button once every assigned Day 1 match
+// has both nines decided -- a newspaper recap of a round still being
+// played would just be wrong, not merely premature.
+function updateDay1RecapTrigger() {
+  const btn = document.getElementById('day1-recap-trigger');
+  if (!btn) return;
+  btn.style.display = isDay1RecapReady() ? '' : 'none';
+}
+
+/* ─────────────────────────────────────
+   DAY 1 WRAP -- newspaper-style recap
+   Rebuilt from live state every time it opens (never baked in), from the
+   same effectiveMatch()/matchStrokesFor()/nineStatusLabel() chain the Day 1
+   tab itself renders from -- so the recap can never disagree with the
+   scorecard it's summarizing.
+───────────────────────────────────── */
+function computeDay1Recap() {
+  const players = currentPlayers();
+  const matches = state.day1.matches.map((match, idx) => {
+    const pAid = match.pA[0], pBid = match.pB[0];
+    if (pAid === null || pAid === undefined || pBid === null || pBid === undefined) return null;
+    const pA = players.find(p => p.id === pAid);
+    const pB = players.find(p => p.id === pBid);
+    if (!pA || !pB) return null;
+    const strokes = matchStrokesFor(match);
+    const eff = effectiveMatch(match);
+    const pts = matchPoints(eff);
+    const frontResults = Array.from({ length: 9 }, (_, i) => holeResultFor(match, strokes, i));
+    const backResults = Array.from({ length: 9 }, (_, i) => holeResultFor(match, strokes, 9 + i));
+    return {
+      idx, pA, pB,
+      teamA: teamOf(pAid), teamB: teamOf(pBid),
+      front9: eff.front9, back9: eff.back9,
+      frontLabel: nineStatusLabel(frontResults),
+      backLabel: nineStatusLabel(backResults),
+      ptsA: pts.a, ptsB: pts.b,
+      decided: eff.front9 !== null && eff.back9 !== null
+    };
+  }).filter(Boolean);
+
+  function ntpWinner(hole) {
+    const id = state.day1.ntp[hole];
+    if (id === null || id === undefined) return null;
+    const p = players.find(pp => pp.id === id);
+    return p ? { player: p, team: teamOf(id) } : null;
+  }
+
+  return {
+    matches,
+    ntp: { h8: ntpWinner('h8'), h17: ntpWinner('h17') },
+    totals: calcDay1()
+  };
+}
+
+function day1RecapHeadline(recap) {
+  const { totals } = recap;
+  const A = state.teamNameA, B = state.teamNameB;
+  if (recap.matches.length === 0) return 'MURRAY FALLS SILENT';
+  if (totals.a === totals.b) return 'DAY ONE ENDS ALL SQUARE';
+  return `${(totals.a > totals.b ? A : B).toUpperCase()} STRIKE FIRST AT MURRAY`;
+}
+
+function day1RecapByline(recap) {
+  const { totals } = recap;
+  return `${escapeHtml(state.teamNameA)} ${fmt(totals.a)} — ${fmt(totals.b)} ${escapeHtml(state.teamNameB)} · after Day 1 singles`;
+}
+
+// Prose paragraphs, entirely data-driven off the recap object above -- no
+// hardcoded names/scores, so this reads correctly for any Day 1 outcome,
+// not just today's.
+function day1RecapProse(recap) {
+  const { matches, ntp, totals } = recap;
+  const A = state.teamNameA, B = state.teamNameB;
+  const decided = matches.filter(m => m.decided);
+  const paras = [];
+
+  if (matches.length === 0) {
+    paras.push(`No Day 1 matches were on the board when this edition went to print.`);
+    return paras;
+  }
+
+  if (totals.a === totals.b) {
+    paras.push(`Murray Course singles ended locked together, ${fmt(totals.a)} points each, with nothing to separate ${escapeHtml(A)} and ${escapeHtml(B)} ahead of Saturday's Black Bull scramble.`);
+  } else {
+    const leadTeam = totals.a > totals.b ? A : B;
+    paras.push(`${escapeHtml(leadTeam)} head into Saturday's Black Bull scramble on top, ${fmt(Math.max(totals.a, totals.b))} points to ${fmt(Math.min(totals.a, totals.b))}, after a Murray Course singles session that swung on the back nine as often as the front.`);
+  }
+
+  const sweeps = decided.filter(m => m.ptsA === 2 || m.ptsB === 2);
+  if (sweeps.length === 1) {
+    const m = sweeps[0];
+    const aWon = m.ptsA === 2;
+    const winner = aWon ? m.pA : m.pB;
+    const loser = aWon ? m.pB : m.pA;
+    const teamName = (aWon ? m.teamA : m.teamB) === 'A' ? A : B;
+    paras.push(`${escapeHtml(winner.short)} put together the day's tidiest job, sweeping both nines off ${escapeHtml(loser.short)} for a full 2 points to ${escapeHtml(teamName)}.`);
+  } else if (sweeps.length > 1) {
+    const lines = sweeps.map(m => {
+      const aWon = m.ptsA === 2;
+      const winner = aWon ? m.pA : m.pB;
+      const loser = aWon ? m.pB : m.pA;
+      return `${escapeHtml(winner.short)} over ${escapeHtml(loser.short)}`;
+    });
+    paras.push(`${sweeps.length} matches were full 2-point sweeps, both nines to the same side: ${lines.join('; ')}.`);
+  }
+
+  const halves = decided.filter(m => m.ptsA === 1 && m.ptsB === 1);
+  if (halves.length) {
+    const names = halves.map(m => `${escapeHtml(m.pA.short)} and ${escapeHtml(m.pB.short)}`).join(', ');
+    paras.push(`${halves.length} of the day's ${decided.length} match${decided.length === 1 ? '' : 'es'} split clean down the middle: ${names} each shared the spoils 1-1, a nine apiece.`);
+  }
+
+  if (ntp.h8 || ntp.h17) {
+    const bits = [];
+    if (ntp.h8) bits.push(`${escapeHtml(ntp.h8.player.short)} (${escapeHtml(ntp.h8.team === 'A' ? A : B)}) struck it closest on 8`);
+    if (ntp.h17) bits.push(`${escapeHtml(ntp.h17.player.short)} (${escapeHtml(ntp.h17.team === 'A' ? A : B)}) took nearest-the-pin honours on 17`);
+    paras.push(`Nearest-the-pin: ${bits.join(', and ')}.`);
+  }
+
+  return paras;
+}
+
+function day1RecapBoxScoreHtml(recap) {
+  if (recap.matches.length === 0) return '<p style="font-size:.85rem;color:var(--ink-mute)">No matches to report.</p>';
+  const rows = recap.matches.map(m => `
+    <tr>
+      <td>${TEAM_EMOJI[m.teamA] || ''} ${escapeHtml(m.pA.short)}<span class="grbs-v">v</span>${escapeHtml(m.pB.short)} ${TEAM_EMOJI[m.teamB] || ''}</td>
+      <td class="grbs-nine">${escapeHtml(m.frontLabel)}</td>
+      <td class="grbs-nine">${escapeHtml(m.backLabel)}</td>
+      <td class="grbs-pts">${fmt(m.ptsA)}–${fmt(m.ptsB)}</td>
+    </tr>`).join('');
+  return `<table class="gazette-table"><thead><tr><th>Match</th><th>Front 9</th><th>Back 9</th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderDay1RecapModal() {
+  const recap = computeDay1Recap();
+  document.getElementById('gazette-headline').textContent = day1RecapHeadline(recap);
+  document.getElementById('gazette-byline').innerHTML = day1RecapByline(recap);
+  document.getElementById('gazette-body').innerHTML = day1RecapProse(recap).map(p => `<p>${p}</p>`).join('');
+  document.getElementById('gazette-boxscore').innerHTML = day1RecapBoxScoreHtml(recap);
+}
+
+function openDay1RecapModal() {
+  renderDay1RecapModal();
+  document.getElementById('day1-recap-modal').classList.remove('hidden');
+}
+function closeDay1RecapModal() {
+  document.getElementById('day1-recap-modal').classList.add('hidden');
 }
 
 // holeResult() needs each hole's gross scores + that hole's strokes --
@@ -6282,6 +6507,7 @@ setupModalA11y('username-modal', closeUsernameModal);
 setupModalA11y('help-modal', closeHelpModal);
 setupModalA11y('resync-nudge-modal', dismissResyncNudge);
 setupModalA11y('notify-nudge-modal', dismissNotifyNudge);
+setupModalA11y('day1-recap-modal', closeDay1RecapModal);
 
 initUsername();
 initJoinHandoff();
