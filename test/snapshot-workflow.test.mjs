@@ -29,7 +29,13 @@ test('snapshot.yml schedules an every-2-hours run scoped to 7-9 Aug specifically
 test('snapshot.yml runs the actual fetch script and commits only when the snapshot changed', () => {
   const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
   assert.match(workflow, /node scripts\/snapshot-tournament-updates\.mjs/);
-  assert.match(workflow, /git diff --quiet/, 'expected a no-op guard so an unchanged snapshot is never committed');
+  // Staged first, then diff --cached -- a plain `git diff --quiet` (no
+  // --cached) never sees a brand-new untracked file, so the very first
+  // snapshot ever written would silently never commit. Confirmed live:
+  // job logs showed "Wrote 2551 rows ... No changes -- nothing to commit"
+  // on every run since this workflow was added.
+  assert.match(workflow, /git add snapshots\/tournament-updates\.json/);
+  assert.match(workflow, /git diff --cached --quiet/, 'expected a staged-diff no-op guard so an unchanged snapshot is never committed, but a brand-new one still is');
   assert.match(workflow, /\[skip ci\]/, 'expected the commit message to skip re-triggering CI/deploy');
 });
 
