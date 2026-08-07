@@ -1,0 +1,11 @@
+player_id,player_name,team,match_number,opponent_name,holes_won,holes_lost,holes_halved,holes_played,net_to_par_avg,handicap_badge,hot_streak,cold_streak,eagles,birdies,net_eagles,net_birdies,blow_up_hole,blow_up_gross,blow_up_par,blow_up_to_par,match_points_for,match_points_against,ntp_h8,ntp_h17,lopsided_nine
+10,Robert Hughes,Flamingos,1,Mark Swain,5,11,2,18,2.278,below,3,8,0,0,0,1,13,9,3,6,1,1,false,false,split
+12,Mark Swain,Gorillas,1,Robert Hughes,11,5,2,18,1.556,below,8,3,0,0,0,0,2,7,3,4,1,1,false,true,split
+13,Liam Cannel,Flamingos,2,Jimmy Hepburn,10,6,2,18,1.611,below,5,2,0,0,0,0,6,7,4,3,1.5,0.5,false,false,
+9,Jimmy Hepburn,Gorillas,2,Liam Cannel,6,10,2,18,2.167,below,2,5,0,0,0,0,14,11,5,6,0.5,1.5,false,false,
+7,Nathan Freestun,Flamingos,3,Steve Koenig,8,6,4,18,1.889,below,2,2,0,0,0,0,4,10,4,6,2,0,false,false,
+8,Steve Koenig,Gorillas,3,Nathan Freestun,6,8,4,18,2.222,below,2,2,0,0,0,0,7,9,4,5,0,2,false,false,
+0,Brendan Cunningham,Flamingos,4,Gary King,6,6,6,18,1.333,below,3,4,0,0,0,0,3,10,4,6,1,1,true,false,
+1,Gary King,Gorillas,4,Brendan Cunningham,6,6,6,18,1.278,below,4,3,0,0,0,0,17,8,3,5,1,1,false,false,
+6,Matthew Freestun,Flamingos,5,Scott Rumbelow,6,5,7,18,2.056,below,1,2,0,0,0,1,3,8,4,4,1,1,false,false,
+5,Scott Rumbelow,Gorillas,5,Matthew Freestun,5,6,7,18,2.056,below,2,1,0,0,0,0,14,10,5,5,1,1,false,false,

@@ -105,6 +105,21 @@ a pure function of the log — `normalizeState`/`applyUpdateToState` in
 order, replayed on any device. After the tournament weekend, the final
 snapshot becomes the permanent 2026 archive.
 
+## Stats exports
+
+`scripts/export-day1-stats.mjs` replays `snapshots/tournament-updates.json`
+through the same scoring.js glue the live scorecard uses and writes
+derived stats — hole difficulty, per-player report cards (streaks,
+birdies, "blow-up" holes, handicap performance), match results — to CSVs
+under `stats/`, with a `stats/README.md` documenting every column. Backend
+data only, not wired into any page UI yet; kept for later analysis and as
+a base for a Day 2/Day 3 equivalent once those days are played. Re-run it
+any time to regenerate from a fresher snapshot:
+
+```
+node scripts/export-day1-stats.mjs
+```
+
 ## Offline app shell (issue #205)
 
 `sw.js` precaches the live scorecard's own shell (`scorecard-live.html`,

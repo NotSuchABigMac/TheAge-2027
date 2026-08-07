@@ -689,6 +689,196 @@
     return ntpTeamPoints(holeKeys.map(k => teamOfSets(ntpState[k], teamA, teamB)));
   }
 
+  /* ── DAY 1 WRAP EXTRAS: hole difficulty, player report cards, badges ──
+     Parameterized the same way computeSeasonTotals() is (state/players/
+     courses in, nothing read from a global) so scorecard-live.html's Day
+     1 Wrap and any future page (or the CSV export script) can share one
+     implementation. */
+
+  // Average net-to-par (gross - strokes received - par) per Murray hole,
+  // across every hole that's actually been played by either side of
+  // every match -- a live "which holes are wrecking the field" reading.
+  // sampleSize is holes played, not players assigned, since a match with
+  // only a front 9 played still contributes real front-9 samples.
+  function day1HoleDifficultyFor(matches, players, courses) {
+    const day1SI = day1StrokeIndexesFor(courses);
+    const courseHoles = day1CourseHolesFor(courses);
+    const sums = Array(18).fill(0);
+    const counts = Array(18).fill(0);
+    matches.forEach(match => {
+      if (match.pA[0] === null || match.pB[0] === null) return;
+      const strokes = matchStrokesForPlayers(match, players, day1SI, courses && courses[1]);
+      for (let i = 0; i < 18; i++) {
+        [[match.holesA[i], strokes.a[i]], [match.holesB[i], strokes.b[i]]].forEach(([gross, s]) => {
+          if (gross === null || gross === undefined) return;
+          sums[i] += (gross - s - courseHoles[i].par);
+          counts[i] += 1;
+        });
+      }
+    });
+    return courseHoles.map((h, i) => ({
+      hole: i + 1,
+      par: h.par,
+      si: h.si,
+      avgNetToPar: counts[i] > 0 ? sums[i] / counts[i] : null,
+      sampleSize: counts[i]
+    }));
+  }
+
+  // A nine decided by this many holes or more (an early "5&4"/"7&2"-style
+  // finish, or a fully-played "5UP" or bigger) is lopsided, not a
+  // contest -- threshold picked so it flags a genuinely one-sided nine
+  // without also catching an ordinary hard-fought 2UP/3UP finish. (Not
+  // to be confused with a "blow-up" -- one disastrous individual hole,
+  // see day1BlowUpHoleFor() below -- a lopsided nine is about the margin
+  // between two players over 9 holes.)
+  const DAY1_LOPSIDED_LEAD = 5;
+  function isLopsidedNine(status) {
+    return !!(status && status.decided && status.lead >= DAY1_LOPSIDED_LEAD);
+  }
+
+  // Average net-to-par vs 0 (dead on handicap) -- 'above'/'below' need a
+  // real gap to mean anything (half a stroke a hole, not a rounding
+  // blip), so anything closer than that is 'on' rather than flip-flopping
+  // on noise. null input (no holes played) stays null, not 'on'.
+  const HANDICAP_BADGE_THRESHOLD = 0.5;
+  function handicapPerformanceBadge(netToParAvg) {
+    if (netToParAvg === null || netToParAvg === undefined) return null;
+    if (netToParAvg <= -HANDICAP_BADGE_THRESHOLD) return 'above';
+    if (netToParAvg >= HANDICAP_BADGE_THRESHOLD) return 'below';
+    return 'on';
+  }
+
+  // Longest run of consecutive PLAYED holes (in hole order, front 9 into
+  // back 9 -- a streak doesn't reset at the turn, only the nine-by-nine
+  // scoring does) `side` won in a row ("hot") and lost in a row ("cold").
+  // A halved hole or an unplayed one both break a streak in progress
+  // without starting a new one either way. holesA/strokesA/holesB/
+  // strokesB are always the match's own canonical order -- holeResult()
+  // labels its result 'A'/'B' by ARGUMENT POSITION, not by whichever
+  // side the caller considers "mine", so `side` is what turns that
+  // position-relative label into a per-player win/loss and must never be
+  // achieved by swapping which array goes in the A slot instead.
+  function day1StreaksFor(holesA, strokesA, holesB, strokesB, side) {
+    let hot = 0, cold = 0, curHot = 0, curCold = 0;
+    for (let i = 0; i < 18; i++) {
+      const result = holeResult(holesA[i], holesB[i], strokesA[i], strokesB[i]);
+      if (result === null) continue;
+      if (result === side) { curHot += 1; curCold = 0; hot = Math.max(hot, curHot); }
+      else if (result === 'T') { curHot = 0; curCold = 0; }
+      else { curCold += 1; curHot = 0; cold = Math.max(cold, curCold); }
+    }
+    return { hot, cold };
+  }
+
+  // Gross and net eagle/birdie counts, via the same scoreToParSymbol()
+  // classification the hole-grid's birdie/bogey marks already use.
+  function day1BirdieCountsFor(myHoles, myStrokes, courseHoles) {
+    let eagles = 0, birdies = 0, netEagles = 0, netBirdies = 0;
+    for (let i = 0; i < 18; i++) {
+      const gross = myHoles[i];
+      if (gross === null || gross === undefined) continue;
+      const par = courseHoles[i].par;
+      const symbol = scoreToParSymbol(gross, par);
+      if (symbol === 'eagle') eagles += 1;
+      else if (symbol === 'birdie') birdies += 1;
+      const netSymbol = scoreToParSymbol(gross - myStrokes[i], par);
+      if (netSymbol === 'eagle') netEagles += 1;
+      else if (netSymbol === 'birdie') netBirdies += 1;
+    }
+    return { eagles, birdies, netEagles, netBirdies };
+  }
+
+  // The single worst hole of the round by gross score-to-par (a "blow-up"
+  // -- a disaster hole, not the adjusted/net figure, since a blow-up is a
+  // blow-up regardless of what handicap strokes were "supposed" to cover
+  // for it). Ties keep the earliest hole. null when no holes played yet.
+  function day1BlowUpHoleFor(myHoles, courseHoles) {
+    let worst = null;
+    for (let i = 0; i < 18; i++) {
+      const gross = myHoles[i];
+      if (gross === null || gross === undefined) continue;
+      const par = courseHoles[i].par;
+      const toPar = gross - par;
+      if (worst === null || toPar > worst.toPar) worst = { hole: i + 1, gross, par, toPar };
+    }
+    return worst;
+  }
+
+  // One row per player per assigned Day 1 match (both sides of every
+  // match with two players in it) -- holes won/lost/halved, holes
+  // actually played, average net-to-par, hot/cold streaks, gross/net
+  // birdie counts, the round's single worst hole ("blow-up"), the
+  // match's point split, NTP claims, and whether either nine of their
+  // match was lopsided for or against them. Everything here is a pure
+  // read of state/players/courses, same shared-with-index.html shape as
+  // computeSeasonTotals().
+  function day1PlayerReportCardsFor(state, players, courses) {
+    const day1SI = day1StrokeIndexesFor(courses);
+    const courseHoles = day1CourseHolesFor(courses);
+    const course = courses && courses[1];
+    const cards = [];
+    state.day1.matches.forEach((match, matchIdx) => {
+      const pAid = match.pA[0], pBid = match.pB[0];
+      if (pAid === null || pAid === undefined || pBid === null || pBid === undefined) return;
+      const strokes = matchStrokesForPlayers(match, players, day1SI, course);
+      const eff = effectiveMatchFor(match, players, day1SI, course);
+      const pts = matchPoints(eff);
+      const frontResults = Array.from({ length: 9 }, (_, i) => holeResult(match.holesA[i], match.holesB[i], strokes.a[i], strokes.b[i]));
+      const backResults = Array.from({ length: 9 }, (_, i) => holeResult(match.holesA[9 + i], match.holesB[9 + i], strokes.a[9 + i], strokes.b[9 + i]));
+      const frontStatus = nineStatus(frontResults);
+      const backStatus = nineStatus(backResults);
+      const lopsidedNine = isLopsidedNine(frontStatus) || isLopsidedNine(backStatus);
+
+      [
+        { side: 'A', id: pAid, myHoles: match.holesA, myStrokes: strokes.a, oppId: pBid, myPts: pts.a, oppPts: pts.b },
+        { side: 'B', id: pBid, myHoles: match.holesB, myStrokes: strokes.b, oppId: pAid, myPts: pts.b, oppPts: pts.a }
+      ].forEach(({ side, id, myHoles, myStrokes, oppId, myPts, oppPts }) => {
+        const player = players.find(p => p.id === id);
+        if (!player) return;
+        const opponent = players.find(p => p.id === oppId);
+        // holeResult() is always called in the match's own canonical
+        // (holesA, holesB) order here -- never with "my" data swapped
+        // into the A slot -- and its 'A'/'B' return is interpreted
+        // against `side`, exactly as day1StreaksFor() requires (see its
+        // own comment for why swapping the argument order is the bug to
+        // avoid).
+        let won = 0, lost = 0, halved = 0, played = 0, netSum = 0;
+        for (let i = 0; i < 18; i++) {
+          const result = holeResult(match.holesA[i], match.holesB[i], strokes.a[i], strokes.b[i]);
+          if (result !== null) {
+            played += 1;
+            if (result === side) won += 1;
+            else if (result === 'T') halved += 1;
+            else lost += 1;
+          }
+          if (myHoles[i] !== null && myHoles[i] !== undefined) {
+            netSum += (myHoles[i] - myStrokes[i] - courseHoles[i].par);
+          }
+        }
+        const netHolesPlayed = myHoles.filter(v => v !== null && v !== undefined).length;
+        const netToParAvg = netHolesPlayed > 0 ? netSum / netHolesPlayed : null;
+        const streaks = day1StreaksFor(match.holesA, strokes.a, match.holesB, strokes.b, side);
+        const birdieCounts = day1BirdieCountsFor(myHoles, myStrokes, courseHoles);
+        cards.push({
+          id, name: player.name, short: player.short, team: teamOfSets(id, state.teamA, state.teamB),
+          matchIdx, opponentId: oppId, opponentName: opponent ? opponent.name : null,
+          holesWon: won, holesLost: lost, holesHalved: halved, holesPlayed: played,
+          netToParAvg, matchPointsFor: myPts, matchPointsAgainst: oppPts,
+          ntpH8: state.day1.ntp && state.day1.ntp.h8 === id,
+          ntpH17: state.day1.ntp && state.day1.ntp.h17 === id,
+          handicapBadge: handicapPerformanceBadge(netToParAvg),
+          hotStreak: streaks.hot, coldStreak: streaks.cold,
+          eagles: birdieCounts.eagles, birdies: birdieCounts.birdies,
+          netEagles: birdieCounts.netEagles, netBirdies: birdieCounts.netBirdies,
+          blowUpHole: day1BlowUpHoleFor(myHoles, courseHoles),
+          lopsidedNine: lopsidedNine ? (myPts > oppPts ? 'won' : myPts < oppPts ? 'lost' : 'split') : null
+        });
+      });
+    });
+    return cards;
+  }
+
   function day2CourseHolesFor(courses) {
     const course = courses && courses[2];
     return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
@@ -1948,6 +2138,9 @@
     resolveOverallWinner,
     day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
     matchWormFor, day1SeatKind, day1SeatsCompatible,
+    day1HoleDifficultyFor, day1PlayerReportCardsFor,
+    DAY1_LOPSIDED_LEAD, isLopsidedNine, HANDICAP_BADGE_THRESHOLD, handicapPerformanceBadge,
+    day1StreaksFor, day1BirdieCountsFor, day1BlowUpHoleFor,
     teamOfSets, ntpPointsFor, scoreToParSymbol,
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     TEAM_EMOJI,
