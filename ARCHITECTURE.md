@@ -359,6 +359,60 @@ already use elsewhere, not the exact tee time. This is the "simplest
 honest rule" the issue itself suggested: allow it, but make the organiser
 stop and think before saving a retroactive change.
 
+## Slope-adjusted Daily Handicap (Golf Australia formula)
+
+Every `players.js`/override `.hcp` was, until now, used directly as the
+number of strokes a player receives — on Murray, Black Bull and Lake
+alike, regardless of how hard each course actually plays. `courses.js`'s
+`rating`/`slope` fields (each course's Blue-tee Course Rating and Slope
+Rating) let `scoring.js` convert that portable GA Handicap Index into a
+**Daily Handicap** for the specific course being played, via Golf
+Australia's formula:
+
+```
+Daily Handicap = ((Index × Slope / 113) + (Rating − Par)) × 0.93 × CF
+```
+
+113 is golf's neutral slope; `0.93` is Golf Australia's standard
+stroke-play handicap allowance; `CF` is the CONNECT gender equity
+Consistency Factor (`GA_CONSISTENCY_FACTOR_MEN = 0.9986`; the women's
+figure, 1.0483, isn't wired in since every current `players.js` entry is
+male). `dailyHandicap(index, course)` is the pure implementation;
+`courseHasSlopeData(course)` reports whether `course` actually carries
+`rating`/`slope`/`total.par` to convert with.
+
+**Backward-compatible by construction, not by special-casing at each call
+site**: `dailyHandicap()` itself falls back to the raw index (rounded)
+whenever `courseHasSlopeData()` is false, so every pre-existing caller —
+and every test fixture that predates this feature (e.g.
+`scoring-season-totals.test.mjs`'s bare `{holes: [...]}` `COURSES_FIXTURE`)
+— keeps behaving exactly as before with no separate code path. The one
+place that isn't a plain "always call `dailyHandicap()`" is Day 1's
+`matchStrokesForPlayers()`/Day 2's `day2GroupHandicapFor()`: both gate on
+`courseHasSlopeData(course)` before converting, so that *when no course is
+passed at all* the raw `.hcp` string still flows straight into
+`matchStrokes()`/`scrambleTeamHandicap()` exactly as before — those two
+functions round a *difference* (or a percentage-weighted sum) rather than
+each player's handicap individually, and pre-rounding each player first
+would silently change results for a fractional handicap even with slope
+adjustment switched off entirely. Day 3's `day3PointsThruFor()` has no such
+gate — its pre-existing fallback already was `Math.round(parseFloat(hcp))`,
+identical to `dailyHandicap()`'s own fallback, so it just always calls it.
+
+Reaches every place `.hcp` used to flow in unadjusted: `matchStrokesForPlayers`/
+`effectiveMatchFor`/`matchWormFor`/`projectedMatchPointsFor`/
+`sumProjectedMatchPoints`/`describeDay1HoleEvent` (Day 1, keyed off
+`courses[1]`), `day2GroupHandicapFor` and its three callers —
+`effectiveDay2FieldFor`, `projectedDay2Field`, `describeDay2HoleEvent`
+(Day 2, `courses[2]`) — and `day3PointsThruFor` (Day 3, `courses[3]`).
+`scorecard-live.html`'s own `matchStrokesFor()`/`effectiveMatch()`/
+`matchWormForMatch()`/`day2GroupHandicap()`/`day3StrokesFor()` wrappers
+pass `COURSES[1]`/`COURSES[2]`/`COURSES[3]` through the same way they
+already pass `currentPlayers()`. Composes with admin overrides the same
+way issue #149's anthem rule does: `playersWithOverrides()` still runs
+first (via `currentPlayers()`), so an overridden `.hcp` gets slope-adjusted
+like any other index rather than bypassing it.
+
 ## Fetch timeout on every Supabase call (issue #285)
 
 Reported as "scores desynced after everyone entered the tournament PIN" —

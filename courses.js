@@ -13,6 +13,12 @@
    kept alongside the per-hole rows as an independent cross-check on
    the transcription (test/courses.test.mjs asserts the holes sum to
    these, not the other way around).
+
+   rating/slope are each course's Blue-tee Course Rating / Slope Rating,
+   used by scoring.js's dailyHandicap() (Golf Australia Daily Handicap
+   formula) to convert a player's GA Handicap Index into the strokes they
+   receive at that specific course, in place of using the raw index
+   unadjusted.
 ───────────────────────────────────── */
 (function (root, factory) {
   const mod = factory();
@@ -27,6 +33,8 @@
     1: {
       name: 'Murray',
       tee: 'Blue',
+      rating: 72.3,
+      slope: 128,
       holes: [
         { hole: 1,  par: 4, si: 6,  dist: 373 },
         { hole: 2,  par: 3, si: 18, dist: 162 },
@@ -54,6 +62,8 @@
     2: {
       name: 'Black Bull',
       tee: 'Blue',
+      rating: 73.8,
+      slope: 134,
       holes: [
         { hole: 1,  par: 4, si: 16, dist: 337 },
         { hole: 2,  par: 5, si: 6,  dist: 530 },
@@ -81,6 +91,8 @@
     3: {
       name: 'Lake',
       tee: 'Blue',
+      rating: 71.5,
+      slope: 126,
       holes: [
         { hole: 1,  par: 4, si: 9,  dist: 366 },
         { hole: 2,  par: 3, si: 14, dist: 165 },

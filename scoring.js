@@ -329,6 +329,47 @@
     });
   }
 
+  /* ── DAILY HANDICAP (Golf Australia formula) ──
+     Converts a player's GA Handicap Index (players.js' `.hcp`, after any
+     admin override) into the strokes they actually receive for one round
+     at a specific course:
+
+       Daily Handicap = ((Index × Slope / 113) + (Rating − Par)) × 0.93 × CF
+
+     Slope adjusts for how much harder the course plays for a bogey
+     golfer relative to the neutral 113 slope; (Rating − Par) adjusts for
+     how hard it plays relative to level par for a scratch golfer; 0.93
+     is Golf Australia's standard stroke-play handicap allowance; CF is
+     the CONNECT gender equity Consistency Factor (0.9986 for men/boys,
+     1.0483 for women/girls) — hardcoded to the men's figure since every
+     players.js entry is currently male. */
+  const GA_HANDICAP_ALLOWANCE = 0.93;
+  const GA_CONSISTENCY_FACTOR_MEN = 0.9986;
+
+  // Whether `course` (a courses.js entry) carries enough data to compute
+  // a Daily Handicap. False for a missing course, a course.js entry that
+  // predates Daily Handicap data (no rating/slope yet), or the bare {holes: [...]}
+  // fixtures scoring-season-totals.test.mjs uses to test wiring rather
+  // than this math.
+  function courseHasSlopeData(course) {
+    return !!(course && course.rating !== undefined && course.slope !== undefined &&
+      course.total && course.total.par !== undefined);
+  }
+
+  // Falls back to the raw index (rounded) whenever `course` has no
+  // rating/slope on file, so this is always safe to call — every existing
+  // caller that predates slope-adjusted handicaps keeps working unchanged
+  // against a course with incomplete data.
+  function dailyHandicap(index, course) {
+    const idx = parseFloat(index);
+    if (isNaN(idx)) return NaN;
+    if (!courseHasSlopeData(course)) return Math.round(idx);
+    const rating = parseFloat(course.rating), slope = parseFloat(course.slope), par = parseFloat(course.total.par);
+    if (isNaN(rating) || isNaN(slope) || isNaN(par)) return Math.round(idx);
+    const raw = idx * (slope / 113) + (rating - par);
+    return Math.round(raw * GA_HANDICAP_ALLOWANCE * GA_CONSISTENCY_FACTOR_MEN);
+  }
+
   // Allocates one absolute team handicap across 18 holes via stroke index
   // -- same difference-in-handicap wraparound formula matchStrokes() uses
   // for a two-way difference, but here every hole gets the base allocation
@@ -568,17 +609,25 @@
   // each nine -- that the two nines can actually differ, since each is then
   // its own handicap-difference computation against that nine's specific
   // opponent.
-  function matchStrokesForPlayers(match, players, day1StrokeIndexes) {
+  //
+  // `course` (courses[1], optional) slope-adjusts each player's handicap
+  // via dailyHandicap() before the difference is taken --
+  // omitted or lacking rating/slope data, this falls back to the raw
+  // .hcp values exactly as before, so every existing caller is unaffected.
+  function matchStrokesForPlayers(match, players, day1StrokeIndexes, course) {
     const isChallenge = match.type === 'challenge';
     const aIsDouble = isChallenge && match.challengeSide === 'A';
     const bIsDouble = isChallenge && match.challengeSide === 'B';
+    const useSlope = courseHasSlopeData(course);
     const frontSI = day1StrokeIndexes.slice(0, 9);
     const backSI = day1StrokeIndexes.slice(9, 18);
     function nineStrokes(isBack, si) {
       const pA = players.find(p => p.id === nineOpponentId(match.pA, aIsDouble, isBack));
       const pB = players.find(p => p.id === nineOpponentId(match.pB, bIsDouble, isBack));
       if (!pA || !pB) return { receiver: null, a: Array(si.length).fill(0), b: Array(si.length).fill(0) };
-      return matchStrokes(pA.hcp, pB.hcp, si);
+      const hcpA = useSlope ? dailyHandicap(pA.hcp, course) : pA.hcp;
+      const hcpB = useSlope ? dailyHandicap(pB.hcp, course) : pB.hcp;
+      return matchStrokes(hcpA, hcpB, si);
     }
     const front = nineStrokes(false, frontSI);
     const back = nineStrokes(true, backSI);
@@ -590,8 +639,8 @@
     return { receiver, a: [...front.a, ...back.a], b: [...front.b, ...back.b] };
   }
 
-  function effectiveMatchFor(match, players, day1StrokeIndexes) {
-    const eff = effectiveNines(match, matchStrokesForPlayers(match, players, day1StrokeIndexes));
+  function effectiveMatchFor(match, players, day1StrokeIndexes, course) {
+    const eff = effectiveNines(match, matchStrokesForPlayers(match, players, day1StrokeIndexes, course));
     return { front9: eff.front9, back9: eff.back9 };
   }
 
@@ -609,11 +658,11 @@
   // nothing" precedent as effectiveNines(); otherwise {front9, back9},
   // either of which can itself be an empty array if that nine has no data
   // yet.
-  function matchWormFor(match, players, day1StrokeIndexes) {
+  function matchWormFor(match, players, day1StrokeIndexes, course) {
     if (!Array.isArray(match.holesA) || !Array.isArray(match.holesB)) return null;
     const hasData = match.holesA.some(v => v !== null) || match.holesB.some(v => v !== null);
     if (!hasData) return null;
-    const strokes = matchStrokesForPlayers(match, players, day1StrokeIndexes);
+    const strokes = matchStrokesForPlayers(match, players, day1StrokeIndexes, course);
     function nineWorm(start) {
       let cum = 0;
       const points = [];
@@ -652,11 +701,18 @@
     return course ? course.holes : Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 }));
   }
 
-  function day2GroupHandicapFor(code, day2, players) {
+  // `courses` (optional) slope-adjusts each player's handicap via
+  // dailyHandicap() against Black Bull (courses[2]) before the Ambrose
+  // divisors are applied -- omitted or lacking rating/slope
+  // data, this falls back to the raw .hcp values exactly as before.
+  function day2GroupHandicapFor(code, day2, players, courses) {
     const ids = day2.groups[code];
+    const course = courses && courses[2];
+    const useSlope = courseHasSlopeData(course);
     const hcps = ids.map(id => {
       const p = players.find(p => p.id === id);
-      return p === undefined ? undefined : p.hcp;
+      if (p === undefined) return undefined;
+      return useSlope ? dailyHandicap(p.hcp, course) : p.hcp;
     }).filter(h => h !== undefined);
     if (hcps.length !== ids.length) return null; // stale id no longer a real player
     return scrambleTeamHandicap(hcps);
@@ -674,7 +730,7 @@
       return manual === null ? day2[code] : String(manual + anthemStrokes);
     }
     if (!scrambleRoundComplete(holes)) return null;
-    const handicap = day2GroupHandicapFor(code, day2, players);
+    const handicap = day2GroupHandicapFor(code, day2, players, courses);
     if (handicap === null) return null;
     const courseHoles = day2CourseHolesFor(courses);
     const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
@@ -700,7 +756,10 @@
     if (!Array.isArray(holes) || !holes.some(h => h !== null)) return null;
     const player = players.find(p => p.id === playerId);
     if (!player) return null;
-    const hcp = Math.round(parseFloat(player.hcp));
+    // dailyHandicap() falls back to Math.round(parseFloat(...)) itself
+    // when courses[3] has no rating/slope on file, so this is exactly the
+    // pre-existing fallback with no separate branch needed.
+    const hcp = dailyHandicap(player.hcp, courses && courses[3]);
     if (isNaN(hcp)) return null;
     const courseHoles = day3CourseHolesFor(courses);
     const strokes = groupStrokes(hcp, courseHoles.map(h => h.si));
@@ -745,7 +804,7 @@
   // data in, every day's points and the running total out.
   function computeSeasonTotals(state, players, courses) {
     const day1SI = day1StrokeIndexesFor(courses);
-    const day1Base = sumMatchPoints(state.day1.matches.map(m => effectiveMatchFor(m, players, day1SI)));
+    const day1Base = sumMatchPoints(state.day1.matches.map(m => effectiveMatchFor(m, players, day1SI, courses && courses[1])));
     const day1Ntp = ntpPointsFor(state.day1.ntp, ['h8', 'h17'], state.teamA, state.teamB);
     const day1 = { a: day1Base.a + day1Ntp.a, b: day1Base.b + day1Ntp.b, base: day1Base, ntp: day1Ntp };
 
@@ -904,14 +963,14 @@
     return { a: front.a + back.a, b: front.b + back.b };
   }
 
-  function projectedMatchPointsFor(match, players, day1StrokeIndexes) {
-    return projectedMatchPoints(match, matchStrokesForPlayers(match, players, day1StrokeIndexes));
+  function projectedMatchPointsFor(match, players, day1StrokeIndexes, course) {
+    return projectedMatchPoints(match, matchStrokesForPlayers(match, players, day1StrokeIndexes, course));
   }
 
-  function sumProjectedMatchPoints(matches, players, day1StrokeIndexes) {
+  function sumProjectedMatchPoints(matches, players, day1StrokeIndexes, course) {
     let a = 0, b = 0;
     matches.forEach(match => {
-      const pts = projectedMatchPointsFor(match, players, day1StrokeIndexes);
+      const pts = projectedMatchPointsFor(match, players, day1StrokeIndexes, course);
       a += pts.a; b += pts.b;
     });
     return { a, b };
@@ -929,7 +988,7 @@
       const manual = parseScoreToPar(day2[code]);
       return manual === null ? null : manual + anthemStrokes;
     }
-    const handicap = day2GroupHandicapFor(code, day2, players);
+    const handicap = day2GroupHandicapFor(code, day2, players, courses);
     if (handicap === null) return null;
     const courseHoles = day2CourseHolesFor(courses);
     const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
@@ -958,7 +1017,7 @@
   // "if everything ended right now" line.
   function projectedTotals(state, players, courses) {
     const day1SI = day1StrokeIndexesFor(courses);
-    const day1 = sumProjectedMatchPoints(state.day1.matches, players, day1SI);
+    const day1 = sumProjectedMatchPoints(state.day1.matches, players, day1SI, courses && courses[1]);
     const day1Ntp = ntpPointsFor(state.day1.ntp, ['h8', 'h17'], state.teamA, state.teamB);
     const day2 = projectedDay2Totals(state.day2, players, courses);
     const day2Ntp = ntpPointsFor(state.day2.ntp, ['h4', 'h16'], state.teamA, state.teamB);
@@ -1559,7 +1618,7 @@
     function nineStatusFor(mtch) {
       if (!Array.isArray(mtch.holesA) || !Array.isArray(mtch.holesB)) return nineStatus(Array(9).fill(null));
       const si = day1StrokeIndexesFor(courses);
-      const strokes = matchStrokesForPlayers(mtch, players, si);
+      const strokes = matchStrokesForPlayers(mtch, players, si, courses && courses[1]);
       const holesA = mtch.holesA.slice(start, start + 9);
       const holesB = mtch.holesB.slice(start, start + 9);
       const strokesA = strokes.a.slice(start, start + 9);
@@ -1618,7 +1677,7 @@
     const day2 = nextState.day2;
     const holes = day2.holes[code];
     if (!Array.isArray(holes) || !scrambleRoundComplete(holes)) return null; // only notify-worthy once the group actually finishes
-    const handicap = day2GroupHandicapFor(code, day2, players);
+    const handicap = day2GroupHandicapFor(code, day2, players, courses);
     if (handicap === null) return null;
     const courseHoles = day2CourseHolesFor(courses);
     const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
@@ -1837,6 +1896,7 @@
     parseScoreToPar, day2GroupPoints, day2Bonus, calcDay2, day2InputState,
     DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
     SCRAMBLE_HANDICAP_PCT, scrambleTeamHandicap, groupStrokes,
+    GA_HANDICAP_ALLOWANCE, GA_CONSISTENCY_FACTOR_MEN, courseHasSlopeData, dailyHandicap,
     ANTHEM_STROKE_ADJUSTMENT, day2AnthemStrokesFor, day2TeamAnthemStrokesFor, HCP_MIN, HCP_MAX, playersWithOverrides,
     scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
     POS_PTS, computeStableford, sumStablefordPoints,
@@ -1847,7 +1907,7 @@
     teamOfSets, ntpPointsFor, scoreToParSymbol,
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
-    day3CourseHolesFor, effectiveDay3ScoreFor, effectiveDay3PointsPerHoleFor,
+    day3CourseHolesFor, day3PointsThruFor, effectiveDay3ScoreFor, effectiveDay3PointsPerHoleFor,
     computeSeasonTotals, weekendWormFor, phaseFor, daysUntilDay1,
     projectedNinePoints, projectedMatchPoints, projectedMatchPointsFor, sumProjectedMatchPoints,
     projectedDay2Field, projectedDay2Totals, projectedTotals,
