@@ -1698,6 +1698,41 @@
     return { headline: `${TEAM_EMOJI[teamCode]} ${teamLabel}'s ${sizeLabel} finishes ${parLabel}`, importance: 'notify' };
   }
 
+  // A row can look notable at the moment it's applied (a hole score that
+  // completes a nine, an NTP claim) and then get cleared before the real
+  // round starts -- test data entered during setup being the common case.
+  // describeEvent() only sees one row in isolation, so it has no way to
+  // know that; this checks the SAME field back against a final replayed
+  // state (after every row, including any later clear, has been applied)
+  // and says whether the data that triggered the event survived. Callers
+  // that rebuild the wire feed from a full replay (tv.html's 30s refresh,
+  // scorecard-live.html's boot-time retroactive seed) filter with this
+  // before truncating to their displayed slot count -- a stale event must
+  // not occupy a slot a still-current one could have (issue #343).
+  function eventStillHolds(row, state) {
+    if (row.update_type === 'day1_hole') {
+      const m = /^([AB])(\d{1,2})$/.exec(row.field_key || '');
+      if (!m || typeof row.match_idx !== 'number') return false;
+      const match = state.day1.matches[row.match_idx];
+      const arr = match && (m[1] === 'A' ? match.holesA : match.holesB);
+      return Array.isArray(arr) && arr[parseInt(m[2], 10) - 1] !== null;
+    }
+    if (row.update_type === 'day2_hole') {
+      const m = /^(a4|a3|b4|b3)_(\d{1,2})$/.exec(row.field_key || '');
+      if (!m) return false;
+      const holes = state.day2.holes[m[1]];
+      return Array.isArray(holes) && scrambleRoundComplete(holes);
+    }
+    if (row.update_type === 'day1_ntp' || row.update_type === 'day2_ntp' || row.update_type === 'day3_ntp') {
+      const dayKey = row.update_type.slice(0, 4);
+      const ntp = state[dayKey] && state[dayKey].ntp;
+      if (!ntp || !row.field_key) return false;
+      const holderId = parseInt(row.value, 10);
+      return !isNaN(holderId) && ntp[row.field_key] === holderId;
+    }
+    return true;
+  }
+
   // The one function the UI actually calls -- dispatches to the
   // per-update_type classifiers above. Any update_type not covered
   // (team-name edits, admin overrides, lock toggles, etc.) is
@@ -1924,7 +1959,7 @@
     applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
     parseIntOrNull, applyUpdateToState,
     UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
-    describeEvent,
+    describeEvent, eventStillHolds,
     normalizeState, flushQueue
   };
 });

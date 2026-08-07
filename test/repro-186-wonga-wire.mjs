@@ -18,6 +18,10 @@
        own username updates the feed but does NOT fire another toast
      - the opt-in bell icon toggles system-notification opt-in state
        (permission pre-granted via Playwright) and persists it
+     - retroactive population also survives a RELOAD on a RETURNING
+       device, whose LAST_SYNC_KEY cursor already points past a row
+       from an earlier session -- not just a first-ever visit, whose
+       cursor happens to start at epoch anyway (seedWireFeedFromHistory())
 
    Self-contained: a tiny static file server for the app; Google Fonts
    blocked outright; the real Supabase host is mocked with fixture rows,
@@ -229,6 +233,38 @@ async function main() {
     }));
     if (afterBell.pressed !== 'true') fail(`expected the bell to opt in after a click (permission pre-granted), got aria-pressed="${afterBell.pressed}"`);
     if (afterBell.stored !== '1') fail(`expected the opt-in to persist under the demo-namespaced key, got "${afterBell.stored}"`);
+
+    // 5. Retroactive population must also work for a RETURNING device --
+    // not just a first-ever visit, whose cursor happens to start at
+    // epoch anyway. Fake a device that already synced past a historical
+    // row (its LAST_SYNC_KEY cursor sits AFTER row-4's timestamp below)
+    // and reload: the regular incremental catch-up alone would skip
+    // row-4 entirely (older than the cursor), and wireFeed is in-memory
+    // only so it starts empty again on reload -- only
+    // seedWireFeedFromHistory()'s independent, cursor-agnostic replay
+    // can put it back.
+    currentRows = [
+      ...currentRows,
+      { id: 'row-4', tournament_id: 'wonga-cup-2026', updated_by: 'Someone', updated_at: '2020-06-01T00:00:00.000Z', update_type: 'day2_ntp', field_key: 'h16', value: '0' }
+    ];
+    await page.evaluate(() => localStorage.setItem('demo_wongaCup2026_lastSync', '2025-01-01T00:00:00.000Z'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
+    await page.evaluate(() => { currentUsername = 'Gary King'; currentWriteToken = 'test-token'; });
+    await page.waitForTimeout(600);
+    const afterReturningDeviceReload = await page.evaluate(() => document.getElementById('wire-feed-list').textContent);
+    if (!/takes NTP.*Day 2, hole 16/s.test(afterReturningDeviceReload)) {
+      fail(`expected a returning device (cursor already past this historical row) to still show it retroactively, got "${afterReturningDeviceReload}"`);
+    }
+    // Player id 0 (holder of this NTP claim) is on Team A by default.
+    if (!/🦩.*takes NTP.*Day 2, hole 16/s.test(afterReturningDeviceReload)) {
+      fail(`expected the Team A flamingo emoji on the retroactively-seeded claim, got "${afterReturningDeviceReload}"`);
+    }
+    // Everything from earlier sessions (rows 1-3) must still be there too --
+    // the seed backfills gaps, it doesn't replace what's already synced.
+    if (!/takes NTP.*Day 1, hole 8/s.test(afterReturningDeviceReload)) {
+      fail(`expected the earlier-session NTP claims to still be present after reload, got "${afterReturningDeviceReload}"`);
+    }
 
     console.log('All #186 Wonga Wire assertions passed.');
   } catch (e) {

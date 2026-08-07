@@ -324,7 +324,7 @@ body.tv-page {
 
   const {
     phaseFor, daysUntilDay1, defaultDay,
-    normalizeState, processUpdateRows, applyUpdateToState, describeEvent,
+    normalizeState, processUpdateRows, applyUpdateToState, describeEvent, eventStillHolds,
     computeSeasonTotals, resolveOverallWinner, playersWithOverrides,
     effectiveMatchFor, matchPoints, day1StrokeIndexesFor, matchStrokesForPlayers, holeResult,
     day2CourseHolesFor, day2GroupHandicapFor, groupStrokes, scrambleNetToParThru, scrambleRoundComplete,
@@ -389,36 +389,9 @@ body.tv-page {
     return rows;
   }
 
-  // A row can look notable at the moment it's applied (a hole score that
-  // completes a nine, an NTP claim) and then get cleared before the real
-  // round starts -- test data entered during setup being the common case.
-  // describeEvent() only sees one row in isolation, so it has no way to
-  // know that; this checks the SAME field back against the final replayed
-  // state (after every row, including any later clear, has been applied)
-  // and drops the event if the data that triggered it didn't survive.
-  function eventStillHolds(row, state) {
-    if (row.update_type === 'day1_hole') {
-      const m = /^([AB])(\d{1,2})$/.exec(row.field_key || '');
-      if (!m || typeof row.match_idx !== 'number') return false;
-      const match = state.day1.matches[row.match_idx];
-      const arr = match && (m[1] === 'A' ? match.holesA : match.holesB);
-      return Array.isArray(arr) && arr[parseInt(m[2], 10) - 1] !== null;
-    }
-    if (row.update_type === 'day2_hole') {
-      const m = /^(a4|a3|b4|b3)_(\d{1,2})$/.exec(row.field_key || '');
-      if (!m) return false;
-      const holes = state.day2.holes[m[1]];
-      return Array.isArray(holes) && scrambleRoundComplete(holes);
-    }
-    if (row.update_type === 'day1_ntp' || row.update_type === 'day2_ntp' || row.update_type === 'day3_ntp') {
-      const dayKey = row.update_type.slice(0, 4);
-      const ntp = state[dayKey] && state[dayKey].ntp;
-      if (!ntp || !row.field_key) return false;
-      const holderId = parseInt(row.value, 10);
-      return !isNaN(holderId) && ntp[row.field_key] === holderId;
-    }
-    return true;
-  }
+  // eventStillHolds() (scoring.js) -- shared with scorecard-live.html's
+  // boot-time retroactive wire seed (issue #343's original fix, now
+  // extracted so both full-replay consumers use the same check).
 
   // Same describeEvent() classification scorecard-live.html's Wonga Wire
   // (issue #186) uses, but rebuilt from scratch on every refresh() rather

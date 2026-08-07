@@ -771,9 +771,11 @@ total.
   true progression.
 
   Rendered in the `.scoreboard-pin` header (`#weekend-worm-slot`), fed by
-  `fetchWeekendWormRows()` — a direct fetch of the *full* table,
+  `fetchAllUpdateRows()` — a direct fetch of the *full* table,
   independent of the sync cursor, same precedent as the Admin Field
-  History panel's own direct fetch. **Paginates 500 rows at a time,
+  History panel's own direct fetch (and now shared with the Wonga Wire
+  retroactive seed below, since both need the identical full-table,
+  cursor-agnostic pagination). **Paginates 500 rows at a time,
   looping until a page comes back short** — the exact same cursor-based
   loop `loadFromSupabase()` already uses — rather than trusting a single
   request with a large `limit=`: a real Supabase/PostgREST response can
@@ -788,3 +790,62 @@ total.
   cycle, since re-fetching (and re-paginating) the entire table on every
   poll would multiply a full-table read for no benefit those three
   explicit triggers don't already cover.
+
+## Wonga Wire live commentary feed (issue #186)
+
+Classifies each applied `tournament_updates` row into a one-line
+headline via `describeEvent()` (`scoring.js`) — a lead change, a nine won,
+an NTP claim, a Day 2 group finishing. Deliberately narrow: any
+`update_type` it doesn't recognize (team-name edits, admin overrides,
+lock toggles) returns `null` rather than a generic fallback line, so the
+feed stays signal-only. `TEAM_EMOJI` (`{A: '🦩', B: '🦍'}`, `scoring.js`)
+is prepended to any headline that's clearly about one team — the same
+flamingo/gorilla mascot convention `teamBadgeHtml()` uses elsewhere —
+except halved/level headlines, which name both sides and stay
+unprefixed. NTP headlines look the holder's team up via `teamOfSets()`
+against whichever `teamA`/`teamB` roster the caller passes in.
+
+`scorecard-live.html`'s `wireFeed` array (in-page list + toast popups +
+opt-in system notifications) is **in-memory only** — nothing about it is
+cached, so it starts empty on every page load and is normally rebuilt as
+`recordWireEvent()` classifies each row `applyUpdate()` applies.
+
+**Retroactive population for a RETURNING device.** A first-time device's
+`LAST_SYNC_KEY` sync cursor starts at epoch, so its very first
+`loadFromSupabase()` catch-up already replays (and so `recordWireEvent()`
+classifies) the entire history — the feed comes back populated "for
+free". A *returning* device's cursor already points partway through the
+log from an earlier session, so its catch-up only ever sees rows newer
+than that cursor: anything that happened before THIS page load but was
+already synced on an earlier visit would otherwise never re-enter the
+in-memory `wireFeed` at all. `seedWireFeedFromHistory()` fixes this with
+one independent, cursor-agnostic pass at boot: fetch the full history
+(`fetchAllUpdateRows()`, shared with the weekend worm above), replay it
+through a throwaway state seeded with `DEFAULT_A`/`DEFAULT_B` (never the
+real `state`, `STATE_KEY`, or the sync cursor), classify each row via
+`describeEvent()`, and filter with `eventStillHolds()` (see below)
+against the final replayed state before capping to `WIRE_FEED_MAX`.
+
+`wireSeedCutoffISO` — a wall-clock timestamp snapshotted **before** the
+fetch/replay even starts, not after — is what keeps this from
+double-counting against the regular incremental poll running
+concurrently: `recordWireEvent()` skips any row at or before the cutoff,
+deferring it to the seed exclusively, so the two mechanisms split the
+timeline cleanly at page-load time rather than racing over the same
+rows. This works identically for a first-time device too (its own
+from-epoch catch-up now defers everything through the seed as well),
+not just returning ones.
+
+**`eventStillHolds(row, state)` (`scoring.js`, shared with `tv.html`).**
+A row can look notable the moment it's applied (a hole score completing
+a nine, an NTP claim) and then get cleared before the real round starts
+— test data entered during setup being the common case. `describeEvent()`
+only ever sees one row in isolation, so it has no way to know a LATER
+row will undo it. Any full-replay consumer (`tv.html`'s wire ticker,
+rebuilt from scratch every 30s; `scorecard-live.html`'s boot-time seed
+above) checks each candidate event's field back against the state after
+every row — including any later clear — has been applied, and drops it
+if the underlying data didn't survive. `scorecard-live.html`'s regular
+*incremental* `recordWireEvent()` path doesn't need this check itself —
+a row that clears a value simply classifies to `null` and never becomes
+an event in the first place, so nothing stale is added for it to filter.

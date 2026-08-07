@@ -97,10 +97,11 @@ async function main() {
     const page = await context.newPage();
     // Supabase is deliberately blocked above -- loadWeekendWorm()'s own
     // one-shot boot fetch will fail and log 'Weekend worm load failed:',
-    // same benign noise class as 'Supabase load failed' elsewhere in this
-    // suite, having nothing to do with the render-from-injected-rows path
-    // under test.
-    const BENIGN = /Supabase load failed|Weekend worm load failed|ERR_FAILED|version\.json|404 \(Not Found\)/;
+    // and seedWireFeedFromHistory()'s equally will log 'Wonga Wire history
+    // seed failed:' -- same benign noise class as 'Supabase load failed'
+    // elsewhere in this suite, having nothing to do with the
+    // render-from-injected-rows path under test.
+    const BENIGN = /Supabase load failed|Weekend worm load failed|Wonga Wire history seed failed|ERR_FAILED|version\.json|404 \(Not Found\)/;
     page.on('pageerror', e => consoleErrors.push('pageerror: ' + e.message));
     page.on('console', msg => {
       if (msg.type() === 'error' && !BENIGN.test(msg.text())) consoleErrors.push('console.error: ' + msg.text());
@@ -176,7 +177,7 @@ async function main() {
 
     if (consoleErrors.length > 0) fail('unexpected console/page errors during the run:\n' + consoleErrors.join('\n'));
 
-    /* ── fetchWeekendWormRows() paginates instead of trusting a single
+    /* ── fetchAllUpdateRows() paginates instead of trusting a single
        oversized `limit=` -- a real Supabase/PostgREST response can cap
        out well under what's asked for, and since rows are ordered
        oldest-first, a truncated single-request fetch silently keeps only
@@ -208,9 +209,9 @@ async function main() {
       await page2.goto(`${base}?demo=1`, { waitUntil: 'domcontentloaded' });
       await page2.waitForTimeout(200);
       await page2.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
-      const fetchedCount = await page2.evaluate(() => fetchWeekendWormRows().then(rows => rows.length));
+      const fetchedCount = await page2.evaluate(() => fetchAllUpdateRows().then(rows => rows.length));
       if (fetchedCount !== TOTAL_ROWS) {
-        fail(`expected fetchWeekendWormRows() to paginate past a single 500-row page and return all ${TOTAL_ROWS} rows, got ${fetchedCount}`);
+        fail(`expected fetchAllUpdateRows() to paginate past a single 500-row page and return all ${TOTAL_ROWS} rows, got ${fetchedCount}`);
       }
     } finally {
       await context2.close();

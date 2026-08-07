@@ -1825,7 +1825,7 @@ const {
   applyPlayerTeamMove, dedupeTeams, reconcileMatchesAfterTeamMove, processUpdateRows,
   parseIntOrNull, applyUpdateToState,
   UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
-  describeEvent,
+  describeEvent, eventStillHolds,
   flushQueue
 } = WongaScoring;
 // Static course data (par/stroke index/distance) lives in courses.js (issue #122)
@@ -2359,7 +2359,7 @@ function wormSvg(points, label, ariaLabel) {
 // whole weekend, not just one match -- see weekendWormFor()'s comment in
 // scoring.js for how the replay works. `rows` is the full
 // tournament_updates row set (oldest-first), already fetched by
-// fetchWeekendWormRows() below.
+// fetchAllUpdateRows() below.
 function weekendWormForRows(rows) {
   return weekendWormFor(rows, currentPlayers(), COURSES, { teamA: DEFAULT_A, teamB: DEFAULT_B });
 }
@@ -4679,17 +4679,25 @@ function applyUpdate(row) {
    WONGA WIRE (issue #186)
    Live commentary feed derived entirely from rows already applied to
    state -- no new schema, no new writes. Three tiers per the issue's
-   own decision: an in-page feed list (always populated, works
-   retroactively on any device via the from-epoch replay), toast
-   popups for 'notify'-importance events (issue #261's shared toast
-   queue), and opportunistic system notifications behind an opt-in
-   bell icon (Notification API -- works while the tab is open, on
-   supporting platforms; iOS Safari has no new Notification() at all
-   outside an installed home-screen PWA, so the toast feed stays the
-   mandatory baseline everyone gets regardless).
+   own decision: an in-page feed list (always populated -- see
+   seedWireFeedFromHistory() below for how it works retroactively even
+   on a RETURNING device, not just a first-ever visit), toast popups for
+   'notify'-importance events (issue #261's shared toast queue), and
+   opportunistic system notifications behind an opt-in bell icon
+   (Notification API -- works while the tab is open, on supporting
+   platforms; iOS Safari has no new Notification() at all outside an
+   installed home-screen PWA, so the toast feed stays the mandatory
+   baseline everyone gets regardless).
 ───────────────────────────────────── */
 const WIRE_FEED_MAX = 50;
 let wireFeed = []; // newest-first; in-memory only, entirely re-derivable from a replay
+// Rows at/before this timestamp are seedWireFeedFromHistory()'s
+// responsibility, not recordWireEvent()'s -- see that function's own
+// comment for why a boot-time cutoff (rather than the LAST_SYNC_KEY sync
+// cursor) is what splits "seed" from "live" here. Stays null until the
+// seed starts, so a device with Supabase unconfigured (seed never runs)
+// just falls back to today's behavior unchanged.
+let wireSeedCutoffISO = null;
 function renderWireFeed() {
   const list = document.getElementById('wire-feed-list');
   if (!list) return;
@@ -4715,6 +4723,10 @@ function renderWireFeed() {
 // not fire 500 notifications" guard, same PAGE_LOAD_ISO check
 // pendingRemoteFlashes already uses above).
 function recordWireEvent(row, prevMatchSnapshot) {
+  // seedWireFeedFromHistory() owns every row up to its cutoff -- letting
+  // this fire too would double-add it (once from the seed's own replay,
+  // once from this device's regular catch-up poll covering the same row).
+  if (wireSeedCutoffISO !== null && row.updated_at <= wireSeedCutoffISO) return;
   // Only day1_hole needs a real "before" picture (see applyUpdate()'s
   // comment); every other type describeEvent() classifies never reads
   // prevState, so passing the (already-mutated) current state through
@@ -4733,6 +4745,86 @@ function recordWireEvent(row, prevMatchSnapshot) {
   if (isOwnEcho || isHistorical || event.importance !== 'notify') return;
   showWireToast(event.headline);
   maybeShowSystemNotification(event.headline);
+}
+
+// Issue: a RETURNING device's LAST_SYNC_KEY sync cursor already points
+// partway (or all the way) through the log, so loadFromSupabase()'s
+// regular incremental catch-up only ever re-plays rows from wherever
+// this device last left off -- fine for `state` (STATE_KEY's cached
+// copy already has everything older), but wireFeed is in-memory only
+// (see its own declaration above) and starts empty on every page load.
+// A first-time device gets a retroactive feed "for free" today because
+// its cursor happens to start at epoch too, but a returning one only
+// ever sees whatever's new since its last visit -- everything that
+// happened before THIS page load, older than its last sync, is gone.
+//
+// Fixes that with one independent, sync-cursor-agnostic replay at boot:
+// fetch the full history (fetchAllUpdateRows(), same pagination as the
+// weekend worm), replay it through a throwaway state that never touches
+// the real `state`/STATE_KEY/LAST_SYNC_KEY, classify each row via
+// describeEvent(), and filter with eventStillHolds() against the final
+// replayed state so a claim entered and cleared during setup doesn't
+// show as if still current (issue #343's fix, shared via scoring.js).
+//
+// wireSeedCutoffISO is snapshotted BEFORE the fetch/replay even starts
+// (not after) specifically so a pollOnce() already in flight -- or one
+// that starts while this is still awaiting -- knows from the first
+// instant which rows are this seed's responsibility and defers them
+// rather than racing to add them twice.
+async function seedWireFeedFromHistory() {
+  if (!SUPABASE_CONFIG.apiUrl || !SUPABASE_CONFIG.apiKey) return;
+  wireSeedCutoffISO = new Date().toISOString();
+  const cutoff = wireSeedCutoffISO;
+  let rows;
+  try {
+    rows = await fetchAllUpdateRows();
+  } catch (err) {
+    // Purely additive/decorative -- a failed fetch just means no
+    // retroactive backfill this load, same degrade-to-nothing precedent
+    // as loadWeekendWorm(). The regular live poll still covers
+    // everything from the cutoff onward regardless.
+    console.error('Wonga Wire history seed failed:', err.message);
+    return;
+  }
+  rows = rows.filter(r => r.updated_at <= cutoff);
+  if (rows.length === 0) return;
+
+  // Seeded with DEFAULT_A/DEFAULT_B, not empty sets -- a player who's
+  // never been explicitly drag-and-dropped onto a team has no
+  // player_team/team_assign row in the log at all (see movePlayerToTeam's
+  // insertUpdate() calls), so a replay starting empty would silently
+  // lose their team for the entire seed, same default the real live
+  // `state` object (below) starts from.
+  const replay = { teamNameA: 'Team A', teamNameB: 'Team B', teamA: new Set(DEFAULT_A), teamB: new Set(DEFAULT_B) };
+  WongaScoring.normalizeState(replay);
+  const candidates = [];
+  processUpdateRows(rows, (row) => {
+    let prevMatchSnapshot = null;
+    if (row.update_type === 'day1_hole' && typeof row.match_idx === 'number' && replay.day1.matches[row.match_idx]) {
+      prevMatchSnapshot = JSON.parse(JSON.stringify(replay.day1.matches[row.match_idx]));
+    }
+    applyUpdateToState(replay, row);
+    const prevState = prevMatchSnapshot
+      ? { day1: { matches: { [row.match_idx]: prevMatchSnapshot } } }
+      : replay;
+    const players = playersWithOverrides(PLAYERS, replay.hcp);
+    const event = describeEvent(row, prevState, replay, players, COURSES, { A: replay.teamNameA, B: replay.teamNameB });
+    if (event) candidates.push({ event, row });
+  });
+
+  const seeded = candidates
+    .filter(({ row }) => eventStillHolds(row, replay))
+    .slice(-WIRE_FEED_MAX)
+    .reverse()
+    .map(({ event, row }) => ({ ...event, at: row.updated_at }));
+  if (seeded.length === 0) return;
+
+  // Prepend nothing here -- anything already in wireFeed (a genuinely
+  // live event that landed while this fetch was in flight) is newer
+  // than everything in `seeded` by construction (all `seeded` entries
+  // are at/before `cutoff`), so it stays first.
+  wireFeed = [...wireFeed, ...seeded].slice(0, WIRE_FEED_MAX);
+  renderWireFeed();
 }
 
 let wireToastTimer = null;
@@ -5480,16 +5572,16 @@ function formatProvenanceTime(iso) {
 }
 
 /* ─────────────────────────────────────
-   WEEKEND WORM (issue #299)
+   FULL-HISTORY FETCH (issue #299, extended by the Wonga Wire retroactive
+   seed below)
    Fetches the FULL tournament_updates history (not the incremental,
-   cursor-based rows loadFromSupabase()'s poll fetches) so weekendWormFor()
-   can replay the whole weekend from row one -- same direct,
+   cursor-based rows loadFromSupabase()'s poll fetches) -- same direct,
    sync-cursor-independent fetch precedent as the Field History panel
-   below: viewing this must never disturb live scoring state or the poll
-   cursor. Deliberately NOT wired into pollOnce()'s 30s cycle -- the worm
-   needs the entire log every time, not just what's new, so refetching it
-   on every poll would multiply a full-table read for no benefit; a
-   one-shot load at boot plus a manual refresh button covers it.
+   below: reading this must never disturb live scoring state or the poll
+   cursor. Deliberately NOT wired into pollOnce()'s 30s cycle -- callers
+   that need it (the weekend worm, the wire seed) need the entire log
+   once at boot, not on every poll, so refetching it every 30s would
+   multiply a full-table read for no benefit.
 
    Paginates exactly like loadFromSupabase() above -- 500 rows per page,
    looping until a page comes back short of the limit -- rather than
@@ -5501,7 +5593,7 @@ function formatProvenanceTime(iso) {
    later correction -- exactly the shape of bug that made the worm show a
    stale, already-corrected imbalance as if it were still current.
 ───────────────────────────────────── */
-async function fetchWeekendWormRows() {
+async function fetchAllUpdateRows() {
   const rows = [];
   let cursor = '1970-01-01T00:00:00.000Z';
   let seenAtCursor = new Set();
@@ -5533,7 +5625,7 @@ async function loadWeekendWorm() {
   const slot = document.getElementById('weekend-worm-slot');
   if (!slot) return;
   try {
-    const rows = await fetchWeekendWormRows();
+    const rows = await fetchAllUpdateRows();
     renderWeekendWorm(rows);
   } catch (err) {
     // Purely decorative -- a failed fetch just means the worm doesn't
@@ -6556,7 +6648,7 @@ async function manualRefresh(btn) {
   btn.textContent = '⏳ Refreshing…';
   try {
     // Issue #299 follow-up: the weekend worm otherwise only ever loads once
-    // at boot (see fetchWeekendWormRows()'s own comment for why it's kept
+    // at boot (see fetchAllUpdateRows()'s own comment for why it's kept
     // out of the regular 30s poll cycle) -- a scorer tapping the sync bar's
     // Refresh button expects "everything" to catch up, worm included, not
     // just the live scoreboard. loadWeekendWorm() swallows its own errors,
@@ -6595,7 +6687,12 @@ if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   // claimActive()'s reload takes it through this whole block fresh, on
   // the same footing as any other newly-loaded active tab, once it
   // actually takes over.
-  if (!tabDormant) { pollOnce(); startPolling(); }
+  // seedWireFeedFromHistory() must start (and set wireSeedCutoffISO)
+  // before pollOnce() so the live poll's own recordWireEvent() calls --
+  // for a first-time device this can be its whole from-epoch catch-up --
+  // already know to defer everything at/before the cutoff to the seed
+  // rather than double-adding it (see the seed's own comment).
+  if (!tabDormant) { seedWireFeedFromHistory(); pollOnce(); startPolling(); }
   document.addEventListener('visibilitychange', () => {
     if (tabDormant) return;
     if (document.hidden) {
@@ -6610,7 +6707,7 @@ if (SUPABASE_CONFIG.apiUrl && SUPABASE_CONFIG.apiKey) {
   window.addEventListener('pageshow', () => { if (!tabDormant && !document.hidden) pollOnce(); });
   window.addEventListener('online', () => { if (!tabDormant && !document.hidden) pollOnce(); });
   // Issue #299: one independent, one-shot load -- deliberately outside
-  // pollOnce()'s cursor-based cycle, see the fetchWeekendWormRows() comment
+  // pollOnce()'s cursor-based cycle, see the fetchAllUpdateRows() comment
   // above for why. A manual refresh button on the chart covers anyone
   // watching it update live during play.
   if (!tabDormant) loadWeekendWorm();
