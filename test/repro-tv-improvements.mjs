@@ -25,6 +25,16 @@
         a decided Cup: the Live screen slot must show a trophy card with
         the actual winning team's name, not the generic filler either.
 
+     4. STALE-DATA FILTER -- a hole score and an NTP claim are entered
+        (each fires a wire-worthy event at the time) and then BOTH are
+        cleared before "now", the way test data entered during setup
+        gets wiped before Day 1 actually starts. describeEvent() judges
+        each row in isolation as it's replayed, so it has no way to know
+        a later row will undo it -- the wire must filter these back out
+        against the final state, not just show whatever the full replay
+        produced along the way. A third, never-cleared NTP claim proves
+        the filter isn't over-broad (real current events still show).
+
    Self-contained: a tiny static file server for the app; Google Fonts
    blocked outright; the real Supabase host is either mocked with fixture
    rows or aborted, per scenario -- never hit for real.
@@ -289,6 +299,75 @@ async function testFinalTrophyCard(browser) {
   console.log('Final trophy-card assertions passed.');
 }
 
+// Day 1, hole 1 of match 0 (players 0 v 1) entered then cleared -- would
+// have fired "B. Cunningham goes 1UP thru 1" at the time. Day 1 NTP hole 8
+// claimed by player 0 then cleared -- would have fired "B. Cunningham
+// takes NTP". Day 1 NTP hole 17 claimed by player 1 and left alone -- the
+// one event that should survive to prove the filter isn't over-broad.
+function staleDataFixtureRows() {
+  let t = 0;
+  const row = (fields) => ({ tournament_id: 'wonga-cup-2026', updated_by: 'test', updated_at: `2026-08-01T00:00:${String(t++).padStart(2, '0')}.000Z`, ...fields });
+  const rows = [
+    row({ update_type: 'team_name', field_key: 'A', value: 'Team Alpha' }),
+    row({ update_type: 'team_name', field_key: 'B', value: 'Team Beta' }),
+    row({ update_type: 'player_team', player_id: 0, value: 'A' }),
+    row({ update_type: 'player_team', player_id: 1, value: 'B' }),
+    row({ update_type: 'player_hcp', player_id: 0, value: '0.0' }),
+    row({ update_type: 'player_hcp', player_id: 1, value: '0.0' }),
+    row({ update_type: 'day1_match', match_idx: 0, field_key: 'pA', value: '0' }),
+    row({ update_type: 'day1_match', match_idx: 0, field_key: 'pB', value: '1' }),
+    // Test hole score, entered then cleared.
+    row({ update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: '4' }),
+    row({ update_type: 'day1_hole', match_idx: 0, field_key: 'B1', value: '5' }),
+    row({ update_type: 'day1_hole', match_idx: 0, field_key: 'A1', value: null }),
+    row({ update_type: 'day1_hole', match_idx: 0, field_key: 'B1', value: null }),
+    // Test NTP claim, entered then cleared.
+    row({ update_type: 'day1_ntp', field_key: 'h8', value: '0' }),
+    row({ update_type: 'day1_ntp', field_key: 'h8', value: null }),
+    // Real NTP claim, left alone -- must still show up.
+    row({ update_type: 'day1_ntp', field_key: 'h17', value: '1' })
+  ];
+  return rows;
+}
+
+async function testWireExcludesClearedData(browser) {
+  const context = await browser.newContext();
+  await context.route('**fonts.googleapis.com**', route => route.abort());
+  await context.route('**fonts.gstatic.com**', route => route.abort());
+  const page = await context.newPage();
+  await page.addInitScript(dateMockScript('2026-08-01T02:00:00Z')); // before Day 1 -- setup/testing window
+  await page.route('**wtyyarvyscbrrkawjcvo**/rest/v1/tournament_updates**', (route) => {
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(staleDataFixtureRows()) });
+  });
+  await page.route('**wtyyarvyscbrrkawjcvo**', (route) => {
+    if (route.request().url().includes('/tournament_updates')) { route.fallback(); return; }
+    route.abort();
+  });
+
+  const site = global.__wongaSite;
+  await page.goto(`http://127.0.0.1:${site.port}/tv.html`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(600);
+
+  // The ticker only shows one headline at a time; cycle through all of
+  // them (there are at most 3 candidate events here, well under the 8
+  // slots) by waiting out a few 6s rotations and collecting what's shown.
+  const seen = new Set();
+  for (let i = 0; i < 4; i++) {
+    seen.add(await page.evaluate(() => document.getElementById('tv-wire-text').textContent));
+    await page.waitForTimeout(6200);
+  }
+  const allSeen = Array.from(seen).join(' | ');
+  if (/B\. Cunningham/.test(allSeen)) {
+    fail(`expected the cleared hole score / cleared NTP claim (both involving B. Cunningham) to be filtered out of the wire, but saw: "${allSeen}"`);
+  }
+  if (!/G\. King/.test(allSeen)) {
+    fail(`expected the never-cleared NTP claim (G. King, hole 17) to still show on the wire, but saw: "${allSeen}"`);
+  }
+
+  await context.close();
+  console.log('Stale-data wire filter assertions passed.');
+}
+
 async function main() {
   const site = await startStaticServer();
   global.__wongaSite = { port: site.address().port };
@@ -302,6 +381,7 @@ async function main() {
     await testLiveDay1Leaderboard(browser);
     await testCountdownFormatPreview(browser);
     await testFinalTrophyCard(browser);
+    await testWireExcludesClearedData(browser);
     console.log('All tv.html improvements assertions passed.');
   } catch (e) {
     console.log('Error:', e.message);
