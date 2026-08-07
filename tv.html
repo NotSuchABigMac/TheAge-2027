@@ -231,7 +231,7 @@ body.tv-page {
     computeSeasonTotals, resolveOverallWinner, playersWithOverrides,
     effectiveMatchFor, matchPoints, day1StrokeIndexesFor, matchStrokesForPlayers, holeResult,
     day2CourseHolesFor, day2GroupHandicapFor, groupStrokes, scrambleNetToParThru,
-    day3CourseHolesFor, day3PointsThru,
+    day3PointsThruFor,
     parseScoreToPar,
     teamOfSets, computeStableford, escapeHtml
   } = WongaScoring;
@@ -333,11 +333,11 @@ body.tv-page {
   // ── SCREEN 2: LIVE DAY -- whichever day is actually in play, with
   // thru-N detail per the issue's own spec, rather than just the final
   // points every other screen already shows.
-  function matchLiveLabel(match, players, si) {
-    const eff = effectiveMatchFor(match, players, si);
+  function matchLiveLabel(match, players, si, course) {
+    const eff = effectiveMatchFor(match, players, si, course);
     if (eff.front9 !== null && eff.back9 !== null) return null; // fully decided -- nothing "live" to show
     if (!Array.isArray(match.holesA) || !Array.isArray(match.holesB)) return null; // manual-only, no hole data to derive a live line from
-    const strokes = matchStrokesForPlayers(match, players, si);
+    const strokes = matchStrokesForPlayers(match, players, si, course);
     const nine = eff.front9 === null ? { start: 0, label: 'Front 9' } : { start: 9, label: 'Back 9' };
     const holesA = match.holesA.slice(nine.start, nine.start + 9);
     const holesB = match.holesB.slice(nine.start, nine.start + 9);
@@ -359,9 +359,9 @@ body.tv-page {
     return state.day1.matches
       .filter(m => m.pA[0] !== null || m.pB[0] !== null)
       .map(m => {
-        const eff = effectiveMatchFor(m, players, si);
+        const eff = effectiveMatchFor(m, players, si, COURSES[1]);
         const pts = matchPoints(eff);
-        const live = matchLiveLabel(m, players, si);
+        const live = matchLiveLabel(m, players, si, COURSES[1]);
         return `<div class="tv-row">
           <span class="side">${escapeHtml(playerName(m.pA[0]))}</span>
           <span class="mid">${live || `${fmt(pts.a)} – ${fmt(pts.b)}`}</span>
@@ -376,7 +376,7 @@ body.tv-page {
   function liveDay2Field(code, day2, players) {
     const holes = day2.holes[code];
     if (!holes.some(h => h !== null)) return { label: netToParLabel(day2[code]), played: null };
-    const handicap = day2GroupHandicapFor(code, day2, players);
+    const handicap = day2GroupHandicapFor(code, day2, players, COURSES);
     if (handicap === null) return { label: '—', played: null };
     const courseHoles = day2CourseHolesFor(COURSES);
     const strokes = groupStrokes(handicap, courseHoles.map(h => h.si));
@@ -414,13 +414,9 @@ body.tv-page {
       const total = parseScoreToPar(day3.scores[playerId]);
       return { total, perHole: total === null ? null : total / 18, played: null };
     }
-    const player = players.find(p => p.id === playerId);
-    if (!player) return { total: null, perHole: null, played: null };
-    const hcp = Math.round(parseFloat(player.hcp));
-    if (isNaN(hcp)) return { total: null, perHole: null, played: null };
-    const courseHoles = day3CourseHolesFor(courses);
-    const strokes = groupStrokes(hcp, courseHoles.map(h => h.si));
-    const { total, played } = day3PointsThru(holes, strokes, courseHoles.map(h => h.par));
+    const result = day3PointsThruFor(playerId, day3, players, courses);
+    if (result === null) return { total: null, perHole: null, played: null };
+    const { total, played } = result;
     return { total, perHole: played > 0 ? total / played : null, played };
   }
 
