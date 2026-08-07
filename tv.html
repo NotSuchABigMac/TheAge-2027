@@ -301,6 +301,33 @@ body.tv-page {
   font-size: clamp(1rem, 2vw, 1.3rem);
   color: var(--ink-mute);
 }
+.tv-photos-qr {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--canvas) 85%, transparent);
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+}
+.tv-photos-qr img {
+  display: block;
+  width: clamp(52px, 6vw, 84px);
+  height: clamp(52px, 6vw, 84px);
+  border-radius: 4px;
+}
+.tv-photos-qr-label {
+  font-family: var(--mono);
+  font-size: clamp(.62rem, 1vw, .78rem);
+  letter-spacing: .04em;
+  color: var(--ink-mute);
+  text-align: center;
+  max-width: 6em;
+}
 </style>
 </head>
 <body class="tv-page">
@@ -339,6 +366,11 @@ body.tv-page {
 </nav>
 <div class="tv-wire" id="tv-wire"><span class="tv-wire-text" id="tv-wire-text"></span></div>
 <footer class="tv-foot">The Wonga Cup &middot; Fourth Edition &middot; 2026</footer>
+
+<a class="tv-photos-qr" href="https://photos.app.goo.gl/DG13eR5Fbmyb2P9i8" target="_blank" rel="noopener">
+  <img src="images/photos-qr.png?v=__CACHEBUST__" alt="QR code linking to the Wonga Cup photo album" width="300" height="289">
+  <span class="tv-photos-qr-label">Scan for photos</span>
+</a>
 
 <script src="error-beacon.js?v=__CACHEBUST__"></script>
 <script src="courses.js?v=__CACHEBUST__"></script>
