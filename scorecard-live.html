@@ -1775,7 +1775,7 @@ const {
   parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
-  HCP_MIN, HCP_MAX, playersWithOverrides, daysUntilDay1,
+  HCP_MIN, HCP_MAX, playersWithOverrides, daysUntilDay1, dailyHandicap,
   POS_PTS, computeStableford, sumStablefordPoints,
   DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints,
   resolveOverallWinner,
@@ -2267,8 +2267,10 @@ function day1CourseHoles() {
 
 // Handicap strokes for one match, from the two assigned players' hcp —
 // {receiver: null, a: 18 zeros, b: 18 zeros} until both are assigned.
+// Slope-adjusted against Murray (COURSES[1]) via dailyHandicap() when it
+// has rating/slope data.
 function matchStrokesFor(match) {
-  return matchStrokesForPlayers(match, currentPlayers(), day1StrokeIndexes());
+  return matchStrokesForPlayers(match, currentPlayers(), day1StrokeIndexes(), COURSES[1]);
 }
 
 // The front9/back9 that actually feed matchPoints() for this match: derived
@@ -2277,13 +2279,13 @@ function matchStrokesFor(match) {
 // point totals are computed from, so automatic and manual scoring can never
 // disagree with what the scoreboard shows (issue #124).
 function effectiveMatch(match) {
-  return effectiveMatchFor(match, currentPlayers(), day1StrokeIndexes());
+  return effectiveMatchFor(match, currentPlayers(), day1StrokeIndexes(), COURSES[1]);
 }
 
 // Issue #270: the "worm" chart's cumulative lead sequence for this match,
 // kept separate per nine -- see matchWormFor()'s comment in scoring.js.
 function matchWormForMatch(match) {
-  return matchWormFor(match, currentPlayers(), day1StrokeIndexes());
+  return matchWormFor(match, currentPlayers(), day1StrokeIndexes(), COURSES[1]);
 }
 
 // Small inline SVG line chart, no charting library -- x axis is holes that
@@ -3425,8 +3427,10 @@ function day2CourseHoles() {
   return day2CourseHolesFor(COURSES);
 }
 
+// Slope-adjusted against Black Bull (COURSES[2]) via dailyHandicap() when
+// it has rating/slope data.
 function day2GroupHandicap(code) {
-  return day2GroupHandicapFor(code, state.day2, currentPlayers());
+  return day2GroupHandicapFor(code, state.day2, currentPlayers(), COURSES);
 }
 
 // National anthem house rule (issue #149, Day 2 only): -1 stroke per
@@ -3446,9 +3450,12 @@ function day3CourseHoles() {
 // One player's full handicap allocated across the Lake Course's stroke
 // index -- groupStrokes() already does exactly this generic allocation
 // for Day 2's team handicaps, so it's reused as-is for a single player's
-// own handicap rather than adding a second copy of the same math.
+// own handicap rather than adding a second copy of the same math. Slope-
+// adjusted against Lake (COURSES[3]) via dailyHandicap() when it has
+// rating/slope data -- same fallback as day3PointsThruFor()
+// in scoring.js when it doesn't.
 function day3StrokesFor(player) {
-  const hcp = Math.round(parseFloat(player.hcp));
+  const hcp = dailyHandicap(player.hcp, COURSES[3]);
   if (isNaN(hcp)) return Array(18).fill(0);
   return groupStrokes(hcp, day3CourseHoles().map(h => h.si));
 }

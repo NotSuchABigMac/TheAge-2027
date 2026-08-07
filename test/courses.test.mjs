@@ -63,6 +63,34 @@ test('hole numbers within each course run 1-18 in order', () => {
   });
 });
 
+// Course Rating / Slope Rating (Blue tees), transcribed from the club's
+// handicap sheet -- feeds scoring.js's dailyHandicap() (Golf Australia
+// Daily Handicap formula). Locked to exact values so a mis-keyed rating
+// or slope is caught here rather than silently changing everyone's
+// strokes-received.
+test('each course carries its Blue-tee Course Rating and Slope Rating', () => {
+  assert.deepEqual(
+    DAYS.map(day => ({ name: COURSES[day].name, rating: COURSES[day].rating, slope: COURSES[day].slope })),
+    [
+      { name: 'Murray', rating: 72.3, slope: 128 },
+      { name: 'Black Bull', rating: 73.8, slope: 134 },
+      { name: 'Lake', rating: 71.5, slope: 126 }
+    ]
+  );
+});
+
+// Sanity bounds on the GA/USGA slope scale (55-155, 113 = neutral) and a
+// plausible rating range around each course's own par -- catches a wildly
+// mistyped value even if it happens to not be one of the exact figures
+// above.
+test('rating/slope fall within plausible Golf Australia ranges', () => {
+  DAYS.forEach(day => {
+    const c = COURSES[day];
+    assert.ok(c.slope >= 55 && c.slope <= 155, `${c.name} slope in range`);
+    assert.ok(c.rating >= c.total.par - 10 && c.rating <= c.total.par + 10, `${c.name} rating near par`);
+  });
+});
+
 test('courseForDay returns the matching course, and null for an unknown day', () => {
   assert.equal(courseForDay(1).name, 'Murray');
   assert.equal(courseForDay(2).name, 'Black Bull');
