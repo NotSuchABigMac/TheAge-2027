@@ -1,0 +1,6 @@
+match_number,team_a,player_a,team_b,player_b,front9_result,back9_result,points_a,points_b,lopsided
+1,Flamingos,Robert Hughes,Gorillas,Mark Swain,A,B,1,1,true
+2,Flamingos,Liam Cannel,Gorillas,Jimmy Hepburn,T,A,1.5,0.5,false
+3,Flamingos,Nathan Freestun,Gorillas,Steve Koenig,A,A,2,0,false
+4,Flamingos,Brendan Cunningham,Gorillas,Gary King,B,A,1,1,false
+5,Flamingos,Matthew Freestun,Gorillas,Scott Rumbelow,B,A,1,1,false
