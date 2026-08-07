@@ -35,6 +35,14 @@
         produced along the way. A third, never-cleared NTP claim proves
         the filter isn't over-broad (real current events still show).
 
+     5. MOBILE TAB LOCK -- at a phone-width viewport, the tab bar must be
+        visible (hidden at TV/desktop widths); tapping a tab jumps to and
+        LOCKS that screen through a full ~15s rotation interval that would
+        otherwise have advanced it; tapping the same (already-locked) tab
+        again unlocks, and the next interval advances again -- proving
+        both that the lock actually holds and that it's actually
+        releasable, not just a one-way pin.
+
    Self-contained: a tiny static file server for the app; Google Fonts
    blocked outright; the real Supabase host is either mocked with fixture
    rows or aborted, per scenario -- never hit for real.
@@ -368,6 +376,85 @@ async function testWireExcludesClearedData(browser) {
   console.log('Stale-data wire filter assertions passed.');
 }
 
+// Minimal live-day fixture -- the tab bar/lock behavior doesn't depend on
+// tournament data, just needs one successful refresh() so the screens
+// aren't stuck on the initial "Loading..." placeholders.
+function tabLockFixtureRows() {
+  return [
+    { tournament_id: 'wonga-cup-2026', updated_by: 'test', updated_at: '2026-08-07T00:00:00.000Z', update_type: 'team_name', field_key: 'A', value: 'Team Alpha' },
+    { tournament_id: 'wonga-cup-2026', updated_by: 'test', updated_at: '2026-08-07T00:00:01.000Z', update_type: 'team_name', field_key: 'B', value: 'Team Beta' }
+  ];
+}
+
+async function testMobileTabLock(browser) {
+  // Desktop/TV width first: the tab bar must stay hidden there.
+  const desktopContext = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  await desktopContext.route('**fonts.googleapis.com**', route => route.abort());
+  await desktopContext.route('**fonts.gstatic.com**', route => route.abort());
+  const desktopPage = await desktopContext.newPage();
+  await desktopPage.addInitScript(dateMockScript('2026-08-07T02:00:00Z'));
+  await desktopPage.route('**wtyyarvyscbrrkawjcvo**/rest/v1/tournament_updates**', (route) => {
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(tabLockFixtureRows()) });
+  });
+  await desktopPage.route('**wtyyarvyscbrrkawjcvo**', (route) => {
+    if (route.request().url().includes('/tournament_updates')) { route.fallback(); return; }
+    route.abort();
+  });
+  const site = global.__wongaSite;
+  await desktopPage.goto(`http://127.0.0.1:${site.port}/tv.html`, { waitUntil: 'domcontentloaded' });
+  await desktopPage.waitForTimeout(600);
+  const tabsDisplay = await desktopPage.evaluate(() => getComputedStyle(document.getElementById('tv-tabs')).display);
+  if (tabsDisplay !== 'none') fail(`expected the tab bar hidden at a 1600px desktop/TV width, got display:${tabsDisplay}`);
+  await desktopContext.close();
+  console.log('Desktop-width tab-bar-hidden assertion passed.');
+
+  // Phone width: tab bar visible, tapping a tab locks rotation to it.
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await context.route('**fonts.googleapis.com**', route => route.abort());
+  await context.route('**fonts.gstatic.com**', route => route.abort());
+  const page = await context.newPage();
+  await page.addInitScript(dateMockScript('2026-08-07T02:00:00Z'));
+  await page.route('**wtyyarvyscbrrkawjcvo**/rest/v1/tournament_updates**', (route) => {
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(tabLockFixtureRows()) });
+  });
+  await page.route('**wtyyarvyscbrrkawjcvo**', (route) => {
+    if (route.request().url().includes('/tournament_updates')) { route.fallback(); return; }
+    route.abort();
+  });
+  await page.goto(`http://127.0.0.1:${site.port}/tv.html`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(600);
+
+  const mobileTabsDisplay = await page.evaluate(() => getComputedStyle(document.getElementById('tv-tabs')).display);
+  if (mobileTabsDisplay === 'none') fail('expected the tab bar visible at a 390px phone width');
+
+  // Cup screen is active by default; lock to Live instead.
+  await page.click('.tv-tab[data-screen="screen-live"]');
+  const afterLock = await page.evaluate(() => ({
+    liveActive: document.getElementById('screen-live').classList.contains('tv-screen-active'),
+    tabLocked: document.querySelector('.tv-tab[data-screen="screen-live"]').classList.contains('tv-tab-locked')
+  }));
+  if (!afterLock.liveActive) fail('expected tapping the Live tab to switch to the Live screen immediately');
+  if (!afterLock.tabLocked) fail('expected the Live tab to show as locked immediately after tapping it');
+
+  // A full rotation interval (~15s) must NOT move off Live while locked.
+  await page.waitForTimeout(15500);
+  const stillLive = await page.evaluate(() => document.getElementById('screen-live').classList.contains('tv-screen-active'));
+  if (!stillLive) fail('expected the Live screen to still be showing after ~15s while locked -- rotation should have been paused');
+
+  // Tapping the same (locked) tab again unlocks; the following interval
+  // must then advance away from Live.
+  await page.click('.tv-tab[data-screen="screen-live"]');
+  const afterUnlock = await page.evaluate(() => document.querySelector('.tv-tab[data-screen="screen-live"]').classList.contains('tv-tab-locked'));
+  if (afterUnlock) fail('expected tapping the already-locked Live tab again to unlock it');
+
+  await page.waitForTimeout(15500);
+  const movedOn = await page.evaluate(() => !document.getElementById('screen-live').classList.contains('tv-screen-active'));
+  if (!movedOn) fail('expected rotation to resume and move off Live within ~15s of unlocking');
+
+  await context.close();
+  console.log('Mobile tab-bar lock/unlock assertions passed.');
+}
+
 async function main() {
   const site = await startStaticServer();
   global.__wongaSite = { port: site.address().port };
@@ -382,6 +469,7 @@ async function main() {
     await testCountdownFormatPreview(browser);
     await testFinalTrophyCard(browser);
     await testWireExcludesClearedData(browser);
+    await testMobileTabLock(browser);
     console.log('All tv.html improvements assertions passed.');
   } catch (e) {
     console.log('Error:', e.message);
