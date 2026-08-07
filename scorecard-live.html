@@ -1818,6 +1818,7 @@ const {
   matchWormFor, weekendWormFor, day1SeatKind, day1SeatsCompatible,
   ntpPointsFor: ntpPointsForTeams, scoreToParSymbol,
   REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
+  TEAM_EMOJI,
   day2CourseHolesFor, day2GroupHandicapFor, day2TeamAnthemStrokesFor, effectiveDay2FieldFor, effectiveDay2StateFor,
   projectedTotals,
   day3CourseHolesFor, effectiveDay3ScoreFor, effectiveDay3PointsPerHoleFor,
@@ -1855,8 +1856,8 @@ function teamRgb(team) {
 // team needs a compact, decorative marker (see the .team-a.leading/
 // .team-b.leading rules and hole-win markers up in <style>).
 function teamBadgeHtml(team) {
-  if (team === 'A') return `<span class="ta-badge team-badge" title="Team A">🦩</span>`;
-  if (team === 'B') return `<span class="tb-badge team-badge" title="Team B">🦍</span>`;
+  if (team === 'A') return `<span class="ta-badge team-badge" title="Team A">${TEAM_EMOJI.A}</span>`;
+  if (team === 'B') return `<span class="tb-badge team-badge" title="Team B">${TEAM_EMOJI.B}</span>`;
   return `<span class="unassigned-badge team-badge">Unassigned</span>`;
 }
 

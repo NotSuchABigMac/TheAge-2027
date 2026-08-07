@@ -1602,6 +1602,12 @@
     return names.length ? names.join(' & ') : 'TBD';
   }
 
+  // Same flamingo/gorilla mascot convention scorecard-live.html's
+  // teamBadgeHtml() already uses everywhere else a team needs a compact,
+  // decorative marker -- the Wonga Wire feed prepends it to any headline
+  // that's clearly about one team's player(s)/group, not both.
+  const TEAM_EMOJI = { A: '🦩', B: '🦍' };
+
   function describeDay1HoleEvent(row, prevState, nextState, players, courses) {
     const idx = row.match_idx;
     if (typeof idx !== 'number') return null;
@@ -1649,25 +1655,27 @@
       if (status.leader === null) return { headline: `${nameA} and ${nameB} halve the ${nineLabel}`, importance: 'notify' };
       const winnerName = status.leader === 'A' ? nameA : nameB;
       const marginStr = status.margin !== null ? `${status.lead}&${status.margin}` : `${status.lead}UP`;
-      return { headline: `${winnerName} wins the ${nineLabel} ${marginStr}`, importance: 'notify' };
+      return { headline: `${TEAM_EMOJI[status.leader]} ${winnerName} wins the ${nineLabel} ${marginStr}`, importance: 'notify' };
     }
     if (!status.decided && status.leader !== prevStatus.leader) {
       if (status.leader === null) return { headline: `${nameA} and ${nameB} level thru ${status.thru}`, importance: 'notify' };
       const leaderName = status.leader === 'A' ? nameA : nameB;
-      return { headline: `${leaderName} goes ${status.lead}UP thru ${status.thru}`, importance: 'notify' };
+      return { headline: `${TEAM_EMOJI[status.leader]} ${leaderName} goes ${status.lead}UP thru ${status.thru}`, importance: 'notify' };
     }
     const leaderName = status.leader === 'A' ? nameA : status.leader === 'B' ? nameB : null;
-    const line = leaderName ? `${leaderName} ${status.lead}UP thru ${status.thru}` : `${nameA} v ${nameB} level thru ${status.thru}`;
+    const line = leaderName ? `${TEAM_EMOJI[status.leader]} ${leaderName} ${status.lead}UP thru ${status.thru}` : `${nameA} v ${nameB} level thru ${status.thru}`;
     return { headline: line, importance: 'feed' };
   }
 
-  function describeNtpEvent(row, players) {
+  function describeNtpEvent(row, nextState, players) {
     const holderId = parseIntOrNull(row.value);
     if (holderId === null) return null; // cleared -- not commentary-worthy
     const holeLabel = String(row.field_key || '').replace(/^h/, '');
     const name = playerLabelFor([holderId], players);
     const dayLabel = row.update_type === 'day1_ntp' ? 'Day 1' : row.update_type === 'day2_ntp' ? 'Day 2' : 'Day 3';
-    return { headline: `${name} takes NTP — ${dayLabel}, hole ${holeLabel}`, importance: 'notify' };
+    const team = nextState && teamOfSets(holderId, nextState.teamA, nextState.teamB);
+    const emoji = team ? `${TEAM_EMOJI[team]} ` : '';
+    return { headline: `${emoji}${name} takes NTP — ${dayLabel}, hole ${holeLabel}`, importance: 'notify' };
   }
 
   function describeDay2HoleEvent(row, nextState, players, courses, teamNames) {
@@ -1684,9 +1692,10 @@
     const { netToPar } = scrambleNetToParThru(holes, strokes, courseHoles.map(h => h.par));
     const adjusted = netToPar === null ? null : netToPar + day2TeamAnthemStrokesFor(code, day2);
     const parLabel = adjusted === null ? '—' : adjusted === 0 ? 'level par' : adjusted > 0 ? `+${adjusted}` : String(adjusted);
-    const teamLabel = code[0] === 'a' ? ((teamNames && teamNames.A) || 'Team A') : ((teamNames && teamNames.B) || 'Team B');
+    const teamCode = code[0] === 'a' ? 'A' : 'B';
+    const teamLabel = teamCode === 'A' ? ((teamNames && teamNames.A) || 'Team A') : ((teamNames && teamNames.B) || 'Team B');
     const sizeLabel = code[1] === '4' ? 'four-ball' : 'three-ball';
-    return { headline: `${teamLabel}'s ${sizeLabel} finishes ${parLabel}`, importance: 'notify' };
+    return { headline: `${TEAM_EMOJI[teamCode]} ${teamLabel}'s ${sizeLabel} finishes ${parLabel}`, importance: 'notify' };
   }
 
   // The one function the UI actually calls -- dispatches to the
@@ -1699,7 +1708,7 @@
       case 'day1_hole': return describeDay1HoleEvent(row, prevState, nextState, players, courses);
       case 'day1_ntp':
       case 'day2_ntp':
-      case 'day3_ntp': return describeNtpEvent(row, players);
+      case 'day3_ntp': return describeNtpEvent(row, nextState, players);
       case 'day2_hole': return describeDay2HoleEvent(row, nextState, players, courses, teamNames);
       default: return null;
     }
@@ -1906,6 +1915,7 @@
     matchWormFor, day1SeatKind, day1SeatsCompatible,
     teamOfSets, ntpPointsFor, scoreToParSymbol,
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
+    TEAM_EMOJI,
     day2CourseHolesFor, day2GroupHandicapFor, effectiveDay2FieldFor, effectiveDay2StateFor,
     day3CourseHolesFor, day3PointsThruFor, effectiveDay3ScoreFor, effectiveDay3PointsPerHoleFor,
     computeSeasonTotals, weekendWormFor, phaseFor, daysUntilDay1,

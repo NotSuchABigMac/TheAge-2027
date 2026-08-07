@@ -155,6 +155,11 @@ async function main() {
     if (!/takes NTP.*Day 2, hole 4/s.test(afterInitialReplay.feedText)) {
       fail(`expected the historical NTP claim in the feed, got "${afterInitialReplay.feedText}"`);
     }
+    // Player id 1 (holder of this NTP claim) is on Team B by default --
+    // the gorilla emoji should be prepended to the headline.
+    if (!/🦍.*takes NTP.*Day 2, hole 4/s.test(afterInitialReplay.feedText)) {
+      fail(`expected the Team B gorilla emoji on the historical NTP claim, got "${afterInitialReplay.feedText}"`);
+    }
     if (afterInitialReplay.toastShown) fail('expected no wire-toast for a historical (pre-page-load) event');
 
     // 2. A genuinely new row from someone else fires a toast AND jumps
@@ -173,6 +178,11 @@ async function main() {
     }));
     if (!/takes NTP.*Day 1, hole 8/s.test(afterLiveEvent.feedFirstLine)) {
       fail(`expected the new live NTP claim at the top of the feed, got "${afterLiveEvent.feedFirstLine}"`);
+    }
+    // Player id 0 (holder of this NTP claim) is on Team A by default --
+    // the flamingo emoji should be prepended to the headline.
+    if (!/🦩.*takes NTP.*Day 1, hole 8/s.test(afterLiveEvent.feedFirstLine)) {
+      fail(`expected the Team A flamingo emoji on the live NTP claim, got "${afterLiveEvent.feedFirstLine}"`);
     }
     if (!afterLiveEvent.toastShown) fail('expected a wire-toast for a genuinely new, non-own-echo, notify-importance event');
     if (!/Day 1, hole 8/.test(afterLiveEvent.toastText)) fail(`expected the toast to name the new event, got "${afterLiveEvent.toastText}"`);
@@ -197,6 +207,11 @@ async function main() {
     }));
     if (!/takes NTP.*Day 3, hole 7/s.test(afterOwnEcho.feedFirstLine)) {
       fail(`expected the own-device echo to still update the feed, got "${afterOwnEcho.feedFirstLine}"`);
+    }
+    // Player id 1 (holder of this NTP claim) is on Team B by default --
+    // the gorilla emoji should be prepended to the headline.
+    if (!/🦍.*takes NTP.*Day 3, hole 7/s.test(afterOwnEcho.feedFirstLine)) {
+      fail(`expected the Team B gorilla emoji on the own-echo NTP claim, got "${afterOwnEcho.feedFirstLine}"`);
     }
     if (afterOwnEcho.toastShown) fail('expected NO wire-toast for an own-device echo, even though it is notify-importance');
 

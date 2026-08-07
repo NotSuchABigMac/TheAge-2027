@@ -132,6 +132,37 @@ test('day1_hole: a nine becoming decided is notify-worthy, with the right margin
   assert.match(got.headline, /A\. One wins the front 9 5&4/);
 });
 
+test('day1_hole: a decided nine is prefixed with the winning side\'s team emoji (flamingo for A, gorilla for B)', () => {
+  // Same fixture as above (A/pA wins), then the mirror image with B winning.
+  const prevMatchA = emptyMatch({ holesA: [4, 4, 4, 4, null, ...Array(14).fill(null)], holesB: [5, 5, 5, 5, null, ...Array(14).fill(null)] });
+  const nextMatchA = emptyMatch({ holesA: [4, 4, 4, 4, 4, ...Array(13).fill(null)], holesB: [5, 5, 5, 5, 5, ...Array(13).fill(null)] });
+  const gotA = describeEvent({ update_type: 'day1_hole', match_idx: 0, field_key: 'A5', value: '4' }, stateWithMatch(prevMatchA), stateWithMatch(nextMatchA), PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.match(gotA.headline, /^🦩 A\. One wins the front 9/);
+
+  const prevMatchB = emptyMatch({ holesA: [5, 5, 5, 5, null, ...Array(14).fill(null)], holesB: [4, 4, 4, 4, null, ...Array(14).fill(null)] });
+  const nextMatchB = emptyMatch({ holesA: [5, 5, 5, 5, 5, ...Array(13).fill(null)], holesB: [4, 4, 4, 4, 4, ...Array(13).fill(null)] });
+  const gotB = describeEvent({ update_type: 'day1_hole', match_idx: 0, field_key: 'B5', value: '4' }, stateWithMatch(prevMatchB), stateWithMatch(nextMatchB), PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.match(gotB.headline, /^🦍 B\. One wins the front 9/);
+});
+
+test('day1_hole: a halved nine names both players with no single team emoji', () => {
+  const holesA = [4, 4, 4, 4, 4, 4, 5, 5, 5];
+  const holesB = [4, 4, 4, 5, 5, 5, 4, 4, 4];
+  const prevMatch = emptyMatch({ holesA: [...holesA.slice(0, 8), null, ...Array(9).fill(null)], holesB: [...holesB.slice(0, 8), null, ...Array(9).fill(null)] });
+  const nextMatch = emptyMatch({ holesA: [...holesA, ...Array(9).fill(null)], holesB: [...holesB, ...Array(9).fill(null)] });
+  const row = { update_type: 'day1_hole', match_idx: 0, field_key: 'B9', value: '4' };
+  const got = describeEvent(row, stateWithMatch(prevMatch), stateWithMatch(nextMatch), PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.doesNotMatch(got.headline, /🦩|🦍/);
+});
+
+test('day1_hole: a lead change is prefixed with the new leader\'s team emoji', () => {
+  const prevMatch = emptyMatch({ holesA: [4, 4, null, ...Array(15).fill(null)], holesB: [5, 5, null, ...Array(15).fill(null)] });
+  const nextMatch = emptyMatch({ holesA: [4, 5, 6, ...Array(15).fill(null)], holesB: [5, 4, 4, ...Array(15).fill(null)] });
+  const row = { update_type: 'day1_hole', match_idx: 0, field_key: 'B3', value: '4' };
+  const got = describeEvent(row, stateWithMatch(prevMatch), stateWithMatch(nextMatch), PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.match(got.headline, /^🦍 B\. One goes 1UP thru 3/);
+});
+
 test('day1_hole: a nine deciding as a halve names both players, not a winner', () => {
   // Holes 1-3 tied, 4-6 to A, 7-9 to B -> 3-3, dead level thru 9 (halved).
   const holesA = [4, 4, 4, 4, 4, 4, 5, 5, 5];
@@ -178,6 +209,21 @@ test('NTP: clearing a hole (null value) is not commentary-worthy', () => {
   assert.equal(describeEvent({ update_type: 'day1_ntp', field_key: 'h8', value: null }, state, state, PLAYERS, COURSES_FIXTURE, TEAM_NAMES), null);
 });
 
+test('NTP: the headline is prefixed with the holder\'s team emoji when team rosters are known', () => {
+  const state = { ...stateWithMatch(emptyMatch()), teamA: new Set([0]), teamB: new Set([1]) };
+  const gotA = describeEvent({ update_type: 'day1_ntp', field_key: 'h8', value: '0' }, state, state, PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.match(gotA.headline, /^🦩 A\. One takes NTP/);
+
+  const gotB = describeEvent({ update_type: 'day1_ntp', field_key: 'h17', value: '1' }, state, state, PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.match(gotB.headline, /^🦍 B\. One takes NTP/);
+});
+
+test('NTP: no team emoji when team rosters aren\'t available (e.g. older callers passing plain state)', () => {
+  const state = stateWithMatch(emptyMatch());
+  const got = describeEvent({ update_type: 'day1_ntp', field_key: 'h8', value: '0' }, state, state, PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
+  assert.match(got.headline, /^A\. One takes NTP/);
+});
+
 /* ── day2_hole ── */
 
 test('day2_hole: an incomplete round is not commentary-worthy', () => {
@@ -198,6 +244,7 @@ test('day2_hole: a group finishing its round is notify-worthy, with the right te
   const got = describeEvent(row, state, state, PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
   assert.equal(got.importance, 'notify');
   assert.match(got.headline, /Team Alpha's three-ball finishes -18/);
+  assert.match(got.headline, /^🦩 Team Alpha's/);
 });
 
 test('day2_hole: level par finishes read "level par", not "0" or "+0"', () => {
@@ -208,6 +255,7 @@ test('day2_hole: level par finishes read "level par", not "0" or "+0"', () => {
   const row = { update_type: 'day2_hole', field_key: 'b4_18', value: '4' };
   const got = describeEvent(row, state, state, PLAYERS, COURSES_FIXTURE, TEAM_NAMES);
   assert.match(got.headline, /Team Beta's four-ball finishes level par/);
+  assert.match(got.headline, /^🦍 Team Beta's/);
 });
 
 /* ── out of scope ── */
