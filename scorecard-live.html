@@ -132,6 +132,12 @@
 .team-player-item{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-radius:var(--r);background:var(--canvas-2);margin-bottom:6px}
 .team-player-item span{color:var(--ink);font-size:.9rem}
 .team-player-item small{color:var(--ink-mute);font-size:.8rem}
+/* Team A/flamingo, Team B/gorilla per this year's mascot convention
+   (TEAM_EMOJI in scoring.js) -- the column headers already color
+   themselves this way, so a drafted player's name should match the
+   column it's sitting in rather than staying neutral ink. */
+.team-a-col .team-player-item span{color:var(--team-a)}
+.team-b-col .team-player-item span{color:var(--team-b)}
 .move-btn{padding:4px 11px;font-family:var(--font-h);font-size:.68rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--rule-strong);background:transparent;color:var(--ink-mute);border-radius:4px;cursor:pointer;transition:var(--tr)}
 .move-btn:hover{background:var(--canvas-2);color:var(--ink)}
 @media(max-width:700px){.team-setup-grid{grid-template-columns:1fr}}
