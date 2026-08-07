@@ -540,6 +540,8 @@ input[type=number]:focus{outline:none;border-color:var(--gold)}
 .username-btn{width:100%;padding:12px 20px;font-family:var(--font-h);font-size:.9rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
 .username-btn:hover{background:var(--gold-light)}
 .username-btn:disabled{opacity:.5;cursor:not-allowed}
+.username-btn-secondary{width:100%;padding:12px 20px;margin-top:10px;font-family:var(--font-h);font-size:.85rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:transparent;color:var(--ink-mute);border:1px solid var(--rule-strong);border-radius:var(--r);cursor:pointer;transition:var(--tr)}
+.username-btn-secondary:hover{color:var(--ink);border-color:var(--gold)}
 /* Practice Mode (issue #208): a persistent, un-dismissable, unmissable
    strip -- deliberately loud (caution-tape stripes) rather than a subtle
    theme retint, so it can never be mistaken for the real scorecard even
@@ -743,6 +745,7 @@ body{padding-top:58px;padding-bottom:52px}
     <input type="password" inputmode="numeric" id="write-token-input" class="username-input" placeholder="Tournament PIN" autocomplete="off">
     <div id="username-error" class="username-modal-desc" style="color:#ff6b6b;display:none" role="alert">Please enter your name and the tournament PIN to continue</div>
     <button class="username-btn" id="username-submit-btn" onclick="confirmUsername()">Enter Tournament</button>
+    <button type="button" class="username-btn-secondary" onclick="closeUsernameModal()">I'm just spectating</button>
     <div class="username-modal-desc" style="font-size:.75rem;margin-top:16px;color:var(--ink-mute)">Your scores will sync live across all devices</div>
   </div>
 </div>
