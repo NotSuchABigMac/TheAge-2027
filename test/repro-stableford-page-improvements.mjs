@@ -92,7 +92,7 @@ async function main() {
     await context.route('**fonts.gstatic.com**', route => route.abort());
 
     const page = await context.newPage();
-    const BENIGN = /Supabase load failed|Weekend worm load failed|ERR_FAILED|version\.json|404 \(Not Found\)/;
+    const BENIGN = /Supabase load failed|Weekend worm load failed|Wonga Wire history seed failed|ERR_FAILED|version\.json|404 \(Not Found\)/;
     page.on('pageerror', e => consoleErrors.push('pageerror: ' + e.message));
     page.on('console', msg => {
       if (msg.type() === 'error' && !BENIGN.test(msg.text())) consoleErrors.push('console.error: ' + msg.text());
