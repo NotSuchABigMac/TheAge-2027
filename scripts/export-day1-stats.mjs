@@ -6,9 +6,10 @@
    recovery log, see scripts/snapshot-tournament-updates.mjs) through the
    exact same scoring.js glue the live scorecard itself uses
    (normalizeState/applyUpdateToState, then the Day 1 stats functions:
-   day1HoleDifficultyFor, day1PlayerReportCardsFor), and writes the
-   result to three CSVs under stats/ plus a stats/README.md describing
-   every column. Nothing here touches the UI -- this is purely an
+   day1HoleDifficultyFor, day1PlayerReportCardsFor, day1Superlatives --
+   the same functions tv.html's Stat Board renders live), and writes the
+   result to four CSVs under stats/ plus a stats/README.md describing
+   every column. Nothing here touches the UI directly -- this is an
    archival/analysis export, kept for later (the eventual "Ultimate
    Team"-style player cards idea) and as a base to extend with Day 2/3
    equivalents once those are played.
@@ -17,7 +18,8 @@
 
    Usage: node scripts/export-day1-stats.mjs
    Writes stats/day1-hole-difficulty.csv, stats/day1-player-report-cards.csv,
-   stats/day1-match-results.csv, and (re)writes stats/README.md.
+   stats/day1-match-results.csv, stats/day1-superlatives.csv, and
+   (re)writes stats/README.md.
 ───────────────────────────────────── */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -107,8 +109,72 @@ export function playerReportCardRows(state, players, courses) {
     match_points_against: c.matchPointsAgainst,
     ntp_h8: c.ntpH8,
     ntp_h17: c.ntpH17,
-    lopsided_nine: c.lopsidedNine ?? ''
+    lopsided_nine: c.lopsidedNine ?? '',
+    net_par_or_better_count: c.netParOrBetterCount,
+    net_to_par_std_dev: c.netToParStdDev === null ? '' : Number(c.netToParStdDev.toFixed(3)),
+    par3_holes_played: c.parTypeStats[3].holesPlayed,
+    par3_avg_to_par: c.parTypeStats[3].avgToPar === null ? '' : Number(c.parTypeStats[3].avgToPar.toFixed(3)),
+    par3_avg_net_to_par: c.parTypeStats[3].avgNetToPar === null ? '' : Number(c.parTypeStats[3].avgNetToPar.toFixed(3)),
+    par4_holes_played: c.parTypeStats[4].holesPlayed,
+    par4_avg_to_par: c.parTypeStats[4].avgToPar === null ? '' : Number(c.parTypeStats[4].avgToPar.toFixed(3)),
+    par4_avg_net_to_par: c.parTypeStats[4].avgNetToPar === null ? '' : Number(c.parTypeStats[4].avgNetToPar.toFixed(3)),
+    par5_holes_played: c.parTypeStats[5].holesPlayed,
+    par5_avg_to_par: c.parTypeStats[5].avgToPar === null ? '' : Number(c.parTypeStats[5].avgToPar.toFixed(3)),
+    par5_avg_net_to_par: c.parTypeStats[5].avgNetToPar === null ? '' : Number(c.parTypeStats[5].avgNetToPar.toFixed(3)),
+    worst_win_hole: c.worstWinHole ? c.worstWinHole.hole : '',
+    worst_win_gross: c.worstWinHole ? c.worstWinHole.gross : '',
+    worst_win_par: c.worstWinHole ? c.worstWinHole.par : '',
+    worst_win_to_par: c.worstWinHole ? c.worstWinHole.toPar : '',
+    worst_win_opponent_gross: c.worstWinHole ? c.worstWinHole.opponentGross : '',
+    best_loss_hole: c.bestLossHole ? c.bestLossHole.hole : '',
+    best_loss_gross: c.bestLossHole ? c.bestLossHole.gross : '',
+    best_loss_par: c.bestLossHole ? c.bestLossHole.par : '',
+    best_loss_to_par: c.bestLossHole ? c.bestLossHole.toPar : '',
+    best_loss_opponent_gross: c.bestLossHole ? c.bestLossHole.opponentGross : '',
+    nailbiter_count: c.nailbiterCount,
+    biggest_comeback: c.biggestComeback,
+    fast_start_avg_net_to_par: c.fastStartAvgNetToPar === null ? '' : Number(c.fastStartAvgNetToPar.toFixed(3)),
+    closer_avg_net_to_par: c.closerAvgNetToPar === null ? '' : Number(c.closerAvgNetToPar.toFixed(3))
   }));
+}
+
+// One row per day1Superlatives() leaderboard -- the same "who holds this
+// record" board tv.html's Stat Board renders, kept here too so it's
+// archived/diffable rather than only ever computed live in the browser.
+// Deliberately excludes the hand-curated joke award (e.g. "Most
+// Kangaroos Scared") that lives only in tv.html's FUN_AWARDS constant --
+// this file is real computed data, and mixing in a fabricated entry
+// would misrepresent it as such.
+export function superlativeRows(cards) {
+  const s = Scoring.day1Superlatives(cards);
+  const blank = { player_name: '', value: '', hole: '', gross: '', par: '', to_par: '', opponent_name: '', opponent_gross: '' };
+  function simple(stat, entry) {
+    if (!entry) return { stat, ...blank };
+    return { stat, ...blank, player_name: entry.name, value: typeof entry.value === 'number' ? Number(entry.value.toFixed(3)) : entry.value };
+  }
+  function hole(stat, entry) {
+    if (!entry) return { stat, ...blank };
+    return {
+      stat, ...blank, player_name: entry.name,
+      hole: entry.hole, gross: entry.gross, par: entry.par, to_par: entry.toPar,
+      opponent_name: entry.opponentName, opponent_gross: entry.opponentGross
+    };
+  }
+  return [
+    simple('most_net_pars_or_better', s.mostNetParsOrBetter),
+    simple('most_consistent_net_scorer', s.mostConsistentNetScorer),
+    simple('least_consistent_net_scorer', s.leastConsistentNetScorer),
+    hole('worst_score_to_win_hole', s.worstScoreToWinHole),
+    hole('best_score_to_lose_hole', s.bestScoreToLoseHole),
+    simple('best_par3_player', s.bestPar3Player),
+    simple('best_par4_player', s.bestPar4Player),
+    simple('best_par5_player', s.bestPar5Player),
+    simple('serial_peacemaker', s.serialPeacemaker),
+    simple('nailbiter_king', s.nailbiterKing),
+    simple('comeback_king', s.comebackKing),
+    simple('fast_starter', s.fastStarter),
+    simple('closer', s.closer)
+  ];
 }
 
 export function matchResultRows(state, players, courses) {
@@ -209,6 +275,14 @@ one Day 1 match has exactly one row).
 | \`match_points_for\` / \`match_points_against\` | This player's side's point split for the whole match (0-2 each, halves possible) |
 | \`ntp_h8\` / \`ntp_h17\` | \`true\`/\`false\` -- did this player hold the Day 1 nearest-the-pin claim on that hole at export time |
 | \`lopsided_nine\` | \`won\`/\`lost\`/\`split\`/blank -- did either nine of this match finish 5-up-or-more (see \`DAY1_LOPSIDED_LEAD\` in scoring.js)? \`split\` means one nine was lopsided for this player and the other against |
+| \`net_par_or_better_count\` | Holes where this player's NET score was par or better (net par/birdie/eagle) |
+| \`net_to_par_std_dev\` | Population standard deviation of net-to-par across every hole played -- lower = more consistent round. Blank with fewer than 2 holes played (a single point has no real "spread") |
+| \`par3_holes_played\` / \`par3_avg_to_par\` / \`par3_avg_net_to_par\` | Same, repeated for \`par4_*\` and \`par5_*\` -- gross- and net-to-par averages broken down by hole par. All three par buckets always present; blank averages mean that bucket has no holes played yet |
+| \`worst_win_hole\` / \`worst_win_gross\` / \`worst_win_par\` / \`worst_win_to_par\` / \`worst_win_opponent_gross\` | The worst hole (by **gross** score-to-par) this player won on NET, with the opponent's gross score on that same hole for context -- "what a way to win that". Blank if this player never won a hole |
+| \`best_loss_hole\` / \`best_loss_gross\` / \`best_loss_par\` / \`best_loss_to_par\` / \`best_loss_opponent_gross\` | The best hole (by gross score-to-par) this player still lost on NET. Blank if this player never lost a hole |
+| \`nailbiter_count\` | Holes decided by exactly 1 net stroke -- the closest possible margin short of a halve |
+| \`biggest_comeback\` | Largest deficit (in holes) this player was ever down by within a nine they went on to at least halve. 0 if never behind, or if every nine they were ever behind in they ultimately lost outright |
+| \`fast_start_avg_net_to_par\` / \`closer_avg_net_to_par\` | Average net-to-par over holes 1-3 and holes 16-18 respectively -- how this player started vs. finished. Blank if that range isn't played yet |
 
 ### \`day1-match-results.csv\`
 
@@ -221,6 +295,27 @@ One row per Day 1 match that has both players assigned (the box score).
 | \`front9_result\` / \`back9_result\` | \`A\`, \`B\`, \`T\` (halved), or blank if that nine isn't decided yet |
 | \`points_a\` / \`points_b\` | Points each side actually won from this match (0-2 each) |
 | \`lopsided\` | \`true\` if either nine finished 5-up-or-more |
+
+### \`day1-superlatives.csv\`
+
+One row per leaderboard stat -- "who currently holds this record" --
+reduced from \`day1-player-report-cards.csv\` via \`day1Superlatives()\`.
+This is the same data tv.html's Stat Board renders live in the browser,
+archived here as a snapshot. Ties keep whichever player's row comes
+first in the report-cards file (match order, side A before side B).
+
+| Column | Meaning |
+|---|---|
+| \`stat\` | Which leaderboard: \`most_net_pars_or_better\`, \`most_consistent_net_scorer\`, \`least_consistent_net_scorer\`, \`worst_score_to_win_hole\`, \`best_score_to_lose_hole\`, \`best_par3_player\`, \`best_par4_player\`, \`best_par5_player\`, \`serial_peacemaker\` (most holes halved), \`nailbiter_king\` (most 1-net-stroke holes), \`comeback_king\` (biggest deficit overcome), \`fast_starter\`, \`closer\` |
+| \`player_name\` | Who holds it. Blank if nobody qualifies yet (e.g. nobody's lost a hole yet) |
+| \`value\` | The stat's number, for stats that are a single count/average (e.g. net-par count, std dev, par-type average) |
+| \`hole\` / \`gross\` / \`par\` / \`to_par\` / \`opponent_name\` / \`opponent_gross\` | Only populated for the two hole-specific stats (\`worst_score_to_win_hole\`/\`best_score_to_lose_hole\`) |
+
+**Not included here**: tv.html's Stat Board also shows a hand-curated
+joke award ("Most Kangaroos Scared") with no \`tournament_updates\` data
+behind it at all -- it lives only in tv.html's \`FUN_AWARDS\` constant,
+deliberately kept out of this file so a real computed-data export never
+mixes in a fabricated entry.
 `;
 
 async function main() {
@@ -235,20 +330,33 @@ async function main() {
     ['player_id', 'player_name', 'team', 'match_number', 'opponent_name', 'holes_won', 'holes_lost', 'holes_halved',
       'holes_played', 'net_to_par_avg', 'handicap_badge', 'hot_streak', 'cold_streak', 'eagles', 'birdies',
       'net_eagles', 'net_birdies', 'blow_up_hole', 'blow_up_gross', 'blow_up_par', 'blow_up_to_par',
-      'match_points_for', 'match_points_against', 'ntp_h8', 'ntp_h17', 'lopsided_nine'],
+      'match_points_for', 'match_points_against', 'ntp_h8', 'ntp_h17', 'lopsided_nine',
+      'net_par_or_better_count', 'net_to_par_std_dev',
+      'par3_holes_played', 'par3_avg_to_par', 'par3_avg_net_to_par',
+      'par4_holes_played', 'par4_avg_to_par', 'par4_avg_net_to_par',
+      'par5_holes_played', 'par5_avg_to_par', 'par5_avg_net_to_par',
+      'worst_win_hole', 'worst_win_gross', 'worst_win_par', 'worst_win_to_par', 'worst_win_opponent_gross',
+      'best_loss_hole', 'best_loss_gross', 'best_loss_par', 'best_loss_to_par', 'best_loss_opponent_gross',
+      'nailbiter_count', 'biggest_comeback', 'fast_start_avg_net_to_par', 'closer_avg_net_to_par'],
     playerReportCardRows(state, PLAYERS, COURSES)
   );
   const matchesCsv = toCsv(
     ['match_number', 'team_a', 'player_a', 'team_b', 'player_b', 'front9_result', 'back9_result', 'points_a', 'points_b', 'lopsided'],
     matchResultRows(state, PLAYERS, COURSES)
   );
+  const cards = Scoring.day1PlayerReportCardsFor(state, PLAYERS, COURSES);
+  const superlativesCsv = toCsv(
+    ['stat', 'player_name', 'value', 'hole', 'gross', 'par', 'to_par', 'opponent_name', 'opponent_gross'],
+    superlativeRows(cards)
+  );
 
   await writeFile(path.join(STATS_DIR, 'day1-hole-difficulty.csv'), holeCsv);
   await writeFile(path.join(STATS_DIR, 'day1-player-report-cards.csv'), cardsCsv);
   await writeFile(path.join(STATS_DIR, 'day1-match-results.csv'), matchesCsv);
+  await writeFile(path.join(STATS_DIR, 'day1-superlatives.csv'), superlativesCsv);
   await writeFile(path.join(STATS_DIR, 'README.md'), README_CONTENT);
 
-  console.log(`Replayed ${rowCount} rows. Wrote day1-hole-difficulty.csv, day1-player-report-cards.csv, day1-match-results.csv, and README.md to stats/.`);
+  console.log(`Replayed ${rowCount} rows. Wrote day1-hole-difficulty.csv, day1-player-report-cards.csv, day1-match-results.csv, day1-superlatives.csv, and README.md to stats/.`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

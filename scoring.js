@@ -805,13 +805,146 @@
     return worst;
   }
 
+  // Count of holes where this player's NET score is par or better (net
+  // par/birdie/eagle) -- "most net pars-or-better" leaderboard fodder.
+  function day1NetParOrBetterCountFor(myHoles, myStrokes, courseHoles) {
+    let count = 0;
+    for (let i = 0; i < 18; i++) {
+      if (myHoles[i] === null || myHoles[i] === undefined) continue;
+      if ((myHoles[i] - myStrokes[i] - courseHoles[i].par) <= 0) count += 1;
+    }
+    return count;
+  }
+
+  // Gross- and net-to-par averages broken down by hole par (3/4/5) --
+  // always all three keys present (0/null when unplayed) so callers/CSV
+  // columns don't have to guess which par values showed up.
+  function day1ParTypeStatsFor(myHoles, myStrokes, courseHoles) {
+    const buckets = { 3: { toParSum: 0, netToParSum: 0, count: 0 }, 4: { toParSum: 0, netToParSum: 0, count: 0 }, 5: { toParSum: 0, netToParSum: 0, count: 0 } };
+    for (let i = 0; i < 18; i++) {
+      if (myHoles[i] === null || myHoles[i] === undefined) continue;
+      const par = courseHoles[i].par;
+      const bucket = buckets[par];
+      if (!bucket) continue; // an unusual (non 3/4/5) par -- silently excluded, nothing to bucket it into
+      bucket.toParSum += (myHoles[i] - par);
+      bucket.netToParSum += (myHoles[i] - myStrokes[i] - par);
+      bucket.count += 1;
+    }
+    const out = {};
+    Object.keys(buckets).forEach((par) => {
+      const b = buckets[par];
+      out[par] = {
+        holesPlayed: b.count,
+        avgToPar: b.count > 0 ? b.toParSum / b.count : null,
+        avgNetToPar: b.count > 0 ? b.netToParSum / b.count : null
+      };
+    });
+    return out;
+  }
+
+  // Population standard deviation of per-hole net-to-par -- how bunched
+  // together (consistent) vs. spread out (streaky) a round was. Requires
+  // at least 2 holes to mean anything; a single data point has no real
+  // "spread" to report, so this returns null rather than a trivial 0.
+  function day1NetToParStdDevFor(myHoles, myStrokes, courseHoles) {
+    const values = [];
+    for (let i = 0; i < 18; i++) {
+      if (myHoles[i] === null || myHoles[i] === undefined) continue;
+      values.push(myHoles[i] - myStrokes[i] - courseHoles[i].par);
+    }
+    if (values.length < 2) return null;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance = values.reduce((sum, v) => sum + (v - mean) * (v - mean), 0) / values.length;
+    return Math.sqrt(variance);
+  }
+
+  // Average net-to-par over a hole-index range [startIdx, endIdx) --
+  // shared by the "fast starter" (holes 1-3) and "closer" (holes 16-18)
+  // fun stats below, but generic over any range. null if no holes in
+  // that range have been played yet.
+  function day1RangeAvgNetToParFor(myHoles, myStrokes, courseHoles, startIdx, endIdx) {
+    let sum = 0, count = 0;
+    for (let i = startIdx; i < endIdx; i++) {
+      if (myHoles[i] === null || myHoles[i] === undefined) continue;
+      sum += (myHoles[i] - myStrokes[i] - courseHoles[i].par);
+      count += 1;
+    }
+    return count > 0 ? sum / count : null;
+  }
+
+  // Count of holes decided by the closest possible net margin (exactly 1
+  // stroke) -- symmetric between the two players on a given hole, so
+  // this doesn't need a `side` argument the way the win/loss-oriented
+  // helpers above do.
+  function day1NailbiterCountFor(holesA, strokesA, holesB, strokesB) {
+    let count = 0;
+    for (let i = 0; i < 18; i++) {
+      if (holesA[i] === null || holesA[i] === undefined || holesB[i] === null || holesB[i] === undefined) continue;
+      const netA = holesA[i] - strokesA[i], netB = holesB[i] - strokesB[i];
+      if (Math.abs(netA - netB) === 1) count += 1;
+    }
+    return count;
+  }
+
+  // The worst hole (by GROSS score-to-par, not net -- "what a way to win
+  // that" is about the raw number of strokes taken) this side won, and
+  // the best hole this side lost, each with the opponent's gross score
+  // on that same hole for context. Both null if this side never won (or
+  // never lost) a hole. Ties keep the earliest hole, same as
+  // day1BlowUpHoleFor().
+  function day1WinLossExtremesFor(holesA, strokesA, holesB, strokesB, courseHoles, side) {
+    let worstWin = null, bestLoss = null;
+    for (let i = 0; i < 18; i++) {
+      const result = holeResult(holesA[i], holesB[i], strokesA[i], strokesB[i]);
+      if (result === null || result === 'T') continue;
+      const myGross = side === 'A' ? holesA[i] : holesB[i];
+      const oppGross = side === 'A' ? holesB[i] : holesA[i];
+      const par = courseHoles[i].par;
+      const toPar = myGross - par;
+      if (result === side) {
+        if (worstWin === null || toPar > worstWin.toPar) worstWin = { hole: i + 1, gross: myGross, par, toPar, opponentGross: oppGross };
+      } else {
+        if (bestLoss === null || toPar < bestLoss.toPar) bestLoss = { hole: i + 1, gross: myGross, par, toPar, opponentGross: oppGross };
+      }
+    }
+    return { worstWin, bestLoss };
+  }
+
+  // Biggest deficit (in holes) this side was ever down by, within a nine
+  // it went on to at least halve -- 0 if never behind, or if every nine
+  // it was ever behind in, it ultimately lost (recovering to a mere
+  // halve still counts; losing after being briefly ahead does not, since
+  // that's not a comeback). Tracked front9/back9 independently, same
+  // "resets at the turn" precedent as matchWormFor()/day1StreaksFor().
+  function day1BiggestComebackFor(holesA, strokesA, holesB, strokesB, side) {
+    function nineComeback(start) {
+      let cum = 0, minCum = 0;
+      const results = [];
+      for (let i = start; i < start + 9; i++) {
+        const result = holeResult(holesA[i], holesB[i], strokesA[i], strokesB[i]);
+        results.push(result);
+        if (result === null) continue;
+        if (result === side) cum += 1;
+        else if (result !== 'T') cum -= 1;
+        if (cum < minCum) minCum = cum;
+      }
+      const status = nineStatus(results);
+      const recovered = status.decided && (status.leader === side || status.leader === null);
+      return recovered ? -minCum : 0;
+    }
+    return Math.max(nineComeback(0), nineComeback(9));
+  }
+
   // One row per player per assigned Day 1 match (both sides of every
   // match with two players in it) -- holes won/lost/halved, holes
   // actually played, average net-to-par, hot/cold streaks, gross/net
-  // birdie counts, the round's single worst hole ("blow-up"), the
-  // match's point split, NTP claims, and whether either nine of their
-  // match was lopsided for or against them. Everything here is a pure
-  // read of state/players/courses, same shared-with-index.html shape as
+  // birdie counts, the round's single worst hole ("blow-up"), par-type
+  // (3/4/5) breakdown, net-pars-or-better count, scoring consistency
+  // (std dev), fast-starter/closer splits, nailbiter count, biggest
+  // comeback, the worst hole won / best hole lost, the match's point
+  // split, NTP claims, and whether either nine of their match was
+  // lopsided for or against them. Everything here is a pure read of
+  // state/players/courses, same shared-with-index.html shape as
   // computeSeasonTotals().
   function day1PlayerReportCardsFor(state, players, courses) {
     const day1SI = day1StrokeIndexesFor(courses);
@@ -860,6 +993,7 @@
         const netToParAvg = netHolesPlayed > 0 ? netSum / netHolesPlayed : null;
         const streaks = day1StreaksFor(match.holesA, strokes.a, match.holesB, strokes.b, side);
         const birdieCounts = day1BirdieCountsFor(myHoles, myStrokes, courseHoles);
+        const winLossExtremes = day1WinLossExtremesFor(match.holesA, strokes.a, match.holesB, strokes.b, courseHoles, side);
         cards.push({
           id, name: player.name, short: player.short, team: teamOfSets(id, state.teamA, state.teamB),
           matchIdx, opponentId: oppId, opponentName: opponent ? opponent.name : null,
@@ -872,11 +1006,73 @@
           eagles: birdieCounts.eagles, birdies: birdieCounts.birdies,
           netEagles: birdieCounts.netEagles, netBirdies: birdieCounts.netBirdies,
           blowUpHole: day1BlowUpHoleFor(myHoles, courseHoles),
-          lopsidedNine: lopsidedNine ? (myPts > oppPts ? 'won' : myPts < oppPts ? 'lost' : 'split') : null
+          lopsidedNine: lopsidedNine ? (myPts > oppPts ? 'won' : myPts < oppPts ? 'lost' : 'split') : null,
+          netParOrBetterCount: day1NetParOrBetterCountFor(myHoles, myStrokes, courseHoles),
+          netToParStdDev: day1NetToParStdDevFor(myHoles, myStrokes, courseHoles),
+          parTypeStats: day1ParTypeStatsFor(myHoles, myStrokes, courseHoles),
+          worstWinHole: winLossExtremes.worstWin,
+          bestLossHole: winLossExtremes.bestLoss,
+          nailbiterCount: day1NailbiterCountFor(match.holesA, strokes.a, match.holesB, strokes.b),
+          biggestComeback: day1BiggestComebackFor(match.holesA, strokes.a, match.holesB, strokes.b, side),
+          fastStartAvgNetToPar: day1RangeAvgNetToParFor(myHoles, myStrokes, courseHoles, 0, 3),
+          closerAvgNetToPar: day1RangeAvgNetToParFor(myHoles, myStrokes, courseHoles, 15, 18)
         });
       });
     });
     return cards;
+  }
+
+  // Reduces a day1PlayerReportCardsFor() array down to one leaderboard
+  // ("who holds this superlative") per stat -- ties keep whichever card
+  // comes first in the input array (match order, side A before side B),
+  // same tie-break precedent as the earliest-hole rule in
+  // day1BlowUpHoleFor()/day1WinLossExtremesFor(). A stat with no
+  // qualifying player at all (e.g. nobody's ever lost a hole yet) is
+  // null, not a false winner.
+  function day1BestCard(cards, keyFn, higherIsBetter) {
+    let best = null, bestVal = null;
+    cards.forEach((c) => {
+      const v = keyFn(c);
+      if (v === null || v === undefined) return;
+      if (best === null || (higherIsBetter ? v > bestVal : v < bestVal)) { best = c; bestVal = v; }
+    });
+    return best === null ? null : { playerId: best.id, name: best.name, short: best.short, value: bestVal };
+  }
+
+  function day1WinLossExtremeLeader(cards, field, higherIsBetter) {
+    let best = null;
+    cards.forEach((c) => {
+      const hole = c[field];
+      if (!hole) return;
+      if (best === null || (higherIsBetter ? hole.toPar > best.hole.toPar : hole.toPar < best.hole.toPar)) {
+        best = { card: c, hole };
+      }
+    });
+    if (best === null) return null;
+    return {
+      playerId: best.card.id, name: best.card.name, short: best.card.short,
+      opponentName: best.card.opponentName,
+      hole: best.hole.hole, gross: best.hole.gross, par: best.hole.par, toPar: best.hole.toPar,
+      opponentGross: best.hole.opponentGross
+    };
+  }
+
+  function day1Superlatives(cards) {
+    return {
+      mostNetParsOrBetter: day1BestCard(cards, c => c.netParOrBetterCount, true),
+      mostConsistentNetScorer: day1BestCard(cards, c => c.netToParStdDev, false),
+      leastConsistentNetScorer: day1BestCard(cards, c => c.netToParStdDev, true),
+      worstScoreToWinHole: day1WinLossExtremeLeader(cards, 'worstWinHole', true),
+      bestScoreToLoseHole: day1WinLossExtremeLeader(cards, 'bestLossHole', false),
+      bestPar3Player: day1BestCard(cards, c => c.parTypeStats[3].avgNetToPar, false),
+      bestPar4Player: day1BestCard(cards, c => c.parTypeStats[4].avgNetToPar, false),
+      bestPar5Player: day1BestCard(cards, c => c.parTypeStats[5].avgNetToPar, false),
+      serialPeacemaker: day1BestCard(cards, c => c.holesHalved, true),
+      nailbiterKing: day1BestCard(cards, c => c.nailbiterCount, true),
+      comebackKing: day1BestCard(cards, c => c.biggestComeback, true),
+      fastStarter: day1BestCard(cards, c => c.fastStartAvgNetToPar, false),
+      closer: day1BestCard(cards, c => c.closerAvgNetToPar, false)
+    };
   }
 
   function day2CourseHolesFor(courses) {
@@ -2138,9 +2334,11 @@
     resolveOverallWinner,
     day1StrokeIndexesFor, day1CourseHolesFor, matchStrokesForPlayers, effectiveMatchFor,
     matchWormFor, day1SeatKind, day1SeatsCompatible,
-    day1HoleDifficultyFor, day1PlayerReportCardsFor,
+    day1HoleDifficultyFor, day1PlayerReportCardsFor, day1Superlatives,
     DAY1_LOPSIDED_LEAD, isLopsidedNine, HANDICAP_BADGE_THRESHOLD, handicapPerformanceBadge,
     day1StreaksFor, day1BirdieCountsFor, day1BlowUpHoleFor,
+    day1NetParOrBetterCountFor, day1ParTypeStatsFor, day1NetToParStdDevFor,
+    day1RangeAvgNetToParFor, day1NailbiterCountFor, day1WinLossExtremesFor, day1BiggestComebackFor,
     teamOfSets, ntpPointsFor, scoreToParSymbol,
     REACTION_EMOJI, holeScoreReaction, stablefordTotalReaction,
     TEAM_EMOJI,

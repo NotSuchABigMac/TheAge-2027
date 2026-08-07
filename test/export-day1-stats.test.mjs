@@ -13,8 +13,8 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { normalizeState } = require('../scoring.js');
-const { toCsv, holeDifficultyRows, playerReportCardRows, matchResultRows } = await import('../scripts/export-day1-stats.mjs');
+const { normalizeState, day1PlayerReportCardsFor } = require('../scoring.js');
+const { toCsv, holeDifficultyRows, playerReportCardRows, matchResultRows, superlativeRows } = await import('../scripts/export-day1-stats.mjs');
 
 const SI_ASCENDING = Array.from({ length: 18 }, (_, i) => i + 1);
 const COURSES_FIXTURE = { 1: { holes: SI_ASCENDING.map((si) => ({ si, par: 4 })) } };
@@ -127,4 +127,52 @@ test('matchResultRows: reports front9/back9 results, points, team names, and the
   assert.equal(row.points_a, 1);
   assert.equal(row.points_b, 0);
   assert.equal(row.lopsided, true);
+});
+
+/* ── superlativeRows ── */
+
+test('superlativeRows: "simple" stats populate player_name/value and leave the hole-specific columns blank; "hole" stats do the reverse', () => {
+  const state = baseState();
+  state.teamA = new Set([0]);
+  state.teamB = new Set([1]);
+  const match = state.day1.matches[0];
+  match.pA = [0]; match.pB = [1];
+  // Alice sweeps every hole (extreme 1-vs-15 margin) -- gives every
+  // "simple" leaderboard a real, non-null winner (Alice), and gives both
+  // hole-specific stats real data too (Alice's worst-win, Bob's best-loss).
+  match.holesA = Array(18).fill(1);
+  match.holesB = Array(18).fill(15);
+  const players = [{ id: 0, hcp: '10.0', name: 'Alice Alpha', short: 'A. Alpha' }, { id: 1, hcp: '10.0', name: 'Bob Beta', short: 'B. Beta' }];
+
+  const cards = day1PlayerReportCardsFor(state, players, COURSES_FIXTURE);
+  const rows = superlativeRows(cards);
+  const byStat = Object.fromEntries(rows.map((r) => [r.stat, r]));
+
+  const simple = byStat.most_net_pars_or_better;
+  assert.equal(simple.player_name, 'Alice Alpha');
+  assert.equal(typeof simple.value, 'number');
+  assert.equal(simple.hole, '');
+  assert.equal(simple.opponent_name, '');
+
+  const hole = byStat.worst_score_to_win_hole;
+  assert.equal(hole.player_name, 'Alice Alpha');
+  assert.equal(hole.value, '');
+  assert.equal(hole.hole, 1);
+  assert.equal(hole.gross, 1);
+  assert.equal(hole.par, 4);
+  assert.equal(hole.opponent_name, 'Bob Beta');
+  assert.equal(hole.opponent_gross, 15);
+});
+
+test('superlativeRows: a stat with no qualifying player anywhere still produces a row, all fields blank', () => {
+  const state = baseState(); // no matches assigned at all
+  const players = [];
+  const cards = day1PlayerReportCardsFor(state, players, COURSES_FIXTURE);
+  assert.equal(cards.length, 0);
+  const rows = superlativeRows(cards);
+  const byStat = Object.fromEntries(rows.map((r) => [r.stat, r]));
+  assert.equal(byStat.most_net_pars_or_better.player_name, '');
+  assert.equal(byStat.worst_score_to_win_hole.player_name, '');
+  // All 13 leaderboards are represented even when none have a winner.
+  assert.equal(rows.length, 13);
 });

@@ -62,6 +62,14 @@ one Day 1 match has exactly one row).
 | `match_points_for` / `match_points_against` | This player's side's point split for the whole match (0-2 each, halves possible) |
 | `ntp_h8` / `ntp_h17` | `true`/`false` -- did this player hold the Day 1 nearest-the-pin claim on that hole at export time |
 | `lopsided_nine` | `won`/`lost`/`split`/blank -- did either nine of this match finish 5-up-or-more (see `DAY1_LOPSIDED_LEAD` in scoring.js)? `split` means one nine was lopsided for this player and the other against |
+| `net_par_or_better_count` | Holes where this player's NET score was par or better (net par/birdie/eagle) |
+| `net_to_par_std_dev` | Population standard deviation of net-to-par across every hole played -- lower = more consistent round. Blank with fewer than 2 holes played (a single point has no real "spread") |
+| `par3_holes_played` / `par3_avg_to_par` / `par3_avg_net_to_par` | Same, repeated for `par4_*` and `par5_*` -- gross- and net-to-par averages broken down by hole par. All three par buckets always present; blank averages mean that bucket has no holes played yet |
+| `worst_win_hole` / `worst_win_gross` / `worst_win_par` / `worst_win_to_par` / `worst_win_opponent_gross` | The worst hole (by **gross** score-to-par) this player won on NET, with the opponent's gross score on that same hole for context -- "what a way to win that". Blank if this player never won a hole |
+| `best_loss_hole` / `best_loss_gross` / `best_loss_par` / `best_loss_to_par` / `best_loss_opponent_gross` | The best hole (by gross score-to-par) this player still lost on NET. Blank if this player never lost a hole |
+| `nailbiter_count` | Holes decided by exactly 1 net stroke -- the closest possible margin short of a halve |
+| `biggest_comeback` | Largest deficit (in holes) this player was ever down by within a nine they went on to at least halve. 0 if never behind, or if every nine they were ever behind in they ultimately lost outright |
+| `fast_start_avg_net_to_par` / `closer_avg_net_to_par` | Average net-to-par over holes 1-3 and holes 16-18 respectively -- how this player started vs. finished. Blank if that range isn't played yet |
 
 ### `day1-match-results.csv`
 
@@ -74,3 +82,24 @@ One row per Day 1 match that has both players assigned (the box score).
 | `front9_result` / `back9_result` | `A`, `B`, `T` (halved), or blank if that nine isn't decided yet |
 | `points_a` / `points_b` | Points each side actually won from this match (0-2 each) |
 | `lopsided` | `true` if either nine finished 5-up-or-more |
+
+### `day1-superlatives.csv`
+
+One row per leaderboard stat -- "who currently holds this record" --
+reduced from `day1-player-report-cards.csv` via `day1Superlatives()`.
+This is the same data tv.html's Stat Board renders live in the browser,
+archived here as a snapshot. Ties keep whichever player's row comes
+first in the report-cards file (match order, side A before side B).
+
+| Column | Meaning |
+|---|---|
+| `stat` | Which leaderboard: `most_net_pars_or_better`, `most_consistent_net_scorer`, `least_consistent_net_scorer`, `worst_score_to_win_hole`, `best_score_to_lose_hole`, `best_par3_player`, `best_par4_player`, `best_par5_player`, `serial_peacemaker` (most holes halved), `nailbiter_king` (most 1-net-stroke holes), `comeback_king` (biggest deficit overcome), `fast_starter`, `closer` |
+| `player_name` | Who holds it. Blank if nobody qualifies yet (e.g. nobody's lost a hole yet) |
+| `value` | The stat's number, for stats that are a single count/average (e.g. net-par count, std dev, par-type average) |
+| `hole` / `gross` / `par` / `to_par` / `opponent_name` / `opponent_gross` | Only populated for the two hole-specific stats (`worst_score_to_win_hole`/`best_score_to_lose_hole`) |
+
+**Not included here**: tv.html's Stat Board also shows a hand-curated
+joke award ("Most Kangaroos Scared") with no `tournament_updates` data
+behind it at all -- it lives only in tv.html's `FUN_AWARDS` constant,
+deliberately kept out of this file so a real computed-data export never
+mixes in a fabricated entry.

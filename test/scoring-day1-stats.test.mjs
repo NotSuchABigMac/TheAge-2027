@@ -1,23 +1,31 @@
 /* Unit tests for the Day 1 stats-export glue in scoring.js
-   (day1HoleDifficultyFor, day1PlayerReportCardsFor, isLopsidedNine,
-   handicapPerformanceBadge, day1StreaksFor, day1BirdieCountsFor,
-   day1BlowUpHoleFor) -- built for scripts/export-day1-stats.mjs to turn
-   into CSVs, not (yet) wired into any page UI. Parameterized the same
-   way computeSeasonTotals() is (state/players/courses in, nothing read
-   from a global). */
+   (day1HoleDifficultyFor, day1PlayerReportCardsFor, day1Superlatives,
+   isLopsidedNine, handicapPerformanceBadge, day1StreaksFor,
+   day1BirdieCountsFor, day1BlowUpHoleFor, day1NetParOrBetterCountFor,
+   day1ParTypeStatsFor, day1NetToParStdDevFor, day1RangeAvgNetToParFor,
+   day1NailbiterCountFor, day1WinLossExtremesFor, day1BiggestComebackFor)
+   -- built for scripts/export-day1-stats.mjs and tv.html's Stat Board to
+   share, not (yet) wired into scorecard-live.html's own UI. Parameterized
+   the same way computeSeasonTotals() is (state/players/courses in,
+   nothing read from a global). */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const {
-  day1HoleDifficultyFor, day1PlayerReportCardsFor,
+  day1HoleDifficultyFor, day1PlayerReportCardsFor, day1Superlatives,
   isLopsidedNine, handicapPerformanceBadge,
   day1StreaksFor, day1BirdieCountsFor, day1BlowUpHoleFor,
+  day1NetParOrBetterCountFor, day1ParTypeStatsFor, day1NetToParStdDevFor,
+  day1RangeAvgNetToParFor, day1NailbiterCountFor, day1WinLossExtremesFor, day1BiggestComebackFor,
   nineStatus, matchStrokes
 } = require('../scoring.js');
 
 const SI_ASCENDING = Array.from({ length: 18 }, (_, i) => i + 1);
+// Holes 1-6 par 3, 7-12 par 4, 13-18 par 5 -- deterministic buckets of 6
+// each so par-type tests can craft predictable per-bucket numbers.
+const MIXED_PAR_HOLES = Array.from({ length: 18 }, (_, i) => ({ si: i + 1, par: i < 6 ? 3 : i < 12 ? 4 : 5 }));
 const COURSES_FIXTURE = {
   1: { holes: SI_ASCENDING.map((si) => ({ si, par: 4 })) }
 };
@@ -199,4 +207,195 @@ test('day1PlayerReportCardsFor: produces one row per side of an assigned match, 
   assert.equal(cardB.coldStreak, 9);
   assert.equal(cardB.lopsidedNine, 'lost');
   assert.deepEqual(cardB.blowUpHole, { hole: 1, gross: 5, par: 4, toPar: 1 }); // B's worst (and only) hole score: +1
+});
+
+/* ── day1NetParOrBetterCountFor ── */
+
+test('day1NetParOrBetterCountFor: counts net par/birdie/eagle holes, ignoring net-bogey-or-worse and unplayed holes', () => {
+  const courseHoles = Array(18).fill({ par: 4 });
+  const strokes = Array(18).fill(0);
+  const myHoles = [4, 3, 2, 5, 6, ...Array(13).fill(null)]; // par, birdie, eagle (all net-par-or-better), then 2 net-bogey-or-worse
+  assert.equal(day1NetParOrBetterCountFor(myHoles, strokes, courseHoles), 3);
+});
+
+test('day1NetParOrBetterCountFor: a received stroke can turn a net-bogey hole into a net par, counted', () => {
+  const courseHoles = Array(18).fill({ par: 4 });
+  const myHoles = [5, ...Array(17).fill(null)]; // gross bogey
+  const strokes = [1, ...Array(17).fill(0)]; // 1 stroke -> net par
+  assert.equal(day1NetParOrBetterCountFor(myHoles, strokes, courseHoles), 1);
+});
+
+/* ── day1ParTypeStatsFor ── */
+
+test('day1ParTypeStatsFor: buckets by par (3/4/5), averages only within each bucket, and reports a zero-sample bucket as null averages', () => {
+  const strokes = Array(18).fill(0);
+  // Par-3 holes (indices 0-5): only hole 1 played, gross birdie (par-1).
+  // Par-4 holes (6-11): only hole 7 played, gross par.
+  // Par-5 holes (12-17): nothing played.
+  const myHoles = [2, null, null, null, null, null, 4, ...Array(11).fill(null)];
+  const got = day1ParTypeStatsFor(myHoles, strokes, MIXED_PAR_HOLES);
+  assert.equal(got['3'].holesPlayed, 1);
+  assert.equal(got['3'].avgToPar, -1);
+  assert.equal(got['3'].avgNetToPar, -1);
+  assert.equal(got['4'].holesPlayed, 1);
+  assert.equal(got['4'].avgToPar, 0);
+  assert.equal(got['5'].holesPlayed, 0);
+  assert.equal(got['5'].avgToPar, null);
+  assert.equal(got['5'].avgNetToPar, null);
+});
+
+test('day1ParTypeStatsFor: averages correctly across multiple holes in the same bucket, net accounting for strokes received', () => {
+  const strokes = [0, 1, ...Array(16).fill(0)]; // hole 2 (par 3) gets 1 stroke
+  const myHoles = [4, 5, ...Array(16).fill(null)]; // par-3 holes 1&2: gross bogey both (+1 each), net: hole1 +1, hole2 (5-1-3)=+1
+  const got = day1ParTypeStatsFor(myHoles, strokes, MIXED_PAR_HOLES);
+  assert.equal(got['3'].holesPlayed, 2);
+  assert.equal(got['3'].avgToPar, 1.5); // (1+2)/2 gross-to-par -- hole1 gross 4 (+1), hole2 gross 5 (+2)
+  assert.equal(got['3'].avgNetToPar, 1); // (1+1)/2 net-to-par
+});
+
+/* ── day1NetToParStdDevFor ── */
+
+test('day1NetToParStdDevFor: null with fewer than 2 holes played (a single point has no meaningful spread)', () => {
+  const courseHoles = Array(18).fill({ par: 4 });
+  const strokes = Array(18).fill(0);
+  assert.equal(day1NetToParStdDevFor(Array(18).fill(null), strokes, courseHoles), null);
+  assert.equal(day1NetToParStdDevFor([4, ...Array(17).fill(null)], strokes, courseHoles), null);
+});
+
+test('day1NetToParStdDevFor: 0 for a perfectly consistent (identical net-to-par every hole) round', () => {
+  const courseHoles = Array(18).fill({ par: 4 });
+  const strokes = Array(18).fill(0);
+  assert.equal(day1NetToParStdDevFor(Array(18).fill(5), strokes, courseHoles), 0); // net bogey every hole
+});
+
+test('day1NetToParStdDevFor: matches a hand-computed population std dev for a simple two-value spread', () => {
+  const courseHoles = Array(18).fill({ par: 4 });
+  const strokes = Array(18).fill(0);
+  // net-to-par values: -1, +1 -- mean 0, variance ((1)+(1))/2 = 1, std dev 1.
+  const got = day1NetToParStdDevFor([3, 5, ...Array(16).fill(null)], strokes, courseHoles);
+  assert.equal(got, 1);
+});
+
+/* ── day1RangeAvgNetToParFor ── */
+
+test('day1RangeAvgNetToParFor: averages only within [startIdx, endIdx), null if nothing in range is played', () => {
+  const courseHoles = Array(18).fill({ par: 4 });
+  const strokes = Array(18).fill(0);
+  const myHoles = [3, 3, 3, 9, 9, 9, ...Array(12).fill(null)]; // holes 1-3 birdies, 4-6 disasters
+  assert.equal(day1RangeAvgNetToParFor(myHoles, strokes, courseHoles, 0, 3), -1); // fast-start range
+  assert.equal(day1RangeAvgNetToParFor(myHoles, strokes, courseHoles, 15, 18), null); // closer range, unplayed
+});
+
+/* ── day1NailbiterCountFor ── */
+
+test('day1NailbiterCountFor: counts only holes decided by exactly 1 net stroke, not halves or bigger margins', () => {
+  const strokesA = Array(18).fill(0), strokesB = Array(18).fill(0);
+  // hole1: 4v5 -> margin 1 (nailbiter). hole2: 4v4 -> halved, not a nailbiter.
+  // hole3: 3v5 -> margin 2, not a nailbiter. hole4: one side unplayed -> skipped.
+  const holesA = [4, 4, 3, 4, ...Array(14).fill(null)];
+  const holesB = [5, 4, 5, null, ...Array(14).fill(null)];
+  assert.equal(day1NailbiterCountFor(holesA, strokesA, holesB, strokesB), 1);
+});
+
+test('day1NailbiterCountFor: a stroke received can turn an equal-gross tie into a 1-net-stroke nailbiter', () => {
+  const strokesA = [1, ...Array(17).fill(0)], strokesB = Array(18).fill(0);
+  // Equal gross scores (5 and 5) would be a halve on gross alone, but A's
+  // 1 stroke received makes it net 4 vs net 5 -- decided by exactly 1.
+  const holesA = [5, ...Array(17).fill(null)];
+  const holesB = [5, ...Array(17).fill(null)];
+  assert.equal(day1NailbiterCountFor(holesA, strokesA, holesB, strokesB), 1);
+});
+
+/* ── day1WinLossExtremesFor ── */
+
+test('day1WinLossExtremesFor: finds the worst (highest gross-to-par) hole side A won and the best (lowest) it lost, with opponent context', () => {
+  const strokes = Array(18).fill(0);
+  const holesA = [7, 3, 6, ...Array(15).fill(null)]; // hole1: A wins with a blow-up (7 vs par4); hole2: A wins clean; hole3: A loses with a good score
+  const holesB = [9, 5, 4, ...Array(15).fill(null)];
+  const courseHoles = Array(18).fill({ par: 4 });
+  const { worstWin, bestLoss } = day1WinLossExtremesFor(holesA, strokes, holesB, strokes, courseHoles, 'A');
+  assert.deepEqual(worstWin, { hole: 1, gross: 7, par: 4, toPar: 3, opponentGross: 9 });
+  assert.deepEqual(bestLoss, { hole: 3, gross: 6, par: 4, toPar: 2, opponentGross: 4 });
+});
+
+test('day1WinLossExtremesFor: both null when this side has neither won nor lost a hole yet', () => {
+  const strokes = Array(18).fill(0);
+  const holes = Array(18).fill(null);
+  const courseHoles = Array(18).fill({ par: 4 });
+  const { worstWin, bestLoss } = day1WinLossExtremesFor(holes, strokes, holes, strokes, courseHoles, 'A');
+  assert.equal(worstWin, null);
+  assert.equal(bestLoss, null);
+});
+
+test('day1WinLossExtremesFor: ties keep the earliest hole', () => {
+  const strokes = Array(18).fill(0);
+  const holesA = [6, 6, ...Array(16).fill(null)]; // A wins both, same margin (+2 over par each)
+  const holesB = [8, 8, ...Array(16).fill(null)];
+  const courseHoles = Array(18).fill({ par: 4 });
+  const { worstWin } = day1WinLossExtremesFor(holesA, strokes, holesB, strokes, courseHoles, 'A');
+  assert.equal(worstWin.hole, 1);
+});
+
+/* ── day1BiggestComebackFor ── */
+
+test('day1BiggestComebackFor: credits a comeback only when the side recovers to at least a halve', () => {
+  const strokes = Array(18).fill(0);
+  // Front 9: B wins holes 1-3 (A down 3), then A wins holes 4-9 (A ends up +3 -> wins the nine).
+  const holesA = [5, 5, 5, 3, 3, 3, 3, 3, 3, ...Array(9).fill(null)];
+  const holesB = [3, 3, 3, 5, 5, 5, 5, 5, 5, ...Array(9).fill(null)];
+  assert.equal(day1BiggestComebackFor(holesA, strokes, holesB, strokes, 'A'), 3);
+});
+
+test('day1BiggestComebackFor: 0 when the side was down but never recovered past a loss', () => {
+  const strokes = Array(18).fill(0);
+  // A is down the whole front 9 (B wins holes 1-4, rest halved) -- A loses the nine outright.
+  const holesA = [5, 5, 5, 5, 4, 4, 4, 4, 4, ...Array(9).fill(null)];
+  const holesB = [3, 3, 3, 3, 4, 4, 4, 4, 4, ...Array(9).fill(null)];
+  assert.equal(day1BiggestComebackFor(holesA, strokes, holesB, strokes, 'A'), 0);
+});
+
+test('day1BiggestComebackFor: 0 when the side was never behind at all (nothing to come back from)', () => {
+  const strokes = Array(18).fill(0);
+  const holesA = [3, 3, 3, ...Array(15).fill(null)]; // A wins every hole played, never down
+  const holesB = [5, 5, 5, ...Array(15).fill(null)];
+  assert.equal(day1BiggestComebackFor(holesA, strokes, holesB, strokes, 'A'), 0);
+});
+
+/* ── day1Superlatives (integration over a small synthetic cards array) ── */
+
+test('day1Superlatives: picks the max/min holder per stat and ties keep the earlier card in the array', () => {
+  const cards = [
+    { id: 0, name: 'Alice', short: 'Alice', netParOrBetterCount: 5, netToParStdDev: 1.0, worstWinHole: { hole: 3, gross: 7, par: 4, toPar: 3, opponentGross: 8 }, bestLossHole: null, parTypeStats: { 3: { avgNetToPar: 1 }, 4: { avgNetToPar: 0.5 }, 5: { avgNetToPar: null } }, holesHalved: 2, nailbiterCount: 3, biggestComeback: 1, fastStartAvgNetToPar: 0, closerAvgNetToPar: -1, opponentName: 'Bob' },
+    { id: 1, name: 'Bob', short: 'Bob', netParOrBetterCount: 5, netToParStdDev: 1.0, worstWinHole: null, bestLossHole: { hole: 5, gross: 4, par: 5, toPar: -1, opponentGross: 3 }, parTypeStats: { 3: { avgNetToPar: 0.5 }, 4: { avgNetToPar: 1 }, 5: { avgNetToPar: 0 } }, holesHalved: 4, nailbiterCount: 5, biggestComeback: 3, fastStartAvgNetToPar: 1, closerAvgNetToPar: 0, opponentName: 'Alice' }
+  ];
+  const got = day1Superlatives(cards);
+  // netParOrBetterCount tied 5-5 -> Alice (first in array) wins.
+  assert.equal(got.mostNetParsOrBetter.playerId, 0);
+  // netToParStdDev tied 1.0-1.0 for both "most" and "least" -> Alice both times.
+  assert.equal(got.mostConsistentNetScorer.playerId, 0);
+  assert.equal(got.leastConsistentNetScorer.playerId, 0);
+  // Only Alice has a worstWinHole, only Bob has a bestLossHole.
+  assert.equal(got.worstScoreToWinHole.playerId, 0);
+  assert.equal(got.worstScoreToWinHole.hole, 3);
+  assert.equal(got.bestScoreToLoseHole.playerId, 1);
+  assert.equal(got.bestScoreToLoseHole.hole, 5);
+  // Par-type bests: lower avgNetToPar wins each bucket.
+  assert.equal(got.bestPar3Player.playerId, 1); // Bob 0.5 < Alice 1
+  assert.equal(got.bestPar4Player.playerId, 0); // Alice 0.5 < Bob 1
+  assert.equal(got.bestPar5Player.playerId, 1); // Bob's the only one with data
+  assert.equal(got.serialPeacemaker.playerId, 1); // Bob 4 halved > Alice 2
+  assert.equal(got.nailbiterKing.playerId, 1); // Bob 5 > Alice 3
+  assert.equal(got.comebackKing.playerId, 1); // Bob 3 > Alice 1
+  assert.equal(got.fastStarter.playerId, 0); // Alice 0 < Bob 1
+  assert.equal(got.closer.playerId, 0); // Alice -1 < Bob 0
+});
+
+test('day1Superlatives: a stat with no qualifying card anywhere is null, not a false winner', () => {
+  const cards = [{ id: 0, name: 'Alice', short: 'Alice', netParOrBetterCount: 0, netToParStdDev: null, worstWinHole: null, bestLossHole: null, parTypeStats: { 3: { avgNetToPar: null }, 4: { avgNetToPar: null }, 5: { avgNetToPar: null } }, holesHalved: 0, nailbiterCount: 0, biggestComeback: 0, fastStartAvgNetToPar: null, closerAvgNetToPar: null }];
+  const got = day1Superlatives(cards);
+  assert.equal(got.mostConsistentNetScorer, null);
+  assert.equal(got.worstScoreToWinHole, null);
+  assert.equal(got.bestScoreToLoseHole, null);
+  assert.equal(got.bestPar3Player, null);
+  assert.equal(got.fastStarter, null);
 });

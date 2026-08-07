@@ -283,6 +283,65 @@ body.tv-page {
   font-size: clamp(.82rem, 1.4vw, 1rem);
   color: var(--ink-mute);
 }
+/* Stat Board (issue: Day 1 stats "wow" factor) -- a continuously
+   auto-scrolling ticker of the day1Superlatives()/day1PlayerReportCardsFor()
+   leaderboards, backend data computed fresh from live state (see
+   scoring.js), plus a hand-curated joke award with no data behind it at
+   all. The DOM list is duplicated once (renderStatsTrack() below) and
+   the CSS animation scrolls exactly half its height, so the loop point
+   is invisible -- a plain single-copy scroll would jump/reset visibly. */
+.tv-stats-viewport {
+  height: 100%;
+  overflow: hidden;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.tv-stats-track {
+  display: flex;
+  flex-direction: column;
+  animation: tv-stats-scroll var(--tv-stats-duration, 30s) linear infinite;
+}
+@keyframes tv-stats-scroll {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-stats-track { animation: none; }
+  .tv-stats-viewport { overflow-y: auto; }
+}
+.tv-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+}
+.tv-stat-row:first-child { border-top: none; }
+.tv-stat-emoji {
+  flex: 0 0 auto;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  line-height: 1;
+}
+.tv-stat-body { flex: 1 1 0; min-width: 0; }
+.tv-stat-label {
+  font-family: var(--mono);
+  font-size: clamp(.68rem, 1.2vw, .82rem);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+.tv-stat-name {
+  font-family: var(--display);
+  font-size: clamp(1.05rem, 2.2vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.tv-stat-detail {
+  font-size: clamp(.78rem, 1.4vw, .95rem);
+  color: var(--ink-mute);
+}
+
 .tv-trophy {
   max-width: 700px;
   margin: 4vh auto 0;
@@ -356,6 +415,10 @@ body.tv-page {
     <div class="tv-screen-title">Nearest the Pin</div>
     <div id="ntp-board"><div class="tv-empty">Loading&hellip;</div></div>
   </section>
+  <section class="tv-screen" id="screen-stats">
+    <div class="tv-screen-title">Stat Board</div>
+    <div class="tv-stats-viewport"><div class="tv-stats-track" id="stats-track"></div></div>
+  </section>
 </main>
 
 <div class="tv-dots" id="tv-dots" aria-hidden="true"></div>
@@ -363,6 +426,7 @@ body.tv-page {
   <button type="button" class="tv-tab" data-screen="screen-cup"><span class="tv-tab-lock-icon" aria-hidden="true">&#128274; </span>The Cup</button>
   <button type="button" class="tv-tab" data-screen="screen-live"><span class="tv-tab-lock-icon" aria-hidden="true">&#128274; </span>Live</button>
   <button type="button" class="tv-tab" data-screen="screen-ntp"><span class="tv-tab-lock-icon" aria-hidden="true">&#128274; </span>NTP</button>
+  <button type="button" class="tv-tab" data-screen="screen-stats"><span class="tv-tab-lock-icon" aria-hidden="true">&#128274; </span>Stats</button>
 </nav>
 <div class="tv-wire" id="tv-wire"><span class="tv-wire-text" id="tv-wire-text"></span></div>
 <footer class="tv-foot">The Wonga Cup &middot; Fourth Edition &middot; 2026</footer>
@@ -387,6 +451,7 @@ body.tv-page {
   const liveTitleEl = document.getElementById('live-title');
   const liveBoardEl = document.getElementById('live-board');
   const ntpBoardEl = document.getElementById('ntp-board');
+  const statsTrackEl = document.getElementById('stats-track');
   const dotsEl = document.getElementById('tv-dots');
   const tabsEl = document.getElementById('tv-tabs');
   const wireEl = document.getElementById('tv-wire');
@@ -401,7 +466,8 @@ body.tv-page {
     day2CourseHolesFor, day2GroupHandicapFor, groupStrokes, scrambleNetToParThru, scrambleRoundComplete,
     day3PointsThruFor,
     parseScoreToPar,
-    teamOfSets, computeStableford, escapeHtml
+    teamOfSets, computeStableford, escapeHtml,
+    day1PlayerReportCardsFor, day1Superlatives, day1HoleDifficultyFor
   } = WongaScoring;
   const { COURSES, NTP_HOLES } = WongaCourses;
   const { PLAYERS } = WongaPlayers;
@@ -745,6 +811,86 @@ body.tv-page {
     }).join('');
   }
 
+  // ── SCREEN 4: STAT BOARD -- Day 1 superlatives, computed fresh from
+  // live state via day1PlayerReportCardsFor()/day1Superlatives()
+  // (scoring.js), plus one hand-curated joke award with no data behind
+  // it at all (see FUN_AWARDS below). Day 1 only for now -- Day 2/3
+  // equivalents are future work (see stats/README.md), same scope note
+  // as the CSV export this shares its scoring.js functions with.
+  function fmtNet(n) {
+    if (n === null || n === undefined) return '—';
+    if (Math.abs(n) < 0.05) return 'E';
+    const rounded = n.toFixed(1);
+    return n > 0 ? `+${rounded}` : rounded;
+  }
+
+  // No tournament_updates field for this and never will be -- a purely
+  // decorative, manually-curated award. Kept as data (not inlined into
+  // the render function) so adding another one later is a one-line edit.
+  const FUN_AWARDS = [
+    { emoji: '🦘', label: 'Most Kangaroos Scared', name: 'R. Hughes', detail: '1' }
+  ];
+
+  function buildStatEntries(state, players) {
+    const cards = day1PlayerReportCardsFor(state, players, COURSES);
+    const s = day1Superlatives(cards);
+    const holeDiff = day1HoleDifficultyFor(state.day1.matches, players, COURSES).filter(h => h.sampleSize > 0);
+    const hardestHole = holeDiff.length ? holeDiff.reduce((a, b) => (b.avgNetToPar > a.avgNetToPar ? b : a)) : null;
+    const easiestHole = holeDiff.length ? holeDiff.reduce((a, b) => (b.avgNetToPar < a.avgNetToPar ? b : a)) : null;
+
+    const entries = [];
+    function add(emoji, label, holder, detail) {
+      if (!holder) return; // no qualifying player yet -- skip rather than show a blank row
+      entries.push({ emoji, label, name: holder.short, detail });
+    }
+
+    add('🎯', 'Most Net Pars-or-Better', s.mostNetParsOrBetter, s.mostNetParsOrBetter && `${s.mostNetParsOrBetter.value} holes`);
+    add('🧊', 'Most Consistent Net Scorer', s.mostConsistentNetScorer, s.mostConsistentNetScorer && `σ ${s.mostConsistentNetScorer.value.toFixed(2)}`);
+    add('🎢', 'Least Consistent Net Scorer', s.leastConsistentNetScorer, s.leastConsistentNetScorer && `σ ${s.leastConsistentNetScorer.value.toFixed(2)}`);
+    add('😅', 'Worst Score to Win a Hole', s.worstScoreToWinHole, s.worstScoreToWinHole && `${s.worstScoreToWinHole.gross} on hole ${s.worstScoreToWinHole.hole} (par ${s.worstScoreToWinHole.par}) vs ${escapeHtml(s.worstScoreToWinHole.opponentName)}`);
+    add('💔', 'Best Score to Lose a Hole', s.bestScoreToLoseHole, s.bestScoreToLoseHole && `${s.bestScoreToLoseHole.gross} on hole ${s.bestScoreToLoseHole.hole} (par ${s.bestScoreToLoseHole.par}) vs ${escapeHtml(s.bestScoreToLoseHole.opponentName)}`);
+    add('⛳', 'Best Par 3 Player', s.bestPar3Player, s.bestPar3Player && `${fmtNet(s.bestPar3Player.value)} avg`);
+    add('🏌️', 'Best Par 4 Player', s.bestPar4Player, s.bestPar4Player && `${fmtNet(s.bestPar4Player.value)} avg`);
+    add('🚀', 'Best Par 5 Player', s.bestPar5Player, s.bestPar5Player && `${fmtNet(s.bestPar5Player.value)} avg`);
+    add('🕊️', 'Serial Peacemaker', s.serialPeacemaker, s.serialPeacemaker && `${s.serialPeacemaker.value} holes halved`);
+    add('😬', 'Nailbiter King', s.nailbiterKing, s.nailbiterKing && `${s.nailbiterKing.value} holes decided by 1`);
+    add('🔥', 'Comeback King', s.comebackKing, s.comebackKing && `${s.comebackKing.value}-hole deficit overcome`);
+    add('🏃', 'Fast Starter', s.fastStarter, s.fastStarter && `${fmtNet(s.fastStarter.value)} avg, holes 1-3`);
+    add('🏁', 'Closer', s.closer, s.closer && `${fmtNet(s.closer.value)} avg, holes 16-18`);
+    if (hardestHole) entries.push({ emoji: '😱', label: 'Hardest Hole', name: `Hole ${hardestHole.hole}`, detail: `${fmtNet(hardestHole.avgNetToPar)} avg net-to-par` });
+    if (easiestHole) entries.push({ emoji: '😌', label: 'Easiest Hole', name: `Hole ${easiestHole.hole}`, detail: `${fmtNet(easiestHole.avgNetToPar)} avg net-to-par` });
+    FUN_AWARDS.forEach((a) => entries.push(a));
+    return entries;
+  }
+
+  function statRowHtml(e) {
+    return `<div class="tv-stat-row">
+      <span class="tv-stat-emoji" aria-hidden="true">${e.emoji}</span>
+      <span class="tv-stat-body">
+        <span class="tv-stat-label">${escapeHtml(e.label)}</span>
+        <span class="tv-stat-name">${escapeHtml(e.name)}</span>
+        <span class="tv-stat-detail">${escapeHtml(e.detail || '')}</span>
+      </span>
+    </div>`;
+  }
+
+  // Duplicated once so the CSS animation can scroll exactly 50% of the
+  // track's height and land back on an identical copy -- the loop point
+  // is then invisible instead of visibly jumping back to the top.
+  function renderStats(state, players) {
+    const entries = buildStatEntries(state, players);
+    if (!entries.length) {
+      statsTrackEl.innerHTML = '<div class="tv-empty">No Day 1 results yet</div>';
+      statsTrackEl.style.removeProperty('--tv-stats-duration');
+      return;
+    }
+    const rowsHtml = entries.map(statRowHtml).join('');
+    statsTrackEl.innerHTML = rowsHtml + rowsHtml;
+    // ~3.2s of dwell time per entry felt readable at a TV's typical
+    // viewing distance without dragging.
+    statsTrackEl.style.setProperty('--tv-stats-duration', `${entries.length * 3.2}s`);
+  }
+
   // ── WONGA WIRE TICKER -- ambient "what just happened" strip, same
   // event classification as scorecard-live.html's Wonga Wire (issue
   // #186) but shown as a single cycling line rather than a scrollable
@@ -785,6 +931,7 @@ body.tv-page {
     renderCup(totals, state);
     renderLive(totals, state, players);
     renderNtp(state);
+    renderStats(state, players);
     setWireFeed(wire);
   }
 
@@ -804,7 +951,7 @@ body.tv-page {
   // All three screens are always kept up to date by refresh() above,
   // whether or not they're the one currently visible, so rotating into
   // one never shows stale data from several polls ago.
-  const SCREEN_IDS = ['screen-cup', 'screen-live', 'screen-ntp'];
+  const SCREEN_IDS = ['screen-cup', 'screen-live', 'screen-ntp', 'screen-stats'];
   // Starts at 0 -- screen-cup is already the one marked active in the
   // static markup, so the first tick must advance past it, not
   // re-select it (an off-by-one that would otherwise sit on the Cup
@@ -868,6 +1015,7 @@ body.tv-page {
         cupBoardEl.innerHTML = '<div class="tv-empty">Unable to load the scoreboard</div>';
         liveBoardEl.innerHTML = '<div class="tv-day"><div class="tv-empty">Unable to load the scoreboard</div></div>';
         ntpBoardEl.innerHTML = '<div class="tv-empty">Unable to load the scoreboard</div>';
+        statsTrackEl.innerHTML = '<div class="tv-empty">Unable to load the scoreboard</div>';
       }
     }
     finally { setTimeout(tick, 30000); }
