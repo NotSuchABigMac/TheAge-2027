@@ -1,28 +1,36 @@
 /* ─────────────────────────────────────
    REGRESSION TEST — "Day 1 Wrap" newspaper-style recap modal.
 
-   The Day 1 tab now shows a "📰 Read the Day 1 Wrap" button once every
-   ASSIGNED match has both nines decided (updateDay1RecapTrigger() /
+   A floating corner icon (#day1-recap-fab, 📰) appears once every
+   ASSIGNED Day 1 match has both nines decided (updateDay1RecapTrigger() /
    isDay1RecapReady()) -- deliberately looser than isDay1Complete() (which
    the win-banner/tiebreak flow uses and requires literally all 6 match
    slots filled): against the real live tournament data, only 5 of 6
    slots were ever assigned, and gating on strict completeness would have
-   kept the button hidden forever. Opening it (openDay1RecapModal())
-   rebuilds a newspaper-styled recap -- headline, byline, prose, and a box
-   score table -- straight from live `state` via computeDay1Recap()/
-   renderDay1RecapModal(), the same effectiveMatch()/matchStrokesFor()/
-   nineStatusLabel() chain the Day 1 tab itself already renders from.
+   kept the icon hidden forever. The modal never auto-opens; the icon
+   shakes on a loop (mobile-game-nudge style, .shaking class driving
+   @keyframes day1-fab-shake) until it's been opened once, persisted via
+   DAY1_RECAP_SEEN_KEY so the nag stops for good, not just this load.
+   Opening it (openDay1RecapModal()) rebuilds a newspaper-styled recap --
+   headline, byline, prose, and a box score table -- straight from live
+   `state` via computeDay1Recap()/renderDay1RecapModal(), the same
+   effectiveMatch()/matchStrokesFor()/nineStatusLabel() chain the Day 1
+   tab itself already renders from. Opening/closing is a CSS
+   transform/opacity transition (folding the card out/away) rather than a
+   hard display:none swap.
 
    Drives the real scorecard-live.html in demo mode, assigns Day 1 matches
    with full 18-hole results (one team sweeps 2-0, three others halve
    1-1) plus both NTP holes, while leaving one match slot completely
    unassigned throughout (mirroring the real tournament), and checks: the
-   trigger stays hidden while an assigned match is still undecided,
-   appears once every assigned match is finished (even with the one empty
-   slot still empty), and the opened modal's headline/byline/box-score
-   reflect the actual scores (not stale/hardcoded text) using the CURRENT
-   team names -- renamed mid-test to confirm the recap re-reads
-   state.teamNameA/B rather than capturing them once.
+   icon stays hidden while an assigned match is still undecided, appears
+   and shakes once every assigned match is finished (even with the one
+   empty slot still empty), the fold-out/fold-away transition actually
+   animates the card's opacity, the opened modal's headline/byline/box-
+   score reflect the actual scores (not stale/hardcoded text) using the
+   CURRENT team names -- renamed mid-test to confirm the recap re-reads
+   state.teamNameA/B rather than capturing them once -- and that the icon
+   stops shaking for good once opened, surviving a fresh page load.
 
    Self-contained: a tiny static file server for the app; Supabase and
    Google Fonts hosts blocked outright (demo mode + direct state mutation
@@ -108,10 +116,15 @@ async function main() {
     await page.waitForTimeout(1000);
     await page.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
 
-    // Two Day 1 matches: Match 1 is a clean 2-0 sweep (both nines to the
-    // same side), Match 2 halves 1-1 (one nine each). Both NTP holes set.
+    // The icon must never appear/shake on a plain fresh load -- no
+    // auto-open, no auto-nag, before any Day 1 result exists.
+    const fabHiddenOnLoad = await page.locator('#day1-recap-fab').isHidden();
+    if (!fabHiddenOnLoad) fail('expected the Day 1 Wrap icon to stay hidden on a fresh load with no results yet');
+    const modalHiddenOnLoad = await page.locator('#day1-recap-modal').evaluate(el => el.classList.contains('hidden'));
+    if (!modalHiddenOnLoad) fail('expected the Day 1 Wrap modal to never auto-open');
+
     // Match 1's back 9 is deliberately left unplayed here -- an assigned
-    // match that isn't finished yet must keep the trigger hidden, exactly
+    // match that isn't finished yet must keep the icon hidden, exactly
     // as before.
     await page.evaluate(() => {
       const fridayIds = PLAYERS.filter(p => p.friday).map(p => p.id);
@@ -142,17 +155,17 @@ async function main() {
     });
     await page.waitForTimeout(50);
 
-    const hiddenBefore = await page.locator('#day1-recap-trigger').isHidden();
-    if (!hiddenBefore) fail('expected the Day 1 Wrap trigger to stay hidden while match 2\'s back 9 is still unplayed');
+    const hiddenBefore = await page.locator('#day1-recap-fab').isHidden();
+    if (!hiddenBefore) fail('expected the Day 1 Wrap icon to stay hidden while match 2\'s back 9 is still unplayed');
 
     // Finish match 2's back 9 (-> halved 1-1), then fill matches 3-5 too
     // -- but deliberately leave match 6 with NO players assigned at all,
     // mirroring the real tournament (only 5 of 6 slots ever got used).
-    // The trigger must still appear: an empty, never-assigned slot isn't
-    // a match still being played, so it can't hold the recap hostage
+    // The icon must still appear: an empty, never-assigned slot isn't a
+    // match still being played, so it can't hold the recap hostage
     // forever (this is the exact bug this feature hit against the real
     // live snapshot -- isDay1Complete() requiring literally all 6 slots
-    // would have kept the button hidden permanently).
+    // would have kept the icon hidden permanently).
     await page.evaluate(() => {
       const m1 = state.day1.matches[1];
       for (let i = 9; i < 18; i++) { m1.holesA[i] = 15; m1.holesB[i] = 1; }
@@ -173,8 +186,19 @@ async function main() {
     });
     await page.waitForTimeout(50);
 
-    const visibleAfter = await page.locator('#day1-recap-trigger').isVisible();
-    if (!visibleAfter) fail('expected the Day 1 Wrap trigger to appear once every ASSIGNED match is decided, even with match 6 left permanently unassigned');
+    const visibleAfter = await page.locator('#day1-recap-fab').isVisible();
+    if (!visibleAfter) fail('expected the Day 1 Wrap icon to appear once every ASSIGNED match is decided, even with match 6 left permanently unassigned');
+
+    // The icon should be actively shaking to nag for attention (loops via
+    // day1RecapShakeTimer) -- give the first burst a moment to land.
+    await page.waitForTimeout(150);
+    const shakingBeforeOpen = await page.locator('#day1-recap-fab').evaluate(el => el.classList.contains('shaking'));
+    if (!shakingBeforeOpen) fail('expected the Day 1 Wrap icon to be shaking before it has ever been opened');
+
+    // The modal must still be in its folded-away (hidden) state with the
+    // card actually invisible, not just present-but-covered.
+    const cardOpacityHidden = await page.locator('.day1-recap-card').evaluate(el => getComputedStyle(el).opacity);
+    if (Number(cardOpacityHidden) > 0.05) fail(`expected the folded-away card to be effectively invisible (opacity ~0), got ${cardOpacityHidden}`);
 
     // Rename teams mid-test, after all the state above was set up under
     // the defaults -- proves the recap re-reads state.teamNameA/B live
@@ -184,11 +208,20 @@ async function main() {
       state.teamNameB = 'Vermin';
     });
 
-    await page.locator('#day1-recap-trigger').click();
-    await page.waitForTimeout(50);
+    await page.locator('#day1-recap-fab').click();
+    // Let the fold-out transition actually finish before reading state.
+    await page.waitForTimeout(450);
 
     const modalHidden = await page.locator('#day1-recap-modal').evaluate(el => el.classList.contains('hidden'));
-    if (modalHidden) fail('expected the Day 1 Wrap modal to be visible after clicking the trigger');
+    if (modalHidden) fail('expected the Day 1 Wrap modal to be visible after clicking the icon');
+    const cardOpacityOpen = await page.locator('.day1-recap-card').evaluate(el => getComputedStyle(el).opacity);
+    if (Number(cardOpacityOpen) < 0.95) fail(`expected the folded-out card to be fully visible (opacity ~1), got ${cardOpacityOpen}`);
+
+    // Opening it stops the nag for good.
+    const shakingAfterOpen = await page.locator('#day1-recap-fab').evaluate(el => el.classList.contains('shaking'));
+    if (shakingAfterOpen) fail('expected opening the Day 1 Wrap to stop the icon shaking');
+    const seenFlag = await page.evaluate(() => localStorage.getItem('demo_wongaCup2026_day1RecapSeen'));
+    if (seenFlag !== '1') fail(`expected the "seen" flag to be persisted to localStorage once opened, got ${seenFlag}`);
 
     const headline = (await page.locator('#gazette-headline').textContent()).trim();
     const byline = (await page.locator('#gazette-byline').textContent()).trim();
@@ -206,17 +239,41 @@ async function main() {
     if (!/1–1/.test(boxscore)) fail(`expected the box score to show a halved match's 1-1 points, got "${boxscore}"`);
 
     await page.locator('.day1-recap-close').click();
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(350);
     const modalHiddenAfterClose = await page.locator('#day1-recap-modal').evaluate(el => el.classList.contains('hidden'));
-    if (!modalHiddenAfterClose) fail('expected the close button to hide the modal again');
+    if (!modalHiddenAfterClose) fail('expected the close button to fold the modal away again');
+    const cardOpacityAfterClose = await page.locator('.day1-recap-card').evaluate(el => getComputedStyle(el).opacity);
+    if (Number(cardOpacityAfterClose) > 0.05) fail(`expected the fold-away transition to leave the card invisible, got ${cardOpacityAfterClose}`);
 
     // "Fold It Up" closes it too (the second, on-theme close affordance).
-    await page.locator('#day1-recap-trigger').click();
+    await page.locator('#day1-recap-fab').click();
     await page.waitForTimeout(50);
     await page.locator('.day1-recap-foldup').click();
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(350);
     const modalHiddenAfterFoldUp = await page.locator('#day1-recap-modal').evaluate(el => el.classList.contains('hidden'));
-    if (!modalHiddenAfterFoldUp) fail('expected "Fold It Up" to hide the modal again');
+    if (!modalHiddenAfterFoldUp) fail('expected "Fold It Up" to fold the modal away again');
+
+    // The nag must stay off across a fresh load too (persisted, not just
+    // an in-memory flag for this page instance).
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
+    await page.evaluate(() => {
+      const fridayIds = PLAYERS.filter(p => p.friday).map(p => p.id);
+      const [p0, p1] = fridayIds;
+      state.teamA = new Set([p0]);
+      state.teamB = new Set([p1]);
+      const m0 = state.day1.matches[0];
+      m0.pA = [p0, null]; m0.pB = [p1, null];
+      for (let i = 0; i < 18; i++) { m0.holesA[i] = 1; m0.holesB[i] = 15; }
+      renderDay1();
+      updateScoreboard();
+    });
+    await page.waitForTimeout(200);
+    const fabVisibleAfterReload = await page.locator('#day1-recap-fab').isVisible();
+    if (!fabVisibleAfterReload) fail('expected the icon to still show after reload once its assigned match is decided');
+    const shakingAfterReload = await page.locator('#day1-recap-fab').evaluate(el => el.classList.contains('shaking'));
+    if (shakingAfterReload) fail('expected the "seen" flag to survive a reload and keep the icon from shaking again');
 
     console.log('All Day 1 Wrap newspaper-recap assertions passed.');
   } catch (e) {

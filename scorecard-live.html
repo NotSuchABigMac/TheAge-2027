@@ -676,15 +676,31 @@ body{padding-top:58px;padding-bottom:52px}
 .help-modal-close:hover{background:var(--gold-light)}
 
 /* ── DAY 1 WRAP (newspaper-style recap) ──
-   Trigger button lives inline in the Day 1 tab (shown only once every
-   match is decided -- see updateDay1RecapTrigger()); the modal itself
-   follows the same fixed-overlay/.hidden convention as .help-modal
-   above, just with its own "gazette" look instead of the gold card. */
-.day1-recap-trigger{display:block;margin:0 0 20px;width:100%;padding:14px 20px;font-family:var(--font-h);font-size:.85rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0b1a0d;border:none;border-radius:var(--r);cursor:pointer;transition:var(--tr)}
-.day1-recap-trigger:hover{background:var(--gold-light)}
-.day1-recap-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);padding:24px}
-.day1-recap-modal.hidden{display:none}
-.day1-recap-card{position:relative;background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:20px 20px 16px;max-width:720px;width:100%;max-height:calc(100vh - 48px);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+   Never auto-opens -- a floating corner icon (.day1-recap-fab, shown only
+   once every match is decided, see updateDay1RecapTrigger()) shakes on a
+   loop to nag for attention, mobile-game-nudge style, until it's been
+   opened once (persisted like HELP_SEEN_KEY below); after that it just
+   sits there as a quiet way back in. The modal itself keeps the .hidden
+   toggle every other modal here uses (so setupModalA11y's class-watching
+   keeps working unchanged), but drives it with an opacity/transform
+   transition instead of a hard display:none swap, so opening/closing
+   folds the card out/away instead of popping. */
+.day1-recap-fab{position:fixed;right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;border:2px solid var(--gold);background:var(--canvas);color:var(--ink);font-size:1.4rem;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9990;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:var(--tr)}
+.day1-recap-fab:hover{background:var(--gold);transform:scale(1.06)}
+.day1-recap-fab.shaking{animation:day1-fab-shake 0.62s ease-in-out}
+@keyframes day1-fab-shake{
+  0%,100%{transform:rotate(0) scale(1)}
+  15%{transform:rotate(-14deg) scale(1.05)}
+  30%{transform:rotate(11deg) scale(1.05)}
+  45%{transform:rotate(-9deg) scale(1.03)}
+  60%{transform:rotate(7deg) scale(1.03)}
+  75%{transform:rotate(-4deg) scale(1.01)}
+  90%{transform:rotate(2deg) scale(1.01)}
+}
+.day1-recap-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);padding:24px;perspective:1400px;opacity:1;visibility:visible;transition:opacity .22s ease,visibility 0s linear 0s}
+.day1-recap-modal.hidden{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .2s}
+.day1-recap-card{position:relative;background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:20px 20px 16px;max-width:720px;width:100%;max-height:calc(100vh - 48px);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);transform-origin:50% 0%;transform:none;opacity:1;transition:transform .38s cubic-bezier(.2,1.4,.4,1),opacity .3s ease}
+.day1-recap-modal.hidden .day1-recap-card{transform:scaleY(.08) rotateX(-65deg);opacity:0;transition:transform .26s ease-in,opacity .2s ease-in}
 .day1-recap-close{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:50%;border:1px solid var(--rule-strong);background:var(--canvas);color:var(--ink-mute);font-size:.9rem;line-height:1;cursor:pointer;z-index:2;transition:var(--tr)}
 .day1-recap-close:hover{color:var(--ink);border-color:var(--ink)}
 .gazette{font-family:var(--body,var(--font-b));color:var(--ink);border:1px solid var(--rule-strong);padding:24px 24px 4px}
@@ -899,11 +915,12 @@ body{padding-top:58px;padding-bottom:52px}
   </div>
 </div>
 
-<!-- Day 1 Wrap -- a newspaper-style recap shown once every Day 1 match
-     has both nines decided (see updateDay1RecapTrigger()). Content is
-     rebuilt from live `state` every time it opens (renderDay1RecapModal()),
-     never baked in, so it stays correct through any later admin score
-     correction. -->
+<!-- Day 1 Wrap -- a newspaper-style recap of Day 1, opened from the
+     floating corner icon below once every assigned match is decided (see
+     isDay1RecapReady()/updateDay1RecapTrigger()). Never auto-opens.
+     Content is rebuilt from live `state` every time it opens
+     (renderDay1RecapModal()), never baked in, so it stays correct through
+     any later admin score correction. -->
 <div id="day1-recap-modal" class="day1-recap-modal hidden" role="dialog" aria-modal="true" aria-labelledby="day1-recap-headline">
   <div class="day1-recap-card">
     <button type="button" class="day1-recap-close" onclick="closeDay1RecapModal()" aria-label="Close">✕</button>
@@ -923,6 +940,11 @@ body{padding-top:58px;padding-bottom:52px}
     <button type="button" class="help-modal-close day1-recap-foldup" onclick="closeDay1RecapModal()">Fold It Up</button>
   </div>
 </div>
+
+<!-- Floating nudge icon for the Day 1 Wrap above -- hidden until
+     isDay1RecapReady(), then shakes on a loop (like a mobile game's
+     unopened-loot-box badge) until opened for the first time. -->
+<button type="button" id="day1-recap-fab" class="day1-recap-fab" style="display:none" onclick="openDay1RecapModal()" aria-label="Read the Day 1 Wrap">📰</button>
 
 <!-- Practice Mode banner (issue #208) -- always in normal document flow
      (never position:fixed, unlike the badges below), so it just needs
@@ -1020,7 +1042,6 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-label">Friday 7 August · Murray Course · 12:00pm</div>
         <div class="section-title">Singles Match Play</div>
       </div>
-      <button type="button" id="day1-recap-trigger" class="day1-recap-trigger" style="display:none" onclick="openDay1RecapModal()">📰 Read the Day 1 Wrap</button>
       <div id="day1-lockable">
         <div class="info-box">12 players play Friday (Cayden Woods &amp; Ben Lepore join Saturday) across 6 singles matches, 1v1. Assign Friday players to matches below. <strong>Scoring:</strong> each match is split into a front 9 and back 9 — tap the winning team for each half (1pt), or Tie if it's halved (0.5pt each). 12pts up for grabs across the matches, plus 2 Nearest-the-Pin bonus points below.</div>
         <div id="course-card-day1"></div>
@@ -2735,13 +2756,41 @@ function isDay1RecapReady() {
   });
 }
 
-// Shows the "Read the Day 1 Wrap" button once every assigned Day 1 match
+// Once opened, the floating icon stops nagging for good (not just this
+// tab session) -- same persisted-flag shape as HELP_SEEN_KEY below.
+const DAY1_RECAP_SEEN_KEY = KEY_PREFIX + 'wongaCup2026_day1RecapSeen';
+let day1RecapShakeTimer = null;
+
+function startDay1RecapShake(fab) {
+  if (day1RecapShakeTimer) return; // already looping
+  const shakeOnce = () => {
+    fab.classList.remove('shaking');
+    void fab.offsetWidth; // restart the CSS animation from its 0% keyframe
+    fab.classList.add('shaking');
+  };
+  shakeOnce();
+  day1RecapShakeTimer = setInterval(shakeOnce, 3200);
+}
+
+function stopDay1RecapShake(fab) {
+  if (day1RecapShakeTimer) { clearInterval(day1RecapShakeTimer); day1RecapShakeTimer = null; }
+  if (fab) fab.classList.remove('shaking');
+}
+
+// Shows the floating "Day 1 Wrap" icon once every assigned Day 1 match
 // has both nines decided -- a newspaper recap of a round still being
-// played would just be wrong, not merely premature.
+// played would just be wrong, not merely premature. Never auto-opens the
+// modal itself; this only ever controls whether the nudge icon is on
+// screen and shaking.
 function updateDay1RecapTrigger() {
-  const btn = document.getElementById('day1-recap-trigger');
-  if (!btn) return;
-  btn.style.display = isDay1RecapReady() ? '' : 'none';
+  const fab = document.getElementById('day1-recap-fab');
+  if (!fab) return;
+  const ready = isDay1RecapReady();
+  fab.style.display = ready ? '' : 'none';
+  let seen = false;
+  try { seen = localStorage.getItem(DAY1_RECAP_SEEN_KEY) === '1'; } catch (_) {}
+  if (ready && !seen) startDay1RecapShake(fab);
+  else stopDay1RecapShake(fab);
 }
 
 /* ─────────────────────────────────────
@@ -2880,6 +2929,8 @@ function renderDay1RecapModal() {
 function openDay1RecapModal() {
   renderDay1RecapModal();
   document.getElementById('day1-recap-modal').classList.remove('hidden');
+  try { localStorage.setItem(DAY1_RECAP_SEEN_KEY, '1'); } catch (_) {}
+  stopDay1RecapShake(document.getElementById('day1-recap-fab'));
 }
 function closeDay1RecapModal() {
   document.getElementById('day1-recap-modal').classList.add('hidden');
