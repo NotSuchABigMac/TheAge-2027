@@ -25,6 +25,11 @@
      aren't loaded here -- their shared default would fight this page's
      fixed dark mode. -->
 <style>
+/* Same fixed hex as scorecard-live.html's --team-a/--team-b (issue #186's
+   Wonga Wire and the match-card win borders there) -- kept in sync by eye
+   since this page has no build step to share the values from a single
+   source, but they're deliberately never theme-swapped on either page. */
+:root { --team-a: #f472b6; --team-b: #6ab8f7; }
 html, body { height: 100%; overflow: hidden; background: var(--canvas); }
 body.tv-page {
   display: flex;
@@ -91,6 +96,7 @@ body.tv-page {
 }
 @media (prefers-reduced-motion: reduce) {
   .tv-screen { transition: none; }
+  .tv-wire-text { transition: none; }
 }
 .tv-screen-title {
   max-width: 900px;
@@ -152,6 +158,21 @@ body.tv-page {
   min-width: 6em;
   text-align: center;
 }
+.tv-status-badge {
+  display: inline-block;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.tv-status-badge.tv-badge-a { color: var(--team-a); background: color-mix(in srgb, var(--team-a) 18%, transparent); }
+.tv-status-badge.tv-badge-b { color: var(--team-b); background: color-mix(in srgb, var(--team-b) 18%, transparent); }
+.tv-status-badge.tv-badge-neutral { color: var(--ink-mute); background: color-mix(in srgb, var(--ink-mute) 14%, transparent); }
+.tv-status-sub {
+  display: block;
+  font-size: .78em;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
 .tv-empty {
   color: var(--ink-mute);
   font-style: italic;
@@ -166,6 +187,37 @@ body.tv-page {
   font-size: clamp(1.1rem, 2.6vw, 1.9rem);
   color: var(--gold, var(--accent-2));
 }
+.tv-dots {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 6px;
+}
+.tv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rule-strong);
+  transition: background .3s ease, transform .3s ease;
+}
+.tv-dot.tv-dot-active { background: var(--accent-2); transform: scale(1.3); }
+.tv-wire {
+  flex: 0 0 auto;
+  padding: 6px 24px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: clamp(.72rem, 1.3vw, .9rem);
+  color: var(--ink);
+  border-top: 1px solid var(--rule);
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity .5s ease;
+}
+.tv-wire.tv-wire-visible { opacity: 1; max-height: 3em; padding: 6px 24px; }
+.tv-wire-text { transition: opacity .4s ease; }
+.tv-wire-text::before { content: "\25CF  "; color: var(--accent-2); }
 .tv-foot {
   flex: 0 0 auto;
   padding: 8px 24px;
@@ -175,6 +227,46 @@ body.tv-page {
   letter-spacing: 0.04em;
   color: var(--ink-mute);
   border-top: 1px solid var(--rule);
+}
+.tv-course-card {
+  max-width: 900px;
+  margin: 0 auto 14px;
+  padding: 0 24px;
+}
+.tv-course-photo {
+  height: clamp(90px, 16vh, 190px);
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--rule-strong);
+}
+.tv-course-name {
+  font-family: var(--display);
+  font-size: clamp(1.05rem, 2.2vw, 1.5rem);
+  font-weight: 600;
+  margin: 8px 0 2px;
+}
+.tv-course-format {
+  font-size: clamp(.82rem, 1.4vw, 1rem);
+  color: var(--ink-mute);
+}
+.tv-trophy {
+  max-width: 700px;
+  margin: 4vh auto 0;
+  padding: 0 24px;
+  text-align: center;
+}
+.tv-trophy-emoji { font-size: clamp(2.4rem, 7vw, 4.5rem); }
+.tv-trophy-winner {
+  font-family: var(--display);
+  font-size: clamp(1.6rem, 4.5vw, 3rem);
+  font-weight: 600;
+  margin: 6px 0;
+}
+.tv-trophy-score {
+  font-family: var(--mono);
+  font-size: clamp(1rem, 2vw, 1.3rem);
+  color: var(--ink-mute);
 }
 </style>
 </head>
@@ -206,6 +298,8 @@ body.tv-page {
   </section>
 </main>
 
+<div class="tv-dots" id="tv-dots" aria-hidden="true"></div>
+<div class="tv-wire" id="tv-wire"><span class="tv-wire-text" id="tv-wire-text"></span></div>
 <footer class="tv-foot">The Wonga Cup &middot; Fourth Edition &middot; 2026</footer>
 
 <script src="error-beacon.js?v=__CACHEBUST__"></script>
@@ -223,11 +317,14 @@ body.tv-page {
   const liveTitleEl = document.getElementById('live-title');
   const liveBoardEl = document.getElementById('live-board');
   const ntpBoardEl = document.getElementById('ntp-board');
+  const dotsEl = document.getElementById('tv-dots');
+  const wireEl = document.getElementById('tv-wire');
+  const wireTextEl = document.getElementById('tv-wire-text');
   if (typeof WongaScoring === 'undefined' || typeof WongaCourses === 'undefined' || typeof WongaPlayers === 'undefined') return;
 
   const {
     phaseFor, daysUntilDay1, defaultDay,
-    normalizeState, processUpdateRows, applyUpdateToState,
+    normalizeState, processUpdateRows, applyUpdateToState, describeEvent,
     computeSeasonTotals, resolveOverallWinner, playersWithOverrides,
     effectiveMatchFor, matchPoints, day1StrokeIndexesFor, matchStrokesForPlayers, holeResult,
     day2CourseHolesFor, day2GroupHandicapFor, groupStrokes, scrambleNetToParThru,
@@ -250,6 +347,14 @@ body.tv-page {
   const NTP_DAY_TITLES = { day1: 'Day 1 · Murray', day2: 'Day 2 · Black Bull', day3: 'Day 3' };
   const NTP_DAY_FIELDS = { day1: ['h8', 'h17'], day2: ['h4', 'h16'], day3: ['h7', 'h14'] };
   const NTP_DAY_COURSE = { day1: 1, day2: 2, day3: 3 };
+  // Same photos + format copy as index.html's course cards (#the-cup
+  // section), condensed to one line each -- kept in sync by eye, same as
+  // --team-a/--team-b above, since this page has no shared-partial system.
+  const DAY_COURSE_META = {
+    day1: { photo: 'images/course-murray.webp', name: 'The Murray Course', format: 'Singles Match Play · six 1v1 matches, front &amp; back 9 each worth 1pt' },
+    day2: { photo: 'images/course-black-bull.webp', name: 'Black Bull', format: 'Team Scramble · 4v4 &amp; 3v3 groups score the differential, best combined total wins a 5pt bonus' },
+    day3: { photo: 'images/course-lake.jpg', name: 'The Lake Course', format: 'Individual Net Stableford · 14 players, points by finishing position' }
+  };
 
   function fmt(n) {
     return n === Math.floor(n) ? n.toString() : n.toFixed(1);
@@ -284,11 +389,33 @@ body.tv-page {
     return rows;
   }
 
+  // Same describeEvent() classification scorecard-live.html's Wonga Wire
+  // (issue #186) uses, but rebuilt from scratch on every refresh() rather
+  // than kept incrementally -- this page already does a from-epoch replay
+  // every poll (see fetchAllRows()' comment), so there's no persistent
+  // "state so far" to update incrementally in the first place, and this
+  // is a read-only display, not the wire's own toast/notification system,
+  // so there's no own-echo or page-load filtering to do either.
+  const WIRE_FEED_MAX = 8;
   function replayState(rows) {
     const state = { teamNameA: 'Team A', teamNameB: 'Team B', teamA: new Set(), teamB: new Set() };
     normalizeState(state);
-    processUpdateRows(rows, (row) => applyUpdateToState(state, row));
-    return state;
+    const wire = [];
+    processUpdateRows(rows, (row) => {
+      let prevMatchSnapshot = null;
+      if (row.update_type === 'day1_hole' && typeof row.match_idx === 'number' && state.day1.matches[row.match_idx]) {
+        prevMatchSnapshot = JSON.parse(JSON.stringify(state.day1.matches[row.match_idx]));
+      }
+      applyUpdateToState(state, row);
+      const prevState = prevMatchSnapshot
+        ? { day1: { matches: { [row.match_idx]: prevMatchSnapshot } } }
+        : state;
+      const players = playersWithOverrides(PLAYERS, state.hcp);
+      const event = describeEvent(row, prevState, state, players, COURSES, { A: state.teamNameA, B: state.teamNameB });
+      if (event) wire.unshift({ ...event, at: row.updated_at });
+    });
+    if (wire.length > WIRE_FEED_MAX) wire.length = WIRE_FEED_MAX;
+    return { state, wire };
   }
 
   function renderStatus(totals, state) {
@@ -333,38 +460,52 @@ body.tv-page {
   // ── SCREEN 2: LIVE DAY -- whichever day is actually in play, with
   // thru-N detail per the issue's own spec, rather than just the final
   // points every other screen already shows.
-  function matchLiveLabel(match, players, si, course) {
+  // Structured progress for one Day 1 match -- `thru` is holes played
+  // across BOTH nines (not just the nine in progress), so the leaderboard
+  // below can sort every match, live or finished, on one consistent
+  // "how far through" number. `team` is the nine-in-progress leader ('A'/
+  // 'B'/null for all-square), used to color the status badge; a finished
+  // match colors on which side actually won that nine's point instead.
+  function matchProgress(match, players, si, course) {
     const eff = effectiveMatchFor(match, players, si, course);
-    if (eff.front9 !== null && eff.back9 !== null) return null; // fully decided -- nothing "live" to show
-    if (!Array.isArray(match.holesA) || !Array.isArray(match.holesB)) return null; // manual-only, no hole data to derive a live line from
+    const pts = matchPoints(eff);
+    if (eff.front9 !== null && eff.back9 !== null) {
+      const team = pts.a === pts.b ? null : (pts.a > pts.b ? 'A' : 'B');
+      return { thru: 18, team, label: team ? 'Won' : 'Halved', sub: `${fmt(pts.a)} – ${fmt(pts.b)}` };
+    }
+    if (!Array.isArray(match.holesA) || !Array.isArray(match.holesB)) {
+      return { thru: 0, team: null, label: '—', sub: '' }; // manual-only, no hole data to derive progress from
+    }
     const strokes = matchStrokesForPlayers(match, players, si, course);
-    const nine = eff.front9 === null ? { start: 0, label: 'Front 9' } : { start: 9, label: 'Back 9' };
-    const holesA = match.holesA.slice(nine.start, nine.start + 9);
-    const holesB = match.holesB.slice(nine.start, nine.start + 9);
-    if (!holesA.some(v => v !== null) && !holesB.some(v => v !== null)) return null; // that nine hasn't started
-    const strokesA = strokes.a.slice(nine.start, nine.start + 9);
-    const strokesB = strokes.b.slice(nine.start, nine.start + 9);
-    const results = holesA.map((g, i) => holeResult(g, holesB[i], strokesA[i], strokesB[i]));
+    const results = match.holesA.map((g, i) => holeResult(g, match.holesB[i], strokes.a[i], strokes.b[i]));
     const thru = results.filter(r => r !== null).length;
-    const wonA = results.filter(r => r === 'A').length;
-    const wonB = results.filter(r => r === 'B').length;
+    if (thru === 0) return { thru: 0, team: null, label: 'Not started', sub: '' };
+    const nine = eff.front9 === null ? { start: 0, label: 'Front 9' } : { start: 9, label: 'Back 9' };
+    const nineResults = results.slice(nine.start, nine.start + 9);
+    const nineThru = nineResults.filter(r => r !== null).length;
+    const wonA = nineResults.filter(r => r === 'A').length;
+    const wonB = nineResults.filter(r => r === 'B').length;
     const lead = Math.abs(wonA - wonB);
-    if (lead === 0) return `${nine.label}: AS thru ${thru}`;
-    const leaderName = wonA > wonB ? 'A' : 'B';
-    return `${nine.label}: ${leaderName} ${lead}UP thru ${thru}`;
+    const team = lead === 0 ? null : (wonA > wonB ? 'A' : 'B');
+    return { thru, team, label: lead === 0 ? 'A/S' : `${lead}UP`, sub: `${nine.label} thru ${nineThru}` };
   }
 
+  // Leaderboard, not match order: the pairs furthest into their round lead
+  // the list, ties broken by original draw order -- a spectator glancing
+  // at the TV wants to know who's closest to a result, not who happens to
+  // be match 1.
   function liveDay1Rows(state, players) {
     const si = day1StrokeIndexesFor(COURSES);
     return state.day1.matches
-      .filter(m => m.pA[0] !== null || m.pB[0] !== null)
-      .map(m => {
-        const eff = effectiveMatchFor(m, players, si, COURSES[1]);
-        const pts = matchPoints(eff);
-        const live = matchLiveLabel(m, players, si, COURSES[1]);
+      .map((m, idx) => ({ m, idx, prog: matchProgress(m, players, si, COURSES[1]) }))
+      .filter(({ m }) => m.pA[0] !== null || m.pB[0] !== null)
+      .sort((x, y) => y.prog.thru - x.prog.thru || x.idx - y.idx)
+      .map(({ m, prog }) => {
+        const badgeClass = prog.team === 'A' ? 'tv-badge-a' : prog.team === 'B' ? 'tv-badge-b' : 'tv-badge-neutral';
+        const sub = prog.sub ? `<span class="tv-status-sub">${escapeHtml(prog.sub)}</span>` : '';
         return `<div class="tv-row">
           <span class="side">${escapeHtml(playerName(m.pA[0]))}</span>
-          <span class="mid">${live || `${fmt(pts.a)} – ${fmt(pts.b)}`}</span>
+          <span class="mid"><span class="tv-status-badge ${badgeClass}">${escapeHtml(prog.label)}</span>${sub}</span>
           <span class="side right">${escapeHtml(playerName(m.pB[0]))}</span>
         </div>`;
       }).join('');
@@ -447,20 +588,60 @@ body.tv-page {
     </section>`;
   }
 
+  function courseCardHtml(dayKey) {
+    const meta = DAY_COURSE_META[dayKey];
+    return `<div class="tv-course-card">
+      <div class="tv-course-photo" style="background-image:url('${meta.photo}')"></div>
+      <div class="tv-course-name">${DAY_LABELS[dayKey]} &middot; ${meta.name}</div>
+      <div class="tv-course-format">${meta.format}</div>
+    </div>`;
+  }
+
+  function trophyHtml(totals, state, result) {
+    if (result.winner === null) {
+      return `<div class="tv-trophy">
+        <div class="tv-trophy-emoji">🤝</div>
+        <div class="tv-trophy-winner">All square</div>
+        <div class="tv-trophy-score">${fmt(totals.totalA)} – ${fmt(totals.totalB)} &middot; tiebreak pending</div>
+      </div>`;
+    }
+    const winnerName = result.winner === 'A' ? state.teamNameA : state.teamNameB;
+    return `<div class="tv-trophy">
+      <div class="tv-trophy-emoji">🏆</div>
+      <div class="tv-trophy-winner">${escapeHtml(winnerName)}</div>
+      <div class="tv-trophy-score">${fmt(totals.totalA)} – ${fmt(totals.totalB)}</div>
+    </div>`;
+  }
+
+  // Phase-adaptive: the Live slot has nothing to rotate *into* before Day
+  // 1 or after the Cup is decided (defaultDay() is null in both cases --
+  // see phaseFor()'s own "live iff defaultDay isn't null" contract), so
+  // rather than the old static "No round in play right now" filler, it
+  // shows the upcoming format (countdown) or the final result (final)
+  // instead -- always something worth a 15s dwell.
   function renderLive(totals, state, players) {
-    const day = defaultDay(new Date());
-    if (!day) {
-      liveTitleEl.textContent = 'Live';
-      liveBoardEl.innerHTML = '<div class="tv-day"><div class="tv-empty">No round in play right now</div></div>';
+    const now = new Date();
+    const phase = phaseFor(now);
+    if (phase === 'countdown') {
+      liveTitleEl.textContent = 'The Format';
+      liveBoardEl.innerHTML = ['day1', 'day2', 'day3'].map(courseCardHtml).join('');
       return;
     }
+    if (phase === 'final') {
+      liveTitleEl.textContent = 'The Result';
+      const result = resolveOverallWinner(totals.totalA, totals.totalB, state.tiebreak);
+      liveBoardEl.innerHTML = trophyHtml(totals, state, result);
+      return;
+    }
+    const day = defaultDay(now);
     liveTitleEl.textContent = `${DAY_LABELS[day]} · Live`;
+    const card = courseCardHtml(day);
     if (day === 'day1') {
-      liveBoardEl.innerHTML = daySection('Day 1 · Match Play', `${fmt(totals.day1.a)} – ${fmt(totals.day1.b)}`, liveDay1Rows(state, players));
+      liveBoardEl.innerHTML = card + daySection('Day 1 · Match Play', `${fmt(totals.day1.a)} – ${fmt(totals.day1.b)}`, liveDay1Rows(state, players));
     } else if (day === 'day2') {
-      liveBoardEl.innerHTML = daySection('Day 2 · Scramble', `${fmt(totals.day2.a)} – ${fmt(totals.day2.b)}`, liveDay2Rows(state, players, totals.day2.scramble));
+      liveBoardEl.innerHTML = card + daySection('Day 2 · Scramble', `${fmt(totals.day2.a)} – ${fmt(totals.day2.b)}`, liveDay2Rows(state, players, totals.day2.scramble));
     } else {
-      liveBoardEl.innerHTML = daySection('Day 3 · Stableford', `${fmt(totals.day3.a)} – ${fmt(totals.day3.b)}`, liveDay3Rows(state, players));
+      liveBoardEl.innerHTML = card + daySection('Day 3 · Stableford', `${fmt(totals.day3.a)} – ${fmt(totals.day3.b)}`, liveDay3Rows(state, players));
     }
   }
 
@@ -483,9 +664,34 @@ body.tv-page {
     }).join('');
   }
 
+  // ── WONGA WIRE TICKER -- ambient "what just happened" strip, same
+  // event classification as scorecard-live.html's Wonga Wire (issue
+  // #186) but shown as a single cycling line rather than a scrollable
+  // list, since a TV has no scrollbar a spectator can use. Cycles
+  // independently of the 15s screen rotation so it stays legible even
+  // while parked on one screen for a while.
+  let wireFeed = [];
+  let wireIndex = 0;
+  function setWireFeed(feed) {
+    wireFeed = feed;
+    if (wireIndex >= wireFeed.length) wireIndex = 0;
+    wireEl.classList.toggle('tv-wire-visible', wireFeed.length > 0);
+    if (wireFeed.length > 0) wireTextEl.textContent = wireFeed[wireIndex].headline;
+  }
+  function rotateWire() {
+    if (!wireFeed.length) return;
+    wireIndex = (wireIndex + 1) % wireFeed.length;
+    wireTextEl.style.opacity = 0;
+    setTimeout(() => {
+      wireTextEl.textContent = wireFeed[wireIndex].headline;
+      wireTextEl.style.opacity = 1;
+    }, 400);
+  }
+  setInterval(rotateWire, 6000);
+
   async function refresh() {
     const rows = await fetchAllRows();
-    const state = replayState(rows);
+    const { state, wire } = replayState(rows);
     // Issue #206: an admin's handicap override must reach every derived
     // score here too, same as the live scorecard's own currentPlayers() --
     // otherwise a corrected handicap silently disagrees between the two.
@@ -498,6 +704,7 @@ body.tv-page {
     renderCup(totals, state);
     renderLive(totals, state, players);
     renderNtp(state);
+    setWireFeed(wire);
   }
 
   // Screen wake lock (issue #187) -- best-effort only, this is a display
@@ -522,11 +729,16 @@ body.tv-page {
   // re-select it (an off-by-one that would otherwise sit on the Cup
   // screen for two full intervals before ever moving).
   let screenIndex = 0;
+  function renderDots() {
+    dotsEl.innerHTML = SCREEN_IDS.map((_, i) => `<span class="tv-dot${i === screenIndex ? ' tv-dot-active' : ''}"></span>`).join('');
+  }
   function rotateScreen() {
     screenIndex = (screenIndex + 1) % SCREEN_IDS.length;
     const screens = SCREEN_IDS.map(id => document.getElementById(id));
     screens.forEach((el, i) => el.classList.toggle('tv-screen-active', i === screenIndex));
+    renderDots();
   }
+  renderDots();
   setInterval(rotateScreen, 15000);
 
   // 30s poll, matching the live scorecard's cadence. A failed refresh
@@ -539,6 +751,8 @@ body.tv-page {
       if (!everLoaded) {
         statusEl.textContent = 'Unable to load live scores';
         cupBoardEl.innerHTML = '<div class="tv-empty">Unable to load the scoreboard</div>';
+        liveBoardEl.innerHTML = '<div class="tv-day"><div class="tv-empty">Unable to load the scoreboard</div></div>';
+        ntpBoardEl.innerHTML = '<div class="tv-empty">Unable to load the scoreboard</div>';
       }
     }
     finally { setTimeout(tick, 30000); }

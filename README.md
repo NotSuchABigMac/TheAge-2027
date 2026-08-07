@@ -13,7 +13,7 @@ live scorecard scorers update from their phones during play.
 | `records.html` | Past results |
 | `practical.html` | Logistics for the weekend |
 | `scorecard-live.html` | The live scorecard — score entry, sync, admin tools |
-| `tv.html` | Read-only clubhouse TV/spectator leaderboard (issue #187, first pass) |
+| `tv.html` | Read-only clubhouse TV/spectator leaderboard (issue #187) |
 
 Static data/logic modules (no DOM, `require()`-able from Node tests):
 `scoring.js` (scoring math + sync/state helpers), `courses.js` (course

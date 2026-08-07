@@ -18,14 +18,14 @@
        B shoots 5.
      - Unadjusted (raw hcp): diff 5, extra 5 -- SI 6 > 5, so B gets 0
        strokes on hole 1 -> net B (5) beats net A (4) the other way, i.e.
-       A's net 4 wins the hole outright -> "Front 9: A 1UP thru 1".
+       A's net 4 wins the hole outright -> a "1UP" badge, not "A/S".
      - Murray-adjusted (Daily Handicap): dailyHandicap(0, Murray) = 0,
        dailyHandicap(5, Murray) = 6 -- diff 6, extra 6 -- SI 6 <= 6, so B
        now gets 1 stroke on hole 1 -> net B (4) ties net A (4) -> halve ->
-       "Front 9: AS thru 1".
+       an "A/S" badge with a "Front 9 thru 1" sub-line.
    Only the adjusted result is correct once slope adjustment is wired in
-   everywhere -- a live board still on raw handicaps would show "A 1UP
-   thru 1" instead, disagreeing with the real scorecard.
+   everywhere -- a live board still on raw handicaps would show a "1UP"
+   badge instead, disagreeing with the real scorecard.
 
    Self-contained: a tiny static file server for the app; Google Fonts
    blocked outright; the real Supabase host is either mocked with fixture
@@ -163,8 +163,8 @@ async function main() {
       text: document.getElementById('live-board').textContent
     }));
     if (!/Day 1.*Live/.test(live.title)) fail(`expected the Live screen to show Day 1, got title "${live.title}"`);
-    if (!/Front 9:\s*AS\s*thru 1/.test(live.text)) {
-      fail(`expected the slope-adjusted "Front 9: AS thru 1" (Murray Daily Handicaps 0/6 halve hole 1), got "${live.text}" -- tv.html is likely back to using raw, unadjusted handicaps`);
+    if (!/A\/S/.test(live.text) || !/Front 9 thru 1/.test(live.text)) {
+      fail(`expected the slope-adjusted "A/S" / "Front 9 thru 1" badge (Murray Daily Handicaps 0/6 halve hole 1), got "${live.text}" -- tv.html is likely back to using raw, unadjusted handicaps`);
     }
 
     console.log('All tv.html slope-handicap parity assertions passed.');
