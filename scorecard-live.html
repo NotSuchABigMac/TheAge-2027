@@ -1732,6 +1732,22 @@ function currentPlayers() {
   return playersWithOverrides(PLAYERS, state.hcp);
 }
 
+// Formats a player's handicap for a day-specific picker (Day 1 match
+// slots, Day 2 groups, Day 3 leaderboard): "raw → adjusted" whenever
+// `course` has slope data and the two actually differ (e.g. "30 → 32"),
+// otherwise just the raw index -- so a stroke count that doesn't match the
+// raw handicap gap between two players is never a silent surprise (a
+// scramble/match diff can shift by more than the raw index diff once
+// slope-adjusted, see ARCHITECTURE.md's Daily Handicap section).
+function handicapDisplay(player, course) {
+  const raw = player.hcp;
+  if (!courseHasSlopeData(course)) return escapeHtml(raw);
+  const adjusted = dailyHandicap(raw, course);
+  const rawRounded = Math.round(parseFloat(raw));
+  if (isNaN(adjusted) || isNaN(rawRounded) || adjusted === rawRounded) return escapeHtml(raw);
+  return `${escapeHtml(raw)} → ${adjusted}`;
+}
+
 // TEST TEAMS — replace with real draft outcome before go-live
 const DEFAULT_A = new Set([0, 2, 4, 6, 8, 10, 12]); // even-indexed IDs → Team A
 const DEFAULT_B = new Set([1, 3, 5, 7, 9, 11, 13]); // odd-indexed IDs → Team B
@@ -1775,7 +1791,7 @@ const {
   parseScoreToPar, calcDay2: calcDay2Points, day2InputState,
   DAY2_HOLE_GROSS_MIN, DAY2_HOLE_GROSS_MAX,
   groupStrokes, scrambleNetToParThru, scrambleRoundComplete, applyPlayerGroupMove,
-  HCP_MIN, HCP_MAX, playersWithOverrides, daysUntilDay1, dailyHandicap,
+  HCP_MIN, HCP_MAX, playersWithOverrides, daysUntilDay1, dailyHandicap, courseHasSlopeData,
   POS_PTS, computeStableford, sumStablefordPoints,
   DAY3_HOLE_GROSS_MIN, DAY3_HOLE_GROSS_MAX, stablefordPoints, day3HolePoints,
   resolveOverallWinner,
@@ -2247,7 +2263,7 @@ function playerOptions(team, matchIdx, slot, currentId) {
       : alsoMatch !== undefined
         ? ` title="Also playing Match ${alsoMatch}"`
         : '';
-    opts += `<option value="${p.id}" ${disabled} ${sel}${title}>${p.short} (${p.hcp})</option>`;
+    opts += `<option value="${p.id}" ${disabled} ${sel}${title}>${p.short} (${handicapDisplay(p, COURSES[1])})</option>`;
   });
   return opts;
 }
@@ -3506,12 +3522,12 @@ function renderDay2Groups() {
       const members = teamPlayers.filter(p => groupOf(p.id) === code);
       const unassigned = teamPlayers.filter(p => groupOf(p.id) === null);
       const full = members.length >= size;
-      const chips = members.map(p => `<span class="day2-chip">${escapeHtml(p.short)} (${p.hcp})<button type="button" class="day2-chip-remove" onclick="setDay2Group(${p.id}, '')" aria-label="Remove ${escapeHtml(p.short)} from Group of ${size}">×</button></span>`).join('')
+      const chips = members.map(p => `<span class="day2-chip">${escapeHtml(p.short)} (${handicapDisplay(p, COURSES[2])})<button type="button" class="day2-chip-remove" onclick="setDay2Group(${p.id}, '')" aria-label="Remove ${escapeHtml(p.short)} from Group of ${size}">×</button></span>`).join('')
         || '<span class="grey" style="font-size:.8rem">Empty</span>';
       const addSelect = unassigned.length ? `
         <select onchange="if(this.value) setDay2Group(parseInt(this.value,10), '${code}')">
           <option value="">+ add player…</option>
-          ${unassigned.map(p => `<option value="${p.id}">${escapeHtml(p.short)} (${p.hcp})</option>`).join('')}
+          ${unassigned.map(p => `<option value="${p.id}">${escapeHtml(p.short)} (${handicapDisplay(p, COURSES[2])})</option>`).join('')}
         </select>` : '';
       bucketsHtml += `
       <div class="day2-bucket${full ? ' full' : ''}">
@@ -3930,7 +3946,7 @@ function renderDay3() {
       <td class="pos-cell ${posClass}">${posText}</td>
       <td style="color:var(--ink)">${escapeHtml(p.short)}</td>
       <td>${teamBadgeHtml(p.team)}</td>
-      <td class="grey" style="font-size:.84rem">${escapeHtml(p.hcp)}</td>
+      <td class="grey" style="font-size:.84rem">${handicapDisplay(p, COURSES[3])}</td>
       <td><span class="grey" style="font-size:.85rem">${totalText}</span></td>
       <td class="grey" style="font-size:.85rem">${perHoleText}</td>
       <td class="pts-cell">${ptsText}</td>`;
