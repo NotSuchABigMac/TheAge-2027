@@ -396,6 +396,17 @@ input[type=number]:focus{outline:none;border-color:var(--gold)}
 .hole-grid-table input.mark-double-bogey{border-color:var(--worse);border-width:2px;box-shadow:inset 0 0 0 2px var(--worse)}
 .nine-status-line{font-size:.72rem;color:var(--ink-mute);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .nine-status-line .clear-btn{font-size:.65rem;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute);border-radius:3px;padding:2px 8px;cursor:pointer}
+/* Issue: nine-status text was the same size/weight as everything else
+   around it, so a live "AS thru 2" or "2UP thru 5" read as fine print --
+   bump it to its own bold, larger line and color it by whichever team is
+   actually up (ns-a/ns-b), so the current state of play is legible at a
+   glance instead of blending into the surrounding grey. Square/halved
+   (ns-as) gets the gold accent rather than either team color, since
+   neither team is "up".*/
+.nine-status-text{font-family:var(--font-h);font-size:1rem;font-weight:700;letter-spacing:.2px;color:var(--ink)}
+.nine-status-text.ns-a{color:var(--team-a)}
+.nine-status-text.ns-b{color:var(--team-b)}
+.nine-status-text.ns-as{color:var(--gold)}
 /* ── Day 2 scramble groups + hole-by-hole entry (issue #128) ── */
 /* Issue #244: bucket-based group selector -- four visual "Group of N"
    buckets (one per team per size) with player chips instead of a flat
@@ -2397,6 +2408,29 @@ function nineDisplayLabel(match, half, nineHoleResults, hasData) {
   return 'Not started';
 }
 
+// Which team (if either) the nine-status text should be colored for --
+// 'ns-a'/'ns-b' when that team is leading or has won the nine, 'ns-as'
+// when square/halved, '' before anything's been entered. Mirrors
+// nineStatusLabel()'s branching exactly so the color never disagrees with
+// the text it's painted on.
+function nineStatusClass(nineResults) {
+  const s = nineStatus(nineResults);
+  if (s.thru === 0) return '';
+  if (s.decided) return s.leader === null ? 'ns-as' : (s.leader === 'A' ? 'ns-a' : 'ns-b');
+  if (s.lead === 0) return 'ns-as';
+  return s.leader === 'A' ? 'ns-a' : 'ns-b';
+}
+
+// Same admin-entered fallback as nineDisplayLabel(), for the color class.
+function nineDisplayClass(match, half, nineHoleResults, hasData) {
+  if (hasData) return nineStatusClass(nineHoleResults);
+  const val = match[half];
+  if (val === 'A') return 'ns-a';
+  if (val === 'B') return 'ns-b';
+  if (val === 'T') return 'ns-as';
+  return '';
+}
+
 // One 9-hole block of the entry grid: hole numbers (with NTP marker) and
 // par across the top, stroke dots for whichever player is receiving
 // strokes, then one gross-score input row per team -- same two-row shape
@@ -2574,7 +2608,7 @@ function renderDay1() {
         <div class="nine-block">
           <div class="nine-label">${label}</div>
           <div class="nine-status-line">
-            <span id="nine-status-${mi}-${half}">${nineDisplayLabel(match, half, nineHoleResults, hasData)}</span>
+            <span id="nine-status-${mi}-${half}" class="nine-status-text ${nineDisplayClass(match, half, nineHoleResults, hasData)}">${nineDisplayLabel(match, half, nineHoleResults, hasData)}</span>
           </div>
         </div>`;
       }).join('');
@@ -2765,6 +2799,7 @@ function patchDay1HoleFeedback(matchIdx, team, holeNum, clamped) {
   const hasData = match.holesA.slice(start, start + 9).some(v => v !== null) ||
                    match.holesB.slice(start, start + 9).some(v => v !== null);
   statusEl.textContent = nineDisplayLabel(match, half, nineHoleResults, hasData);
+  statusEl.className = `nine-status-text ${nineDisplayClass(match, half, nineHoleResults, hasData)}`;
   // Keep the Admin tab's override panel in sync too -- it lives in a
   // different tab-panel (not the grid-in the scorer is typing in), so
   // refreshing it here never disturbs focus, and without this it would
@@ -3044,7 +3079,7 @@ function renderDay1AdminOverrides() {
         <div class="nine-block">
           <div class="nine-label">${label}</div>
           <div class="nine-status-line">
-            <span>${nineStatusLabel(nineHoleResults)} (from hole scores)</span>
+            <span class="nine-status-text ${nineStatusClass(nineHoleResults)}">${nineStatusLabel(nineHoleResults)} (from hole scores)</span>
             <button type="button" class="clear-btn" onclick="clearNineHoles(${mi}, ${start})">Clear hole scores to enter manually</button>
           </div>
         </div>`;
