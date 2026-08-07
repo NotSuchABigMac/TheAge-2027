@@ -30,7 +30,7 @@
     { id:9,  name:'Jimmy Hepburn',      short:'J. Hepburn',    hcp:'30.0', seed:12, friday:true  },
     { id:10, name:'Robert Hughes',      short:'R. Hughes',     hcp:'39.0', seed:13, friday:true  },
     { id:11, name:'Ben Lepore',         short:'B. Lepore',     hcp:'44.0', seed:14, friday:false },
-    { id:12, name:'Terrence Hie',      short:'T. Hie',        hcp:'20.0', seed:6,  friday:true  },
+    { id:12, name:'Mark Swain',        short:'M. Swain',      hcp:'20.0', seed:6,  friday:true  },
     { id:13, name:'Liam Cannel',       short:'L. Cannel',     hcp:'18.0', seed:4,  friday:true  }
   ];
 
