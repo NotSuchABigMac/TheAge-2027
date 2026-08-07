@@ -12,7 +12,10 @@
    handicapDisplay() in scorecard-live.html now shows "raw → adjusted"
    (e.g. "30.0 → 32") whenever a course has slope data and the two differ,
    so the jump is self-explanatory at the point of picking, not just
-   buried in the resulting stroke dots.
+   buried in the resulting stroke dots. The Day 3 leaderboard's HCP column
+   is a tighter table cell than the Day 1/2 pickers, so a follow-up switched
+   it to handicapAdjustedDisplay() -- just the adjusted number, no arrow --
+   since the "raw → adjusted" text was overflowing/wrapping the row.
 
    Drives the real scorecard-live.html against a mocked (never real)
    Supabase and reads the rendered <option>/chip text directly:
@@ -23,7 +26,8 @@
        Black-Bull-adjusted player
      - Day 2's group chip shows "29.0 → 34" once that player is actually
        grouped
-     - Day 3's leaderboard HCP column shows "29.0 → 30" (Lake-adjusted)
+     - Day 3's leaderboard HCP column shows just "30" (Lake-adjusted,
+       arrow notation dropped)
 
    Run: node test/repro-day-picker-daily-handicap.mjs
    Exits 0 if all assertions pass, 1 otherwise.
@@ -158,14 +162,15 @@ async function main() {
     }
 
     // 4. Day 3 leaderboard HCP column -- player 8 (S. Koenig, hcp 29.0) is
-    // Lake-adjusted to 30.
+    // Lake-adjusted to 30. Adjusted-only, no "raw →" prefix (issue: the
+    // arrow notation was stuffing up the leaderboard rows).
     const day3HcpText = await page.evaluate(() => {
       const row = Array.from(document.querySelectorAll('#sf-tbody tr')).find(tr => tr.textContent.includes('S. Koenig'));
       return row ? row.children[3].textContent : null;
     });
     if (day3HcpText === null) fail('expected a Day 3 leaderboard row for player 8 (S. Koenig)');
-    if (!/29\.0 → 30/.test(day3HcpText)) {
-      fail(`expected Day 3's leaderboard HCP column to show "29.0 → 30" (Lake Daily Handicap) for player 8, got "${day3HcpText}"`);
+    if (day3HcpText.trim() !== '30') {
+      fail(`expected Day 3's leaderboard HCP column to show just "30" (Lake Daily Handicap, no arrow) for player 8, got "${day3HcpText}"`);
     }
 
     console.log('All day-picker Daily Handicap display assertions passed.');

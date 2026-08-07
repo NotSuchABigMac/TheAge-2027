@@ -1753,12 +1753,12 @@ function currentPlayers() {
 }
 
 // Formats a player's handicap for a day-specific picker (Day 1 match
-// slots, Day 2 groups, Day 3 leaderboard): "raw → adjusted" whenever
-// `course` has slope data and the two actually differ (e.g. "30 → 32"),
-// otherwise just the raw index -- so a stroke count that doesn't match the
-// raw handicap gap between two players is never a silent surprise (a
-// scramble/match diff can shift by more than the raw index diff once
-// slope-adjusted, see ARCHITECTURE.md's Daily Handicap section).
+// slots, Day 2 groups): "raw → adjusted" whenever `course` has slope data
+// and the two actually differ (e.g. "30 → 32"), otherwise just the raw
+// index -- so a stroke count that doesn't match the raw handicap gap
+// between two players is never a silent surprise (a scramble/match diff
+// can shift by more than the raw index diff once slope-adjusted, see
+// ARCHITECTURE.md's Daily Handicap section).
 function handicapDisplay(player, course) {
   const raw = player.hcp;
   if (!courseHasSlopeData(course)) return escapeHtml(raw);
@@ -1766,6 +1766,19 @@ function handicapDisplay(player, course) {
   const rawRounded = Math.round(parseFloat(raw));
   if (isNaN(adjusted) || isNaN(rawRounded) || adjusted === rawRounded) return escapeHtml(raw);
   return `${escapeHtml(raw)} → ${adjusted}`;
+}
+
+// Formats a player's handicap for the Day 3 leaderboard's HCP column:
+// just the slope-adjusted Daily Handicap number, not the "raw → adjusted"
+// arrow notation handicapDisplay() uses -- the leaderboard row is a lot
+// tighter than the Day 1/2 pickers, and the arrow text was overflowing/
+// wrapping the column. Falls back to the raw index whenever `course` has
+// no slope data, same fallback as dailyHandicap() itself.
+function handicapAdjustedDisplay(player, course) {
+  const raw = player.hcp;
+  if (!courseHasSlopeData(course)) return escapeHtml(raw);
+  const adjusted = dailyHandicap(raw, course);
+  return isNaN(adjusted) ? escapeHtml(raw) : String(adjusted);
 }
 
 // TEST TEAMS — replace with real draft outcome before go-live
@@ -3991,7 +4004,7 @@ function renderDay3() {
       <td class="pos-cell ${posClass}">${posText}</td>
       <td style="color:var(--ink)">${escapeHtml(p.short)}</td>
       <td>${teamBadgeHtml(p.team)}</td>
-      <td class="grey" style="font-size:.84rem">${handicapDisplay(p, COURSES[3])}</td>
+      <td class="grey" style="font-size:.84rem">${handicapAdjustedDisplay(p, COURSES[3])}</td>
       <td><span class="grey" style="font-size:.85rem">${totalText}</span></td>
       <td class="grey" style="font-size:.85rem">${perHoleText}</td>
       <td class="pts-cell">${ptsText}</td>`;
