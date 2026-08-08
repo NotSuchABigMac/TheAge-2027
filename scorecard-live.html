@@ -748,6 +748,22 @@ body{padding-top:58px;padding-bottom:52px}
 .day2-recap-close:hover{color:var(--ink);border-color:var(--ink)}
 .day2-recap-foldup{margin-top:16px}
 
+/* ── DAY 3 WRAP (newspaper-style recap) ──
+   Same fab-nag/never-auto-opens/rebuilt-live mechanics as the Day 1/Day 2
+   Wraps above. Stacked directly above the Day 2 fab (which stacks above
+   Day 1's), so all three can be showing at once without overlapping. */
+.day3-recap-fab{position:fixed;right:calc(18px + env(safe-area-inset-right));bottom:calc(146px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;border:2px solid var(--gold);background:var(--canvas);color:var(--ink);font-size:1.4rem;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9990;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:var(--tr)}
+.day3-recap-fab:hover{background:var(--gold);transform:scale(1.06)}
+.day3-recap-fab.shaking{animation:day1-fab-shake 0.62s ease-in-out}
+.day3-recap-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);padding:24px;perspective:1400px;opacity:1;visibility:visible;transition:opacity .22s ease,visibility 0s linear 0s}
+.day3-recap-modal.hidden{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .2s}
+.day3-recap-card{position:relative;background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:20px 20px 16px;max-width:720px;width:100%;max-height:calc(100vh - 48px);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);transform-origin:50% 0%;transform:none;opacity:1;transition:transform .38s cubic-bezier(.2,1.4,.4,1),opacity .3s ease}
+.day3-recap-modal.hidden .day3-recap-card{transform:scaleY(.08) rotateX(-65deg);opacity:0;transition:transform .26s ease-in,opacity .2s ease-in}
+.day3-recap-close{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:50%;border:1px solid var(--rule-strong);background:var(--canvas);color:var(--ink-mute);font-size:.9rem;line-height:1;cursor:pointer;z-index:2;transition:var(--tr)}
+.day3-recap-close:hover{color:var(--ink);border-color:var(--ink)}
+.day3-recap-foldup{margin-top:16px}
+.gazette-photo-link{display:inline-block;margin-top:4px}
+
 /* Scorecard page body override */
 #page-scorecard { background: var(--canvas); color: var(--ink); min-height: 100vh; }
 #page-scorecard .page-content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
@@ -999,6 +1015,39 @@ body{padding-top:58px;padding-bottom:52px}
      time, same pattern as the Day 1 fab. -->
 <button type="button" id="day2-recap-fab" class="day2-recap-fab" style="display:none" onclick="openDay2RecapModal()" aria-label="Read the Day 2 Wrap">📰</button>
 
+<!-- Day 3 Wrap -- same newspaper-recap treatment as the Day 1/Day 2 Wraps
+     above, opened once Day 3 is resolved (either isDay3Complete() or a
+     declared washout, isDay3WashedOut() -- see updateDay3RecapTrigger()).
+     Deliberately withheld while the Day 2 Wrap is ready but still unopened
+     (day3RecapBlockedByDay2()), so the weekend's editions are read in
+     order. Never auto-opens; rebuilt from live state every time it opens
+     (renderDay3RecapModal()). -->
+<div id="day3-recap-modal" class="day3-recap-modal hidden" role="dialog" aria-modal="true" aria-labelledby="day3-gazette-headline">
+  <div class="day3-recap-card">
+    <button type="button" class="day3-recap-close" onclick="closeDay3RecapModal()" aria-label="Close">✕</button>
+    <div class="gazette">
+      <div class="gazette-masthead">
+        <div class="gazette-kicker">A WONGA CUP GAZETTE EXTRA</div>
+        <div class="gazette-title" id="day3-gazette-title">THE LAKE BULLETIN</div>
+        <div class="gazette-dateline" id="day3-gazette-dateline">SUNDAY, 9 AUGUST · LAKE COURSE · INDIVIDUAL STABLEFORD</div>
+      </div>
+      <div class="gazette-headline" id="day3-gazette-headline"></div>
+      <div class="gazette-byline" id="day3-gazette-byline"></div>
+      <div class="gazette-columns" id="day3-gazette-body"></div>
+      <div class="gazette-boxscore-label" id="day3-gazette-boxscore-label">Box Score</div>
+      <div class="gazette-boxscore" id="day3-gazette-boxscore"></div>
+      <div class="gazette-signoff">— That's the 2026 Wonga Cup. See you next year. —</div>
+    </div>
+    <button type="button" class="help-modal-close day3-recap-foldup" onclick="closeDay3RecapModal()">Fold It Up</button>
+  </div>
+</div>
+
+<!-- Floating nudge icon for the Day 3 Wrap above -- hidden until Day 3 is
+     resolved AND the Day 2 Wrap has been read, then shakes on a loop
+     until opened for the first time, same pattern as the Day 1/Day 2
+     fabs. -->
+<button type="button" id="day3-recap-fab" class="day3-recap-fab" style="display:none" onclick="openDay3RecapModal()" aria-label="Read the Day 3 Wrap">📰</button>
+
 <!-- Practice Mode banner (issue #208) -- always in normal document flow
      (never position:fixed, unlike the badges below), so it just needs
      the same body padding-top clearance every other in-flow element
@@ -1247,6 +1296,7 @@ body{padding-top:58px;padding-bottom:52px}
         <div class="section-title">Individual Stableford</div>
       </div>
       <div id="day3-lockable">
+      <div id="day3-washout-banner" class="info-box" style="display:none;border-color:rgba(50,120,220,.4);background:rgba(50,120,220,.08)"></div>
       <div class="info-box">Enter each player's gross scores <strong>hole-by-hole</strong> below — their net Stableford total works out automatically (handicap strokes allocated by the Lake Course's stroke index). The leaderboard is ranked by <strong>points per hole</strong> (points earned so far ÷ holes played), not raw total, so it stays fair before everyone's finished all 18. Points by finishing position: <strong>1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1</strong>. Tied players share averaged points. Each player's points go to their team total.</div>
       <div id="course-card-day3"></div>
       <div class="sf-table-wrap">
@@ -1444,6 +1494,22 @@ body{padding-top:58px;padding-bottom:52px}
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="section-header" style="padding-top:32px">
+        <div class="section-label">Admin · Day 3</div>
+        <div class="section-title">Washout</div>
+      </div>
+      <div class="info-box">Only for a genuine rained-out Day 3 — set the mm of rain and the Cup is decided on the Day 1 + Day 2 standing lead instead of waiting on Stableford scores that will never come (the win banner and Day 3 Wrap both switch to a washout edition). Clear it if Day 3 is back on.</div>
+      <div class="ntp-grid">
+        <div class="sig">
+          <label for="day3-washout-mm">Rain (mm)</label>
+          <input type="number" id="day3-washout-mm" min="0" max="500" placeholder="e.g. 28">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button class="username-btn" style="max-width:200px" onclick="setDay3Washout(document.getElementById('day3-washout-mm').value)">Declare Washout</button>
+        <button class="username-btn" style="max-width:160px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink-mute)" onclick="setDay3Washout(null)">Clear</button>
       </div>
 
       <div class="section-header" style="padding-top:32px">
@@ -1899,6 +1965,10 @@ function handicapDisplay(player, course) {
 const DEFAULT_A = new Set([0, 2, 4, 6, 8, 10, 12]); // even-indexed IDs → Team A
 const DEFAULT_B = new Set([1, 3, 5, 7, 9, 11, 13]); // odd-indexed IDs → Team B
 
+// Same shared album linked from index.html/tv.html's photo QR code --
+// one canonical link rather than a second copy that could drift.
+const PHOTO_ALBUM_URL = 'https://photos.app.goo.gl/DG13eR5Fbmyb2P9i8';
+
 /* ─────────────────────────────────────
    STATE
 ───────────────────────────────────── */
@@ -1922,7 +1992,7 @@ const state = {
     anthem: {}, // player id -> true (sang, -1 stroke) | false (didn't sing, +2 strokes) (issue #149); absent = no adjustment; added to BOTH of that player's team's Day 2 group scores, not the handicap
     locked: false
   },
-  day3: { scores:{}, holes:{}, ntp: { h7:null, h14:null }, locked: false }, // scores: id -> stableford score string; holes: id -> 18-entry gross array (issue #188)
+  day3: { scores:{}, holes:{}, ntp: { h7:null, h14:null }, locked: false, washoutMm: null }, // scores: id -> stableford score string; holes: id -> 18-entry gross array (issue #188); washoutMm: admin-declared "Day 3 rained out" (mm of rain), null = Day 3 happened normally
   tiebreak: null, // null | 'A' | 'B' — sudden-death putt-off winner
   hcp: {}, // player id -> admin-overridden handicap string, absent = players.js default (issue #206)
   teamsLocked: false // organiser-only "Lock Teams" toggle -- blocks accidental edits once the draft is final (issue #302)
@@ -2815,6 +2885,9 @@ function renderDay1() {
   renderDay1AdminOverrides();
   renderDay1ChallengeControls();
   updateDay1RecapTrigger();
+  // Day 1 finishing (or un-finishing, e.g. an admin correction) can flip
+  // whether the Day 2 Wrap is blocked on it -- see day2RecapBlockedByDay1().
+  updateDay2RecapTrigger();
 }
 
 // Deliberately looser than isDay1Complete() (which the win-banner/tiebreak
@@ -3007,6 +3080,11 @@ function openDay1RecapModal() {
   document.getElementById('day1-recap-modal').classList.remove('hidden');
   try { localStorage.setItem(DAY1_RECAP_SEEN_KEY, '1'); } catch (_) {}
   stopDay1RecapShake(document.getElementById('day1-recap-fab'));
+  // The Day 2 Wrap deliberately waits for this -- see
+  // day2RecapBlockedByDay1() -- so reading Day 1's edition is the trigger
+  // that lets Day 2's icon appear, rather than the reader having to wait
+  // for some unrelated re-render to notice the "seen" flag changed.
+  updateDay2RecapTrigger();
 }
 function closeDay1RecapModal() {
   document.getElementById('day1-recap-modal').classList.add('hidden');
@@ -3049,13 +3127,24 @@ function stopDay2RecapShake(fab) {
   if (fab) fab.classList.remove('shaking');
 }
 
+// Day 2's turn only comes once Day 1's has been read -- same reasoning as
+// day3RecapBlockedByDay2() further down (the weekend's three editions come
+// out in order). If Day 1 was never even ready, there's nothing to wait
+// for and this doesn't block.
+function day2RecapBlockedByDay1() {
+  if (!isDay1RecapReady()) return false;
+  let seen = false;
+  try { seen = localStorage.getItem(DAY1_RECAP_SEEN_KEY) === '1'; } catch (_) {}
+  return !seen;
+}
+
 // Called from _doUpdateDay2() -- the single choke point every Day 2 score
 // change (manual entry or hole-by-hole) already runs through -- so this
 // stays current on every local edit and every poll-driven restoreDay2().
 function updateDay2RecapTrigger() {
   const fab = document.getElementById('day2-recap-fab');
   if (!fab) return;
-  const ready = isDay2Complete();
+  const ready = isDay2Complete() && !day2RecapBlockedByDay1();
   fab.style.display = ready ? '' : 'none';
   let seen = false;
   try { seen = localStorage.getItem(DAY2_RECAP_SEEN_KEY) === '1'; } catch (_) {}
@@ -3198,9 +3287,192 @@ function openDay2RecapModal() {
   document.getElementById('day2-recap-modal').classList.remove('hidden');
   try { localStorage.setItem(DAY2_RECAP_SEEN_KEY, '1'); } catch (_) {}
   stopDay2RecapShake(document.getElementById('day2-recap-fab'));
+  // The Day 3 Wrap deliberately waits for this -- see
+  // day3RecapBlockedByDay2() -- so reading Day 2's edition is the trigger
+  // that lets Day 3's icon appear, rather than the reader having to wait
+  // for some unrelated re-render to notice the "seen" flag changed.
+  updateDay3RecapTrigger();
 }
 function closeDay2RecapModal() {
   document.getElementById('day2-recap-modal').classList.add('hidden');
+}
+
+/* ─────────────────────────────────────
+   DAY 3 WRAP -- newspaper-style recap
+   Parallel feature to the Day 1/Day 2 Wraps above, same never-auto-opens/
+   rebuilt-live-every-open mechanics. Ready once Day 3 is resolved -- either
+   isDay3Complete() actually finished, or isDay3WashedOut() (the admin's
+   Day 3 rained out -- see the Admin tab's Washout section) -- but
+   day3RecapBlockedByDay2() deliberately withholds the icon while the
+   Day 2 Wrap is ready and still unopened, so the weekend's three editions
+   come out in order rather than Day 3's spoiling Day 2's for anyone who
+   hasn't read it yet.
+───────────────────────────────────── */
+const DAY3_RECAP_SEEN_KEY = KEY_PREFIX + 'wongaCup2026_day3RecapSeen';
+let day3RecapShakeTimer = null;
+
+function startDay3RecapShake(fab) {
+  if (day3RecapShakeTimer) return; // already looping
+  const shakeOnce = () => {
+    fab.classList.remove('shaking');
+    void fab.offsetWidth; // restart the CSS animation from its 0% keyframe
+    fab.classList.add('shaking');
+  };
+  shakeOnce();
+  day3RecapShakeTimer = setInterval(shakeOnce, 3200);
+}
+
+function stopDay3RecapShake(fab) {
+  if (day3RecapShakeTimer) { clearInterval(day3RecapShakeTimer); day3RecapShakeTimer = null; }
+  if (fab) fab.classList.remove('shaking');
+}
+
+// Day 3's turn only comes once Day 2's has been read -- if Day 2 was never
+// even completed, there's nothing to wait for and this doesn't block.
+function day3RecapBlockedByDay2() {
+  if (!isDay2Complete()) return false;
+  let seen = false;
+  try { seen = localStorage.getItem(DAY2_RECAP_SEEN_KEY) === '1'; } catch (_) {}
+  return !seen;
+}
+
+// Called from renderDay3() (every Day 3 field change already runs through
+// it) and from _doUpdateDay2()/openDay2RecapModal() so a change on either
+// day re-evaluates whether Day 3's icon should be showing.
+function updateDay3RecapTrigger() {
+  const fab = document.getElementById('day3-recap-fab');
+  if (!fab) return;
+  const ready = (isDay3Complete() || isDay3WashedOut()) && !day3RecapBlockedByDay2();
+  fab.style.display = ready ? '' : 'none';
+  let seen = false;
+  try { seen = localStorage.getItem(DAY3_RECAP_SEEN_KEY) === '1'; } catch (_) {}
+  if (ready && !seen) startDay3RecapShake(fab);
+  else stopDay3RecapShake(fab);
+}
+
+function computeDay3Recap() {
+  const d1 = calcDay1(), d2 = calcDay2(), d3 = calcDay3();
+  const totalA = d1.a + d2.a + d3.a, totalB = d1.b + d2.b + d3.b;
+  const overall = resolveOverallWinner(totalA, totalB, state.tiebreak);
+  const { sorted } = computeDay3();
+
+  function ntpWinner(hole) {
+    const id = state.day3.ntp[hole];
+    if (id === null || id === undefined) return null;
+    const p = currentPlayers().find(pp => pp.id === id);
+    return p ? { player: p, team: teamOf(id) } : null;
+  }
+
+  return {
+    washedOut: isDay3WashedOut(),
+    washoutMm: state.day3.washoutMm,
+    d1, d2, d3, totalA, totalB, overall, sorted,
+    ntp: { h7: ntpWinner('h7'), h14: ntpWinner('h14') }
+  };
+}
+
+function day3RecapHeadline(recap) {
+  const A = state.teamNameA, B = state.teamNameB;
+  if (recap.washedOut) return 'RAIN HAS THE FINAL WORD AT LAKE';
+  if (recap.overall.mode === 'tied-pending-tiebreak') return 'THE CUP GOES TO SUDDEN DEATH';
+  return `${(recap.overall.winner === 'A' ? A : B).toUpperCase()} WIN THE WONGA CUP`;
+}
+
+function day3RecapByline(recap) {
+  const A = state.teamNameA, B = state.teamNameB;
+  const base = `${escapeHtml(A)} ${fmt(recap.totalA)} — ${fmt(recap.totalB)} ${escapeHtml(B)}`;
+  return recap.washedOut
+    ? `${base} · Day 3 washed out, ${fmt(recap.washoutMm)}mm of rain`
+    : `${base} · final`;
+}
+
+// Prose paragraphs, entirely data-driven off the recap object above -- same
+// no-hardcoded-names-or-scores approach as day1RecapProse()/day2RecapProse().
+function day3RecapProse(recap) {
+  const A = state.teamNameA, B = state.teamNameB;
+  const paras = [];
+
+  if (recap.washedOut) {
+    paras.push(`Lake Course didn't get a ball struck in anger on the final day — ${fmt(recap.washoutMm)}mm of rain made the call for organisers before a single group could tee off.`);
+    if (recap.overall.mode === 'tied-pending-tiebreak') {
+      paras.push(`With nothing to separate the two sides after Murray and Black Bull, the Wonga Cup now goes to a sudden-death putt-off.`);
+    } else {
+      const leadTeam = recap.overall.winner === 'A' ? A : B;
+      paras.push(`With no Stableford points to fight for, the Cup reverts to the standing lead from the first two days: ${escapeHtml(leadTeam)} take it, ${fmt(Math.max(recap.totalA, recap.totalB))} points to ${fmt(Math.min(recap.totalA, recap.totalB))}.`);
+    }
+    paras.push(`No individual honours to hand out this year — the Lake Course leaderboard stays blank, and the trophy travels on two days' work instead of three.`);
+  } else {
+    const withScores = recap.sorted.filter(p => p.total !== null && p.total !== undefined);
+    if (withScores.length === 0) {
+      paras.push(`No Stableford scores were on the board at Lake when this edition went to print.`);
+    } else {
+      const top = withScores[0];
+      paras.push(`${escapeHtml(top.short)} topped the Lake Course leaderboard on ${top.total} points, the individual honours to cap the weekend.`);
+      if (withScores.length > 1) {
+        paras.push(`${escapeHtml(withScores[1].short)} ran second on ${withScores[1].total}.`);
+      }
+    }
+    if (recap.overall.mode === 'tied-pending-tiebreak') {
+      paras.push(`The teams finish level across all three days — the Wonga Cup goes to a sudden-death putt-off.`);
+    } else {
+      const winnerTeam = recap.overall.winner === 'A' ? A : B;
+      paras.push(`${escapeHtml(winnerTeam)} take the Wonga Cup, ${fmt(Math.max(recap.totalA, recap.totalB))} points to ${fmt(Math.min(recap.totalA, recap.totalB))}, across all three days.`);
+    }
+    if (recap.ntp.h7 || recap.ntp.h14) {
+      const bits = [];
+      if (recap.ntp.h7) bits.push(`${escapeHtml(recap.ntp.h7.player.short)} (${escapeHtml(recap.ntp.h7.team === 'A' ? A : B)}) struck it closest on 7`);
+      if (recap.ntp.h14) bits.push(`${escapeHtml(recap.ntp.h14.player.short)} (${escapeHtml(recap.ntp.h14.team === 'A' ? A : B)}) took nearest-the-pin honours on 14`);
+      paras.push(`Nearest-the-pin: ${bits.join(', and ')}.`);
+    }
+  }
+
+  paras.push(`Got photos from the weekend? <a class="gazette-photo-link" href="${PHOTO_ALBUM_URL}" target="_blank" rel="noopener">Add them to the album ↗</a>`);
+  return paras;
+}
+
+function day3RecapBoxScoreHtml(recap) {
+  const A = state.teamNameA, B = state.teamNameB;
+  if (recap.washedOut) {
+    const row = (label, a, b) => `<tr><td>${label}</td><td class="grbs-nine">${fmt(a)}</td><td class="grbs-nine">${fmt(b)}</td></tr>`;
+    return `<table class="gazette-table"><thead><tr><th>Day</th><th>${escapeHtml(A)}</th><th>${escapeHtml(B)}</th></tr></thead><tbody>
+      ${row('Day 1 — Murray', recap.d1.a, recap.d1.b)}
+      ${row('Day 2 — Black Bull', recap.d2.a, recap.d2.b)}
+      ${row('Day 3 — Lake (washed out)', 0, 0)}
+    </tbody><tfoot><tr><td>Final</td><td class="grbs-pts">${fmt(recap.totalA)}</td><td class="grbs-pts">${fmt(recap.totalB)}</td></tr></tfoot></table>`;
+  }
+  const top3 = recap.sorted.filter(p => p.pos !== null).slice(0, 3);
+  if (top3.length === 0) return '<p style="font-size:.85rem;color:var(--ink-mute)">No Stableford scores to report.</p>';
+  const posEmoji = { 1: '🥇', 2: '🥈', 3: '🥉' };
+  const rows = top3.map(p => `
+    <tr>
+      <td>${posEmoji[p.pos] || p.pos} ${TEAM_EMOJI[p.team] || ''} ${escapeHtml(p.short)}</td>
+      <td class="grbs-nine">${p.total !== null && p.total !== undefined ? p.total + ' pts' : '—'}</td>
+      <td class="grbs-pts">${fmt(p.pts)}</td>
+    </tr>`).join('');
+  return `<table class="gazette-table"><thead><tr><th>Player</th><th>Stableford</th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderDay3RecapModal() {
+  const recap = computeDay3Recap();
+  document.getElementById('day3-gazette-title').textContent = recap.washedOut ? 'THE WASHOUT EXTRA' : 'THE LAKE BULLETIN';
+  document.getElementById('day3-gazette-dateline').textContent = recap.washedOut
+    ? 'SUNDAY, 9 AUGUST · LAKE COURSE · WASHED OUT'
+    : 'SUNDAY, 9 AUGUST · LAKE COURSE · INDIVIDUAL STABLEFORD';
+  document.getElementById('day3-gazette-headline').textContent = day3RecapHeadline(recap);
+  document.getElementById('day3-gazette-byline').innerHTML = day3RecapByline(recap);
+  document.getElementById('day3-gazette-body').innerHTML = day3RecapProse(recap).map(p => `<p>${p}</p>`).join('');
+  document.getElementById('day3-gazette-boxscore-label').textContent = recap.washedOut ? 'Final Points' : 'Box Score';
+  document.getElementById('day3-gazette-boxscore').innerHTML = day3RecapBoxScoreHtml(recap);
+}
+
+function openDay3RecapModal() {
+  renderDay3RecapModal();
+  document.getElementById('day3-recap-modal').classList.remove('hidden');
+  try { localStorage.setItem(DAY3_RECAP_SEEN_KEY, '1'); } catch (_) {}
+  stopDay3RecapShake(document.getElementById('day3-recap-fab'));
+}
+function closeDay3RecapModal() {
+  document.getElementById('day3-recap-modal').classList.add('hidden');
 }
 
 /* ─────────────────────────────────────
@@ -3837,6 +4109,43 @@ function setDay3Ntp(hole, val) {
   });
 }
 
+// Admin-only "Day 3 rained out" declaration (see the Admin tab's Washout
+// section) -- mm is a number, or null/'' to clear it and put Day 3 back
+// to normal. Reaches the win banner (updateScoreboard()'s allDone gate)
+// and the Day 3 Wrap (updateDay3RecapTrigger()) the same way every other
+// Day 3 field change does.
+function setDay3Washout(rawMm) {
+  requireUsername(() => {
+    let mm = null;
+    if (rawMm !== null && rawMm !== '' && rawMm !== undefined) {
+      const n = parseFloat(rawMm);
+      if (!isNaN(n)) mm = Math.max(0, n);
+    }
+    const previous = state.day3.washoutMm;
+    state.day3.washoutMm = mm;
+    saveState();
+    const fields = { value: mm === null ? null : String(mm) };
+    insertUpdate('day3_washout', fields);
+    if (mm !== previous) showUndoToast({ update_type: 'day3_washout', ...fields }, previous === null || previous === undefined ? null : String(previous));
+    renderDay3Washout();
+    updateScoreboard();
+    updateDay3RecapTrigger();
+  });
+}
+
+function renderDay3Washout() {
+  const input = document.getElementById('day3-washout-mm');
+  safeSetInput(input, state.day3.washoutMm ?? '');
+  const banner = document.getElementById('day3-washout-banner');
+  if (!banner) return;
+  if (isDay3WashedOut()) {
+    banner.style.display = '';
+    banner.textContent = `🌧️ Day 3 washed out — ${fmt(state.day3.washoutMm)}mm of rain. The Wonga Cup is decided on the standing Day 1 + Day 2 lead.`;
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
 /* ─────────────────────────────────────
    PIN TO TOP (issue #271) + AUTO-PIN (issue #272)
    A per-device shortcut so whoever's entering their own match/group/round
@@ -4441,6 +4750,9 @@ function _doUpdateDay2() {
   saveState();
   updateScoreboard();
   updateDay2RecapTrigger();
+  // Day 2 finishing (or un-finishing) can flip whether the Day 3 Wrap is
+  // blocked on it -- see day3RecapBlockedByDay2().
+  updateDay3RecapTrigger();
 }
 
 // Removing the poll-skip window (issue #108) means a poll's re-render can
@@ -4529,9 +4841,11 @@ function renderDay3() {
     tbody.appendChild(row);
   });
   renderDay3Ntp();
+  renderDay3Washout();
   renderDay3HoleEntries();
   renderDay3PointsTable();
   updateScoreboard();
+  updateDay3RecapTrigger();
 }
 
 // No longer reachable from the UI -- manual 18-hole entry was removed in
@@ -4831,6 +5145,14 @@ function isDay3Complete() {
   });
 }
 
+// Admin-declared "Day 3 didn't happen" (rained out) -- a separate way for
+// Day 3 to be resolved besides isDay3Complete() actually finishing, since
+// no amount of waiting produces Stableford scores for a round that was
+// never played.
+function isDay3WashedOut() {
+  return state.day3.washoutMm !== null && state.day3.washoutMm !== undefined;
+}
+
 /* ─────────────────────────────────────
    SCOREBOARD UPDATE
 ───────────────────────────────────── */
@@ -4878,7 +5200,10 @@ function updateScoreboard() {
 
   const banner = document.getElementById('win-banner');
   const tiebreakControl = document.getElementById('tiebreak-control');
-  const allDone = isDay1Complete() && isDay2Complete() && isDay3Complete();
+  // A washout resolves Day 3 just as validly as it actually finishing --
+  // d3 contributes 0-0 either way, so the Cup is decided on the Day 1 +
+  // Day 2 standing lead instead of waiting on scores that will never come.
+  const allDone = isDay1Complete() && isDay2Complete() && (isDay3Complete() || isDay3WashedOut());
 
   if (allDone) {
     const result = resolveOverallWinner(totalA, totalB, state.tiebreak);
@@ -4895,10 +5220,11 @@ function updateScoreboard() {
       }
     } else {
       const winnerName = (result.winner === 'A' ? state.teamNameA : state.teamNameB).toUpperCase();
+      const washoutNote = isDay3WashedOut() ? ` — DAY 3 WASHED OUT (${fmt(state.day3.washoutMm)}MM), STANDING LEAD HOLDS` : '';
       banner.className = 'win-banner';
       banner.textContent = result.mode === 'tiebreak'
         ? `🏆 ${winnerName} WIN THE WONGA CUP ON THE SUDDEN-DEATH PUTT-OFF — ${fmt(totalA)} ALL 🏆`
-        : `🏆 ${winnerName} WIN THE WONGA CUP — ${fmt(Math.max(totalA,totalB))} to ${fmt(Math.min(totalA,totalB))} 🏆`;
+        : `🏆 ${winnerName} WIN THE WONGA CUP — ${fmt(Math.max(totalA,totalB))} to ${fmt(Math.min(totalA,totalB))}${washoutNote} 🏆`;
       banner.style.display = '';
       if (tiebreakControl) tiebreakControl.style.display = 'none';
     }
@@ -6821,6 +7147,7 @@ setupModalA11y('resync-nudge-modal', dismissResyncNudge);
 setupModalA11y('notify-nudge-modal', dismissNotifyNudge);
 setupModalA11y('day1-recap-modal', closeDay1RecapModal);
 setupModalA11y('day2-recap-modal', closeDay2RecapModal);
+setupModalA11y('day3-recap-modal', closeDay3RecapModal);
 
 initUsername();
 initJoinHandoff();
