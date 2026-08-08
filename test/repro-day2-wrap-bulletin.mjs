@@ -237,6 +237,13 @@ async function main() {
     if (!/5–0/.test(boxscore)) fail(`expected the box score to show the four-ball's 5-0 points, got "${boxscore}"`);
     if (!/0–4/.test(boxscore)) fail(`expected the box score to show the three-ball's 0-4 points, got "${boxscore}"`);
     if (!/5–0/.test(boxscore)) fail(`expected the box score to show the combined bonus going 5-0 to Testicos, got "${boxscore}"`);
+    // Column headers must name which side is which -- these used to be a
+    // hardcoded "To Par"/"To Par" pair with no way to tell the columns
+    // apart (only caught by replaying the real, since-finished 2026 Day 2
+    // data through this feature after the fact -- see git history).
+    if (!/GroupingTesticosVerminPts/.test(boxscore)) {
+      fail(`expected the box score column headers to name the live team names, got "${boxscore}"`);
+    }
 
     // Close the modal from the assertions above before reopening it below
     // -- otherwise it still covers the fab and intercepts the next click.
@@ -258,6 +265,28 @@ async function main() {
     if (!/anthem/i.test(bodyWithAnthem) || !/B\. Cunningham/.test(bodyWithAnthem)) {
       fail(`expected the national-anthem paragraph to name the player who didn't sing, got "${bodyWithAnthem}"`);
     }
+
+    await page.evaluate(() => closeDay2RecapModal());
+    await page.waitForTimeout(350);
+
+    // A tied grouping (equal scores, 0-0 points) is a real scenario the
+    // 2026 tournament's actual finished Day 2 data hit (the four-ball
+    // group came in level) -- not covered by the clear-winner scores
+    // above, so it's checked explicitly here.
+    await page.evaluate(() => {
+      state.day2.anthem = {}; // undo the previous toggle's stroke shift
+      document.getElementById('a4-score').value = '-17';
+      document.getElementById('b4-score').value = '-17';
+      _doUpdateDay2();
+    });
+    await page.locator('#day2-recap-fab').click();
+    await page.waitForTimeout(450);
+    const bodyWithTie = (await page.locator('#day2-gazette-body').textContent()).trim();
+    const boxscoreWithTie = (await page.locator('#day2-gazette-boxscore').textContent()).trim();
+    if (!/matched each other stroke for stroke/.test(bodyWithTie)) {
+      fail(`expected a tied four-ball grouping to be described as matching stroke for stroke, got "${bodyWithTie}"`);
+    }
+    if (!/0–0/.test(boxscoreWithTie)) fail(`expected the box score to show 0-0 for the tied four-ball, got "${boxscoreWithTie}"`);
 
     await page.locator('.day2-recap-close').click();
     await page.waitForTimeout(350);

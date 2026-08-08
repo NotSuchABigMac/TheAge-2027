@@ -3180,7 +3180,7 @@ function day2RecapBoxScoreHtml(recap) {
     </tr>`;
   const rows = row('Fours (4v4)', groups.a4, groups.b4, scramble.four.a, scramble.four.b) +
                row('Threes (3v3)', groups.a3, groups.b3, scramble.three.a, scramble.three.b);
-  return `<table class="gazette-table"><thead><tr><th>Grouping</th><th>To Par</th><th>To Par</th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>
+  return `<table class="gazette-table"><thead><tr><th>Grouping</th><th>${escapeHtml(state.teamNameA)}</th><th>${escapeHtml(state.teamNameB)}</th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="gazette-boxscore-label">Combined Bonus (5pts)</div>
     <div style="font-size:.85rem;padding-top:4px">${fmt(scramble.bonus.a)}–${fmt(scramble.bonus.b)}</div>`;
 }
