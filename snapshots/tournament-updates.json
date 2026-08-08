@@ -2765,5 +2765,7 @@
   {"id":"4bb57e32-4525-4eb0-8af5-198970939106","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":11,"field_key":null,"value":null,"updated_by":"James McIntyre","updated_at":"2026-08-08T12:19:55.963102+00:00"},
   {"id":"7cf83332-09e7-4356-9c90-8175ddcc74de","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":11,"field_key":null,"value":"true","updated_by":"James McIntyre","updated_at":"2026-08-08T12:20:00.95569+00:00"},
   {"id":"748595d2-a06c-4fac-85ff-00a96ca8aaf4","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":3,"field_key":null,"value":"true","updated_by":"James McIntyre","updated_at":"2026-08-08T12:23:24.222095+00:00"},
-  {"id":"3266775e-496d-4dc4-92eb-c2c7a1bfd90e","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":3,"field_key":null,"value":null,"updated_by":"James McIntyre","updated_at":"2026-08-08T12:23:25.048374+00:00"}
+  {"id":"3266775e-496d-4dc4-92eb-c2c7a1bfd90e","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":3,"field_key":null,"value":null,"updated_by":"James McIntyre","updated_at":"2026-08-08T12:23:25.048374+00:00"},
+  {"id":"acd697b8-2853-4eae-8109-e57a7284593e","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":11,"field_key":null,"value":"true","updated_by":"James McIntyre","updated_at":"2026-08-08T21:50:53.014251+00:00"},
+  {"id":"9af53480-b2ae-49a7-8d9a-8d4756d66337","tournament_id":"wonga-cup-2026","update_type":"day_lock","match_idx":null,"player_id":null,"field_key":"day2","value":"true","updated_by":"James McIntyre","updated_at":"2026-08-08T21:51:00.822259+00:00"}
 ]
