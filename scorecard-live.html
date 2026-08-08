@@ -2262,6 +2262,10 @@ function performTeamMove(id, newTeam) {
   // the scoreboard keeps counting a result for a player who has moved
   // (issue #65).
   reconcileDay1AfterTeamMove(id, newTeam);
+  // Same idea for a Day 2 scramble group left pointing at the team they
+  // just left — otherwise the player is invisible to both teams' "Assign
+  // Scramble Groups" UI (issue #349).
+  reconcileDay2AfterTeamMove(id, newTeam);
   saveState();
   // Sync as a single-player delta, not a whole-roster snapshot — two
   // people moving different players around at the same time (e.g. during
@@ -2295,6 +2299,24 @@ function reconcileDay1AfterTeamMove(id, newTeam, emitSync = true) {
   }
 }
 
+// Mirrors reconcileDay1AfterTeamMove() for Day 2 scramble groups (issue
+// #349). Group codes are named by team ('a4'/'a3' for A, 'b4'/'b3' for B),
+// so a player already assigned to a group on the team they just left is now
+// sitting in a bucket the new team's UI never looks at -- they'd vanish
+// from both teams' "Assign Scramble Groups" panel (not shown as assigned,
+// since the new team only checks its own 2 codes; not shown as unassigned
+// either, since groupOf() still finds them stuck in the stale one).
+function reconcileDay2AfterTeamMove(id, newTeam, emitSync = true) {
+  const code = groupOf(id);
+  if (code === null || DAY2_GROUP_TEAM[code] === newTeam) return;
+  state.day2.groups = applyPlayerGroupMove(state.day2.groups, id, null);
+  if (emitSync) {
+    const player = PLAYERS.find(p => p.id === id);
+    alert(`${player ? player.name : 'That player'} was already assigned to a Day 2 scramble group on the other team — that assignment has been cleared since they're now on the other team.`);
+    insertUpdate('day2_group', { player_id: id, value: null });
+  }
+}
+
 function resetTeams() {
   requireUsername(() => {
     // Emit one player_team delta per player who's actually changing side,
@@ -2312,6 +2334,7 @@ function resetTeams() {
       state.teamA = moved.teamA;
       state.teamB = moved.teamB;
       reconcileDay1AfterTeamMove(p.id, newTeam);
+      reconcileDay2AfterTeamMove(p.id, newTeam);
       insertUpdate('player_team', { player_id: p.id, value: newTeam });
     });
     saveState();

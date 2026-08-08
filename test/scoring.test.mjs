@@ -725,6 +725,37 @@ test('applyUpdateToState: player_team also clears a Day 1 match slot left pointi
   assert.equal(state.teamB.has(2), true);
 });
 
+test('applyUpdateToState: player_team also clears a Day 2 scramble group left pointing at the player\'s old team (issue #349)', () => {
+  const state = makeState();
+  // Player 2 starts on Team A (see makeState) and is already in an
+  // A-side group; moving them to B leaves that group's team stale.
+  state.day2.groups.a4 = [2];
+  applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'B' });
+  assert.deepEqual(state.day2.groups.a4, []);
+  assert.equal(state.teamB.has(2), true);
+});
+
+test('applyUpdateToState: player_team leaves a Day 2 group alone when it already belongs to the player\'s new team', () => {
+  const state = makeState();
+  state.day2.groups.a3 = [2];
+  applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'A' });
+  assert.deepEqual(state.day2.groups.a3, [2]);
+});
+
+test('applyUpdateToState: player_team is a no-op on Day 2 groups when the player was never assigned to one', () => {
+  const state = makeState();
+  applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'B' });
+  assert.deepEqual(state.day2.groups, { a4: [], a3: [], b4: [], b3: [] });
+});
+
+test('applyUpdateToState: player_team only clears the moved player\'s own stale group slot, leaving other members put', () => {
+  const state = makeState();
+  // Players 2 and 0 both start on Team A and share group a4.
+  state.day2.groups.a4 = [2, 0];
+  applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'B' });
+  assert.deepEqual(state.day2.groups.a4, [0]);
+});
+
 test('applyUpdateToState: player_team with an invalid value is a no-op', () => {
   const state = makeState();
   applyUpdateToState(state, { update_type: 'player_team', player_id: 2, value: 'C' });
