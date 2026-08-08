@@ -730,6 +730,24 @@ body{padding-top:58px;padding-bottom:52px}
 .day1-recap-foldup{margin-top:16px}
 @media (max-width:560px){.gazette-columns{column-count:1;column-rule:none}.gazette{padding:20px 16px 4px}}
 
+/* ── DAY 2 WRAP (newspaper-style recap) ──
+   Same fab-nag/never-auto-opens/rebuilt-live mechanics as the Day 1 Wrap
+   above (see that block's comment) -- kept as its own parallel set of
+   classes/ids rather than sharing Day 1's, same split as every other
+   Day1/Day2 pair in this file. Stacked directly above the Day 1 fab
+   (which stays visible after Day 1 finishes) so the two never overlap
+   once both days are done. */
+.day2-recap-fab{position:fixed;right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + 52px + 12px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;border:2px solid var(--gold);background:var(--canvas);color:var(--ink);font-size:1.4rem;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9990;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:var(--tr)}
+.day2-recap-fab:hover{background:var(--gold);transform:scale(1.06)}
+.day2-recap-fab.shaking{animation:day1-fab-shake 0.62s ease-in-out}
+.day2-recap-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);padding:24px;perspective:1400px;opacity:1;visibility:visible;transition:opacity .22s ease,visibility 0s linear 0s}
+.day2-recap-modal.hidden{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .2s}
+.day2-recap-card{position:relative;background:var(--canvas);border:2px solid var(--gold);border-radius:var(--rl);padding:20px 20px 16px;max-width:720px;width:100%;max-height:calc(100vh - 48px);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);transform-origin:50% 0%;transform:none;opacity:1;transition:transform .38s cubic-bezier(.2,1.4,.4,1),opacity .3s ease}
+.day2-recap-modal.hidden .day2-recap-card{transform:scaleY(.08) rotateX(-65deg);opacity:0;transition:transform .26s ease-in,opacity .2s ease-in}
+.day2-recap-close{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:50%;border:1px solid var(--rule-strong);background:var(--canvas);color:var(--ink-mute);font-size:.9rem;line-height:1;cursor:pointer;z-index:2;transition:var(--tr)}
+.day2-recap-close:hover{color:var(--ink);border-color:var(--ink)}
+.day2-recap-foldup{margin-top:16px}
+
 /* Scorecard page body override */
 #page-scorecard { background: var(--canvas); color: var(--ink); min-height: 100vh; }
 #page-scorecard .page-content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
@@ -951,6 +969,35 @@ body{padding-top:58px;padding-bottom:52px}
      isDay1RecapReady(), then shakes on a loop (like a mobile game's
      unopened-loot-box badge) until opened for the first time. -->
 <button type="button" id="day1-recap-fab" class="day1-recap-fab" style="display:none" onclick="openDay1RecapModal()" aria-label="Read the Day 1 Wrap">📰</button>
+
+<!-- Day 2 Wrap -- same newspaper-recap treatment as the Day 1 Wrap above,
+     opened once every scramble group has a score (isDay2Complete(), see
+     updateDay2RecapTrigger()). Never auto-opens; rebuilt from live state
+     every time it opens (renderDay2RecapModal()). -->
+<div id="day2-recap-modal" class="day2-recap-modal hidden" role="dialog" aria-modal="true" aria-labelledby="day2-gazette-headline">
+  <div class="day2-recap-card">
+    <button type="button" class="day2-recap-close" onclick="closeDay2RecapModal()" aria-label="Close">✕</button>
+    <div class="gazette">
+      <div class="gazette-masthead">
+        <div class="gazette-kicker">A WONGA CUP GAZETTE EXTRA</div>
+        <div class="gazette-title">THE BLACK BULL BULLETIN</div>
+        <div class="gazette-dateline">SATURDAY, 8 AUGUST · BLACK BULL COURSE · TEAM SCRAMBLE</div>
+      </div>
+      <div class="gazette-headline" id="day2-gazette-headline"></div>
+      <div class="gazette-byline" id="day2-gazette-byline"></div>
+      <div class="gazette-columns" id="day2-gazette-body"></div>
+      <div class="gazette-boxscore-label">Box Score</div>
+      <div class="gazette-boxscore" id="day2-gazette-boxscore"></div>
+      <div class="gazette-signoff">— That's Day Two. Onward to Lake for the decider. —</div>
+    </div>
+    <button type="button" class="help-modal-close day2-recap-foldup" onclick="closeDay2RecapModal()">Fold It Up</button>
+  </div>
+</div>
+
+<!-- Floating nudge icon for the Day 2 Wrap above -- hidden until
+     isDay2Complete(), then shakes on a loop until opened for the first
+     time, same pattern as the Day 1 fab. -->
+<button type="button" id="day2-recap-fab" class="day2-recap-fab" style="display:none" onclick="openDay2RecapModal()" aria-label="Read the Day 2 Wrap">📰</button>
 
 <!-- Practice Mode banner (issue #208) -- always in normal document flow
      (never position:fixed, unlike the badges below), so it just needs
@@ -2973,6 +3020,190 @@ function holeResultFor(match, strokes, holeIdx) {
 }
 
 /* ─────────────────────────────────────
+   DAY 2 WRAP -- newspaper-style recap
+   Parallel feature to the Day 1 Wrap above, same never-auto-opens/
+   rebuilt-live-every-open mechanics, kept as its own set of functions
+   rather than sharing Day 1's (same split every other Day1/Day2 pair in
+   this file uses). Ready once isDay2Complete() is true -- all four
+   scramble groups (a4/a3/b4/b3) already resolves the "hole data vs
+   manual entry" precedence via effectiveDay2State(), so there's no
+   separate "assigned" concept to check the way Day 1's variable-length
+   match list needs.
+───────────────────────────────────── */
+const DAY2_RECAP_SEEN_KEY = KEY_PREFIX + 'wongaCup2026_day2RecapSeen';
+let day2RecapShakeTimer = null;
+
+function startDay2RecapShake(fab) {
+  if (day2RecapShakeTimer) return; // already looping
+  const shakeOnce = () => {
+    fab.classList.remove('shaking');
+    void fab.offsetWidth; // restart the CSS animation from its 0% keyframe
+    fab.classList.add('shaking');
+  };
+  shakeOnce();
+  day2RecapShakeTimer = setInterval(shakeOnce, 3200);
+}
+
+function stopDay2RecapShake(fab) {
+  if (day2RecapShakeTimer) { clearInterval(day2RecapShakeTimer); day2RecapShakeTimer = null; }
+  if (fab) fab.classList.remove('shaking');
+}
+
+// Called from _doUpdateDay2() -- the single choke point every Day 2 score
+// change (manual entry or hole-by-hole) already runs through -- so this
+// stays current on every local edit and every poll-driven restoreDay2().
+function updateDay2RecapTrigger() {
+  const fab = document.getElementById('day2-recap-fab');
+  if (!fab) return;
+  const ready = isDay2Complete();
+  fab.style.display = ready ? '' : 'none';
+  let seen = false;
+  try { seen = localStorage.getItem(DAY2_RECAP_SEEN_KEY) === '1'; } catch (_) {}
+  if (ready && !seen) startDay2RecapShake(fab);
+  else stopDay2RecapShake(fab);
+}
+
+function computeDay2Recap() {
+  const players = currentPlayers();
+  const eff = effectiveDay2State();
+  const scramble = calcDay2Points(eff);
+
+  function groupInfo(code) {
+    const ids = state.day2.groups[code];
+    const names = ids.map(id => (players.find(p => p.id === id) || {}).short).filter(Boolean);
+    return { code, team: DAY2_GROUP_TEAM[code], names, score: parseScoreToPar(eff[code]) };
+  }
+
+  function ntpWinner(hole) {
+    const id = state.day2.ntp[hole];
+    if (id === null || id === undefined) return null;
+    const p = players.find(pp => pp.id === id);
+    return p ? { player: p, team: teamOf(id) } : null;
+  }
+
+  return {
+    groups: { a4: groupInfo('a4'), a3: groupInfo('a3'), b4: groupInfo('b4'), b3: groupInfo('b3') },
+    scramble,
+    ntp: { h4: ntpWinner('h4'), h16: ntpWinner('h16') },
+    anthem: {
+      sang: players.filter(p => (state.day2.anthem || {})[p.id] === true),
+      notSung: players.filter(p => (state.day2.anthem || {})[p.id] === false)
+    },
+    totals: calcDay2()
+  };
+}
+
+function day2GroupNames(group) {
+  return group.names.length ? group.names.join(' & ') : 'TBC';
+}
+
+function day2RecapHeadline(recap) {
+  const { totals } = recap;
+  const A = state.teamNameA, B = state.teamNameB;
+  if (!recap.scramble.complete) return 'BLACK BULL SCRAMBLE STILL IN THE MIX';
+  if (totals.a === totals.b) return 'DAY TWO ENDS ALL SQUARE';
+  return `${(totals.a > totals.b ? A : B).toUpperCase()} SEIZE BLACK BULL`;
+}
+
+function day2RecapByline(recap) {
+  const { totals } = recap;
+  return `${escapeHtml(state.teamNameA)} ${fmt(totals.a)} — ${fmt(totals.b)} ${escapeHtml(state.teamNameB)} · after Day 2 scramble`;
+}
+
+// Prose paragraphs, entirely data-driven off the recap object above -- same
+// no-hardcoded-names-or-scores approach as day1RecapProse().
+function day2RecapProse(recap) {
+  const { groups, scramble, ntp, anthem, totals } = recap;
+  const A = state.teamNameA, B = state.teamNameB;
+  const paras = [];
+
+  if (!scramble.complete) {
+    paras.push(`Not every scramble card was in from Black Bull when this edition went to print.`);
+    return paras;
+  }
+
+  if (totals.a === totals.b) {
+    paras.push(`Black Bull's team scramble finished locked together, ${fmt(totals.a)} points each, with nothing between ${escapeHtml(A)} and ${escapeHtml(B)} ahead of Sunday's stableford decider at Lake.`);
+  } else {
+    const leadTeam = totals.a > totals.b ? A : B;
+    paras.push(`${escapeHtml(leadTeam)} head into Sunday's Lake decider on top, ${fmt(Math.max(totals.a, totals.b))} points to ${fmt(Math.min(totals.a, totals.b))}, after a Black Bull scramble that turned on both the fours and the threes.`);
+  }
+
+  function groupingPara(label, a, b, ptsA, ptsB) {
+    if (a.score === null || b.score === null) return null;
+    if (a.score === b.score) {
+      return `In the ${label}, ${escapeHtml(day2GroupNames(a))} and ${escapeHtml(day2GroupNames(b))} matched each other stroke for stroke, both carding ${fmt(a.score)}.`;
+    }
+    const winner = a.score < b.score ? a : b;
+    const loser = a.score < b.score ? b : a;
+    const pts = winner.team === 'A' ? ptsA : ptsB;
+    const winnerTeam = winner.team === 'A' ? A : B;
+    return `In the ${label}, ${escapeHtml(winnerTeam)}'s ${escapeHtml(day2GroupNames(winner))} carded ${fmt(winner.score)} to see off ${escapeHtml(day2GroupNames(loser))}'s ${fmt(loser.score)}, worth ${fmt(pts)}pt${pts === 1 ? '' : 's'}.`;
+  }
+  const fourPara = groupingPara('four-ball', groups.a4, groups.b4, scramble.four.a, scramble.four.b);
+  if (fourPara) paras.push(fourPara);
+  const threePara = groupingPara('three-ball', groups.a3, groups.b3, scramble.three.a, scramble.three.b);
+  if (threePara) paras.push(threePara);
+
+  if (scramble.bonus.a > 0 || scramble.bonus.b > 0) {
+    const bonusTeam = scramble.bonus.a > 0 ? A : B;
+    paras.push(`${escapeHtml(bonusTeam)} also pocketed the flat 5-point bonus for the better combined card.`);
+  } else {
+    paras.push(`The combined-card bonus went unclaimed, both sides' pairs of cards matching each other stroke for stroke.`);
+  }
+
+  if (ntp.h4 || ntp.h16) {
+    const bits = [];
+    if (ntp.h4) bits.push(`${escapeHtml(ntp.h4.player.short)} (${escapeHtml(ntp.h4.team === 'A' ? A : B)}) struck it closest on 4`);
+    if (ntp.h16) bits.push(`${escapeHtml(ntp.h16.player.short)} (${escapeHtml(ntp.h16.team === 'A' ? A : B)}) took nearest-the-pin honours on 16`);
+    paras.push(`Nearest-the-pin: ${bits.join(', and ')}.`);
+  }
+
+  if (anthem.notSung.length || anthem.sang.length) {
+    const bits = [];
+    if (anthem.sang.length) bits.push(`${anthem.sang.map(p => escapeHtml(p.short)).join(', ')} led the singing and banked a stroke apiece for it`);
+    if (anthem.notSung.length) bits.push(`${anthem.notSung.map(p => escapeHtml(p.short)).join(', ')} stayed quiet and wore the two-stroke penalty for their trouble`);
+    paras.push(`On the national anthem: ${bits.join('; ')}.`);
+  }
+
+  return paras;
+}
+
+function day2RecapBoxScoreHtml(recap) {
+  const { groups, scramble } = recap;
+  const row = (label, a, b, ptsA, ptsB) => `
+    <tr>
+      <td>${TEAM_EMOJI.A || ''} ${escapeHtml(day2GroupNames(a))}<span class="grbs-v">v</span>${escapeHtml(day2GroupNames(b))} ${TEAM_EMOJI.B || ''}</td>
+      <td class="grbs-nine">${a.score === null ? '—' : fmt(a.score)}</td>
+      <td class="grbs-nine">${b.score === null ? '—' : fmt(b.score)}</td>
+      <td class="grbs-pts">${fmt(ptsA)}–${fmt(ptsB)}</td>
+    </tr>`;
+  const rows = row('Fours (4v4)', groups.a4, groups.b4, scramble.four.a, scramble.four.b) +
+               row('Threes (3v3)', groups.a3, groups.b3, scramble.three.a, scramble.three.b);
+  return `<table class="gazette-table"><thead><tr><th>Grouping</th><th>${escapeHtml(state.teamNameA)}</th><th>${escapeHtml(state.teamNameB)}</th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="gazette-boxscore-label">Combined Bonus (5pts)</div>
+    <div style="font-size:.85rem;padding-top:4px">${fmt(scramble.bonus.a)}–${fmt(scramble.bonus.b)}</div>`;
+}
+
+function renderDay2RecapModal() {
+  const recap = computeDay2Recap();
+  document.getElementById('day2-gazette-headline').textContent = day2RecapHeadline(recap);
+  document.getElementById('day2-gazette-byline').innerHTML = day2RecapByline(recap);
+  document.getElementById('day2-gazette-body').innerHTML = day2RecapProse(recap).map(p => `<p>${p}</p>`).join('');
+  document.getElementById('day2-gazette-boxscore').innerHTML = day2RecapBoxScoreHtml(recap);
+}
+
+function openDay2RecapModal() {
+  renderDay2RecapModal();
+  document.getElementById('day2-recap-modal').classList.remove('hidden');
+  try { localStorage.setItem(DAY2_RECAP_SEEN_KEY, '1'); } catch (_) {}
+  stopDay2RecapShake(document.getElementById('day2-recap-fab'));
+}
+function closeDay2RecapModal() {
+  document.getElementById('day2-recap-modal').classList.add('hidden');
+}
+
+/* ─────────────────────────────────────
    HOLE-GRID AUTO-ADVANCE (issue #192)
    Shared by both the Day 1 and Day 2 hole grids -- after a gross score is
    typed, moves focus straight to the next hole instead of making the
@@ -4209,6 +4440,7 @@ function _doUpdateDay2() {
 
   saveState();
   updateScoreboard();
+  updateDay2RecapTrigger();
 }
 
 // Removing the poll-skip window (issue #108) means a poll's re-render can
@@ -6588,6 +6820,7 @@ setupModalA11y('help-modal', closeHelpModal);
 setupModalA11y('resync-nudge-modal', dismissResyncNudge);
 setupModalA11y('notify-nudge-modal', dismissNotifyNudge);
 setupModalA11y('day1-recap-modal', closeDay1RecapModal);
+setupModalA11y('day2-recap-modal', closeDay2RecapModal);
 
 initUsername();
 initJoinHandoff();
