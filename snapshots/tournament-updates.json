@@ -2763,5 +2763,7 @@
   {"id":"67084a2b-cdd5-4d85-bc24-2cdbc87d29e0","tournament_id":"wonga-cup-2026","update_type":"day2_hole","match_idx":null,"player_id":null,"field_key":"b4_18","value":"5","updated_by":"Cayden Woods","updated_at":"2026-08-08T06:44:12.553775+00:00"},
   {"id":"ed6459d4-9b98-49ad-b6b5-d9767d8cc9eb","tournament_id":"wonga-cup-2026","update_type":"day2_hole","match_idx":null,"player_id":null,"field_key":"a4_18","value":"5","updated_by":"Nathan Freestun","updated_at":"2026-08-08T06:49:21.025556+00:00"},
   {"id":"4bb57e32-4525-4eb0-8af5-198970939106","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":11,"field_key":null,"value":null,"updated_by":"James McIntyre","updated_at":"2026-08-08T12:19:55.963102+00:00"},
-  {"id":"7cf83332-09e7-4356-9c90-8175ddcc74de","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":11,"field_key":null,"value":"true","updated_by":"James McIntyre","updated_at":"2026-08-08T12:20:00.95569+00:00"}
+  {"id":"7cf83332-09e7-4356-9c90-8175ddcc74de","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":11,"field_key":null,"value":"true","updated_by":"James McIntyre","updated_at":"2026-08-08T12:20:00.95569+00:00"},
+  {"id":"748595d2-a06c-4fac-85ff-00a96ca8aaf4","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":3,"field_key":null,"value":"true","updated_by":"James McIntyre","updated_at":"2026-08-08T12:23:24.222095+00:00"},
+  {"id":"3266775e-496d-4dc4-92eb-c2c7a1bfd90e","tournament_id":"wonga-cup-2026","update_type":"day2_anthem","match_idx":null,"player_id":3,"field_key":null,"value":null,"updated_by":"James McIntyre","updated_at":"2026-08-08T12:23:25.048374+00:00"}
 ]
