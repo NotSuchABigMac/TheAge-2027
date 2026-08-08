@@ -1799,6 +1799,17 @@
           // device's own call, this never alerts or emits further sync rows.
           const recon = reconcileMatchesAfterTeamMove(state.day1.matches, row.player_id, v);
           if (recon.changes.length > 0) state.day1.matches = recon.matches;
+          // Same backstop for Day 2 (issue #349): group codes are named by
+          // team ('a4'/'a3' vs 'b4'/'b3'), so a stale membership in a code
+          // belonging to the team this player just left would otherwise
+          // leave them invisible to BOTH teams' bucket UI -- not shown as
+          // assigned (the new team's render loop never looks at the old
+          // team's codes) and not shown as unassigned either (the group
+          // lookup still finds them stuck in the stale one).
+          const staleCode = Object.keys(state.day2.groups).find(code => state.day2.groups[code].includes(row.player_id));
+          if (staleCode && staleCode[0].toUpperCase() !== v) {
+            state.day2.groups = applyPlayerGroupMove(state.day2.groups, row.player_id, null);
+          }
         }
         break;
       case 'day_lock':
