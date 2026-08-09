@@ -3,11 +3,11 @@
 
    A floating corner icon (#day1-recap-fab, 📰) appears once every
    ASSIGNED Day 1 match has both nines decided (updateDay1RecapTrigger() /
-   isDay1RecapReady()) -- deliberately looser than isDay1Complete() (which
-   the win-banner/tiebreak flow uses and requires literally all 6 match
-   slots filled): against the real live tournament data, only 5 of 6
-   slots were ever assigned, and gating on strict completeness would have
-   kept the icon hidden forever. The modal never auto-opens; the icon
+   isDay1RecapReady()) -- against the real live tournament data, only 5 of
+   6 slots were ever assigned, and gating on strict "every physical slot
+   used" completeness would have kept the icon (and, before
+   isDay1Complete() was unified onto this same check, the win banner too)
+   hidden forever. The modal never auto-opens; the icon
    shakes on a loop (mobile-game-nudge style, .shaking class driving
    @keyframes day1-fab-shake) until it's been opened once, persisted via
    DAY1_RECAP_SEEN_KEY so the nag stops for good, not just this load.
