@@ -171,14 +171,17 @@ body {
     const TRAIL_BANDS = 14;     // fade steps along a mark (see drawTrails)
     const MARK_FIT    = 0.90;   // how much of the clear inner circle the wordmark fills
 
-    // Bumps. The cart is rumbling over turf, not gliding on rails: each
-    // jolt is a kick to a damped spring, so it rings out over a few frames
-    // instead of flickering. Amplitudes are fractions of the cart's length.
-    const BUMP_HZ    = 9;       // how fast a jolt oscillates away
-    const BUMP_ZETA  = 0.42;    // damping -- under 1, so it rings
-    const BUMP_SIZE  = 0.17;    // peak body displacement of a real bump
-    const BUMP_ROT   = 0.09;    // rad, peak rock of the body
-    const BUMP_GAP   = [120, 400];  // ms between bumps
+    // Bumps. The cart isn't shaken -- it drives over ground that has a
+    // shape. GROUND_CELL is the bump wavelength as a fraction of the cart's
+    // length: near 1, so the front wheels crest a bump a beat before the
+    // rear wheels reach the same one, which is the whole feel of a rumble.
+    const GROUND_CELL = 0.85;
+    const GROUND_AMP  = 0.85;   // height field range, in cart-lengths/100
+    const SUSP_HZ     = 3.4;    // body-on-springs frequency (a cart is stiff)
+    const SUSP_ZETA   = 0.38;   // damping -- under 1, so it rebounds
+    const HEAVE_LIFT  = 0.075;  // how much a crest scales the body up
+    const PITCH_SHIFT = 0.080;  // body travel over the wheels, in cart-lengths
+    const ROLL_SHIFT  = 0.065;
 
     const INK = '236, 229, 213';
     const ACCENT = '#c2a05e';
@@ -214,10 +217,10 @@ body {
     let rafId = 0;
     const trails = WHEELS.map(() => []);   // [{x, y, t}] per wheel, oldest first
     let dust = [];
-    let pose = null;            // the cart as actually drawn: line + rumble
-    // lat/lon are fractions of the cart's length, rot is radians; each is
-    // a damped oscillator with its velocity alongside it.
-    const rumble = { lat: 0, latV: 0, lon: 0, lonV: 0, rot: 0, rotV: 0, next: 0 };
+    let pose = null;            // the cart's contact patches: exactly on the line
+    // The body on its springs, following the ground: heave is up/down,
+    // pitch is nose-to-tail, roll is side-to-side, each with its velocity.
+    const susp = { heave: 0, heaveV: 0, pitch: 0, pitchV: 0, roll: 0, rollV: 0 };
     const clubTips = [];        // club butt-ends, cart-local px, filled while drawing
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -285,35 +288,73 @@ body {
         };
     }
 
-    // A jolt: a velocity kick to each oscillator. Peak displacement of a
-    // kick is roughly v/omega, which is how the amplitudes above are set.
-    function kick(scale) {
-        const omega = TAU * BUMP_HZ;
-        rumble.latV += (Math.random() * 2 - 1) * BUMP_SIZE * scale * omega;
-        rumble.lonV += (Math.random() * 2 - 1) * BUMP_SIZE * scale * omega * 0.55;
-        rumble.rotV += (Math.random() * 2 - 1) * BUMP_ROT * scale * omega;
+    // ── The ground ─────────────────────────────────────────────────────
+    // Value noise: a hashed lattice, smoothstep-interpolated. The first
+    // version of this rumble drew a fresh random number every frame, which
+    // is white noise -- and white noise reads as an electrical buzz, not as
+    // terrain. Coherent noise is the standard fix (Eiserloh, "Juicing Your
+    // Cameras With Math", GDC 2016). Simplex would do the same job; two
+    // octaves of value noise is a dozen lines and indistinguishable at a
+    // ~2px amplitude, which suits a repo with no dependencies.
+    //
+    // It's a function of *place*, not of time. That's what buys the feel:
+    // the same bump is hit by the front wheels and then, a beat later, by
+    // the rear ones -- and it's still there next lap.
+    function hash2(ix, iy) {
+        let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263)) | 0;
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
     }
 
-    function stepRumble(dt) {
-        rumble.next -= dt;
-        if (rumble.next <= 0) {
-            kick(1);
-            rumble.next = BUMP_GAP[0] + Math.random() * (BUMP_GAP[1] - BUMP_GAP[0]);
-        }
-        kick(0.06 * (dt / 16.7));   // constant low chatter between the real bumps
+    function valueNoise(x, y) {
+        const x0 = Math.floor(x), y0 = Math.floor(y);
+        const fx = x - x0, fy = y - y0;
+        // Smoothstep, so the lattice doesn't show up as creases.
+        const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+        const a = hash2(x0, y0) + (hash2(x0 + 1, y0) - hash2(x0, y0)) * sx;
+        const b = hash2(x0, y0 + 1) + (hash2(x0 + 1, y0 + 1) - hash2(x0, y0 + 1)) * sx;
+        return (a + (b - a) * sy) * 2 - 1;
+    }
 
-        // Substepped at a fixed 8ms: semi-implicit Euler on a 9Hz spring
-        // goes unstable somewhere past a 20ms step, and a slow frame would
-        // otherwise send the cart into orbit.
-        const omega = TAU * BUMP_HZ, k = omega * omega, c = 2 * BUMP_ZETA * omega;
+    // Two octaves: long undulations with a finer chop on top.
+    function groundHeight(x, y) {
+        const s = 1 / (GROUND_CELL * L);
+        return (valueNoise(x * s, y * s) * 0.72 +
+                valueNoise(x * s * 2.7 + 31.4, y * s * 2.7 + 17.2) * 0.28) * GROUND_AMP;
+    }
+
+    // The body follows the ground through its springs rather than being
+    // pinned to it: sample the height under each contact patch, take the
+    // mean for heave and the front/rear and left/right differences for
+    // pitch and roll -- the standard four-wheel attitude model -- then let
+    // a damped spring chase each one so the body lags, overshoots and
+    // settles instead of tracing the terrain rigidly.
+    function stepSuspension(dt, cart) {
+        let h0 = 0, h1 = 0, h2 = 0, h3 = 0;
+        const hs = [0, 0, 0, 0];
+        for (let i = 0; i < WHEELS.length; i++) {
+            const p = wheelPos(cart, WHEELS[i]);
+            hs[i] = groundHeight(p.x, p.y);
+        }
+        h0 = hs[0]; h1 = hs[1]; h2 = hs[2]; h3 = hs[3];   // FL, FR, RL, RR
+
+        const target = {
+            heave: (h0 + h1 + h2 + h3) / 4,
+            pitch: ((h0 + h1) - (h2 + h3)) / 2,
+            roll:  ((h0 + h2) - (h1 + h3)) / 2
+        };
+
+        // Substepped at a fixed 8ms so a slow frame can't destabilise the
+        // spring (semi-implicit Euler needs omega*h well under 2).
+        const omega = TAU * SUSP_HZ, k = omega * omega, c = 2 * SUSP_ZETA * omega;
         let left = dt;
         while (left > 0) {
             const h = Math.min(8, left) / 1000;
             left -= 8;
-            for (const key of ['lat', 'lon', 'rot']) {
-                const v = rumble[key + 'V'] + (-k * rumble[key] - c * rumble[key + 'V']) * h;
-                rumble[key + 'V'] = v;
-                rumble[key] += v * h;
+            for (const key of ['heave', 'pitch', 'roll']) {
+                const v = susp[key + 'V'] + (k * (target[key] - susp[key]) - c * susp[key + 'V']) * h;
+                susp[key + 'V'] = v;
+                susp[key] += v * h;
             }
         }
     }
@@ -328,20 +369,15 @@ body {
     // fast-forwarded to pre-fill the trails (see seed()).
     function step(dt) {
         simTime += dt;
-        stepRumble(dt);
 
-        // The rumble is applied in the cart's own frame and to the pose the
-        // wheels are read off, so the skid marks pick up the same wobble --
-        // a cart shaking over a mark it laid down smoothly would give the
-        // game away.
-        const line = cartAt(simTime);
-        const c = Math.cos(line.heading), s = Math.sin(line.heading);
-        const cart = pose = {
-            x: line.x + (rumble.lon * c - rumble.lat * s) * L,
-            y: line.y + (rumble.lon * s + rumble.lat * c) * L,
-            heading: line.heading + rumble.rot,
-            slip: line.slip
-        };
+        // The contact patches stay exactly on the line -- a tyre doesn't
+        // slide sideways because the ground under it rises. Only the body
+        // moves, on its springs, which is also why the skid marks come out
+        // smooth: they're laid by the wheels, not by the shaking body. The
+        // first version rumbled the whole cart and the marks came out
+        // visibly serrated.
+        const cart = pose = cartAt(simTime);
+        stepSuspension(dt, cart);
 
         for (let i = 0; i < WHEELS.length; i++) {
             const p = wheelPos(cart, WHEELS[i]);
@@ -436,10 +472,21 @@ body {
     }
 
     function drawCart(cart) {
+        // Seen from above, suspension travel doesn't show as up and down --
+        // it shows as the body shifting over wheels that stay planted, and
+        // as the shadow separating when the cart rides up on a crest. So
+        // the wheels are drawn on the line and the body is offset by pitch
+        // and roll, scaled a touch by heave.
+        const lift = 1 + susp.heave * HEAVE_LIFT;
+        const dx = susp.pitch * PITCH_SHIFT * L;    // along the cart, nose positive
+        const dy = susp.roll * ROLL_SHIFT * L;      // across it
+
         // A soft shadow, offset in *world* space (down and right) so it
         // stays put as the cart rotates instead of swinging round with it.
+        // It pulls further out as the body rises.
+        const shadow = 1 + susp.heave * 0.5;
         ctx.save();
-        ctx.translate(cart.x + 0.05 * L, cart.y + 0.07 * L);
+        ctx.translate(cart.x + 0.05 * L * shadow, cart.y + 0.07 * L * shadow);
         ctx.rotate(cart.heading);
         ctx.fillStyle = 'rgba(4, 10, 7, 0.35)';
         roundRect(-L / 2, -W / 2, L, W, W * 0.22);
@@ -449,9 +496,10 @@ body {
         ctx.translate(cart.x, cart.y);
         ctx.rotate(cart.heading);
 
-        // Wheels first, so the body sits over their inner ends. The front
-        // pair are on opposite lock -- steering into the slide, which is
-        // the detail that makes it read as a drift and not a spin.
+        // Wheels first, so the body sits over their inner ends. These stay
+        // where the ground is. The front pair are on opposite lock --
+        // steering into the slide, which is the detail that makes it read
+        // as a drift and not a spin.
         const steer = -cart.slip * 0.85;
         const wl = 0.20 * L, ww = 0.085 * L;
         ctx.fillStyle = TYRE;
@@ -462,6 +510,10 @@ body {
             roundRect(-wl / 2, -ww / 2, wl, ww, ww * 0.35);
             ctx.restore();
         }
+
+        // Everything from here up is sprung mass.
+        ctx.translate(dx, dy);
+        ctx.scale(lift, lift);
 
         // Rear rack, then the chassis over it -- gold, and visible as a rim
         // around the roof, at the nose and across the tail.
@@ -573,8 +625,12 @@ body {
     window.__drift = {
         get radius() { return R; },
         get centre() { return { x: cx, y: cy }; },
-        get cart() { return pose || cartAt(simTime); },     // as drawn, rumble included
-        get line() { return cartAt(simTime); },             // the ideal line it's rumbling around
+        get cart() { return pose || cartAt(simTime); },
+        get line() { return cartAt(simTime); },
+        // The body on its springs. Sampled per frame by the test, which
+        // checks it's coherent (smooth) rather than per-frame random.
+        get suspension() { return { heave: susp.heave, pitch: susp.pitch, roll: susp.roll }; },
+        groundHeight: groundHeight,
         get cartLength() { return L; },
         get trailCounts() { return trails.map(t => t.length); },
         // Club tips in world coordinates, so a test can check they're both
