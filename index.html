@@ -148,9 +148,72 @@ kbd {
   border-radius: 3px;
   padding: 0.15em 0.45em;
 }
+
+/* drift.html plays first, full-screen, over the actual homepage
+   underneath -- click/tap/keyboard-activate anywhere to drop it and
+   reveal the cart-runner game it was covering. A plain <button> gets
+   Enter/Space activation for free rather than hand-rolling keydown
+   handling on a div. */
+#drift-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#drift-overlay iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  /* The click needs to land on the button, not get swallowed by the
+     iframe's own document (which has no listener of its own anyway). */
+  pointer-events: none;
+}
+#drift-overlay .drift-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 54px;   /* clear of drift.html's own "Home" link at bottom:18px */
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-indent: 0.22em;
+  color: var(--muted);
+  opacity: 0.7;
+  animation: drift-hint-pulse 2.2s ease-in-out infinite;
+}
+@keyframes drift-hint-pulse { 50% { opacity: 0.2; } }
+@media (prefers-reduced-motion: reduce) {
+  #drift-overlay .drift-hint { animation: none; }
+}
 </style>
 </head>
 <body>
+
+<button type="button" id="drift-overlay" aria-label="Playing an intro animation. Click, tap, or press Enter to skip it and play the golf cart game.">
+  <iframe src="drift.html?v=__CACHEBUST__" title="AGE 2027 intro animation" tabindex="-1" aria-hidden="true"></iframe>
+  <span class="drift-hint" aria-hidden="true">Click to play</span>
+</button>
+<script>
+// The game underneath is already running the instant the page loads --
+// this button is purely a visual cover over it, so dismissing is nothing
+// more than taking the cover off. { once: true } because there's nothing
+// left to dismiss after that.
+(function () {
+    const overlay = document.getElementById('drift-overlay');
+    if (overlay) overlay.addEventListener('click', () => { overlay.style.display = 'none'; }, { once: true });
+})();
+</script>
 
 <main class="wrap">
 
