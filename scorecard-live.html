@@ -3417,7 +3417,7 @@ function day3RecapProse(recap) {
       const leadTeam = recap.overall.winner === 'A' ? A : B;
       paras.push(`With no Stableford points to fight for, the Cup reverts to the standing lead from the first two days: ${escapeHtml(leadTeam)} take it, ${fmt(Math.max(recap.totalA, recap.totalB))} points to ${fmt(Math.min(recap.totalA, recap.totalB))}.`);
     }
-    paras.push(`No individual honours to hand out this year — the Lake Course leaderboard stays blank, and the trophy travels on two days' work instead of three.`);
+    paras.push(`Individual honours to be announced later — the Lake Course leaderboard stays blank for now, and the trophy travels on two days' work instead of three.`);
   } else {
     const withScores = recap.sorted.filter(p => p.total !== null && p.total !== undefined);
     if (withScores.length === 0) {

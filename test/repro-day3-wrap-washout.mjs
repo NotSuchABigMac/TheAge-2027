@@ -23,8 +23,8 @@
    icon appears, declares a Day 3 washout, checks Day 3's icon stays
    hidden (blocked on Day 2), opens Day 2, checks Day 3's icon appears,
    and opens it to check the washout edition's headline/byline/prose
-   (rain amount, standing-lead winner, no individual honours, a working
-   photo-album link) and box score (day-by-day points table).
+   (rain amount, standing-lead winner, individual honours deferred, a
+   working photo-album link) and box score (day-by-day points table).
 
    Self-contained: a tiny static file server for the app; Supabase and
    Google Fonts hosts blocked outright (demo mode + direct state mutation
