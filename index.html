@@ -1,356 +1,459 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="green" data-mode="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#07130c">
-<title>The A.G.E. 2027 · Coming Soon</title>
-<meta name="description" content="The Annual Golf Extravaganza returns in 2027. The fifth edition is coming — the clock is already counting down.">
+<meta name="theme-color" content="#0b1712">
+<title>AGE 2027 — More Info Coming Soon</title>
+<meta name="description" content="AGE 2027 — more info coming soon. In the meantime, have a hit of 16-bit golf cart runner.">
 <link rel="canonical" href="https://thewongacup.golf/">
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The A.G.E.">
-<meta property="og:title" content="The A.G.E. 2027 · Coming Soon">
-<meta property="og:description" content="The Annual Golf Extravaganza returns in 2027. The fifth edition is coming — the clock is already counting down.">
+<meta property="og:title" content="AGE 2027 — More Info Coming Soon">
+<meta property="og:description" content="AGE 2027 — more info coming soon. In the meantime, have a hit of 16-bit golf cart runner.">
 <meta property="og:url" content="https://thewongacup.golf/">
 <meta property="og:image" content="https://thewongacup.golf/images/og-card.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="The A.G.E. 2027 · Coming Soon">
-<meta name="twitter:description" content="The Annual Golf Extravaganza returns in 2027. The fifth edition is coming — the clock is already counting down.">
+<meta name="twitter:title" content="AGE 2027 — More Info Coming Soon">
+<meta name="twitter:description" content="AGE 2027 — more info coming soon. In the meantime, have a hit of 16-bit golf cart runner.">
 <meta name="twitter:image" content="https://thewongacup.golf/images/og-card.jpg">
 <link rel="preload" href="fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="styles.css?v=__CACHEBUST__">
-<!-- Issue: this is a standalone teaser page (fixed dark theme, no site
-     nav/hamburger/music-modal) -- same "own <style> block, no
-     theme.js/site.js" precedent tv.html already set for a page that
-     isn't part of the themeable multi-page shell. -->
 <style>
-html, body { height: 100%; }
-body.doomsday-page {
+/* Self-hosted fonts, the same two files styles.css already ships (issue
+   #197). Declared inline rather than pulling in the full 45KB design
+   system -- this placeholder uses two families and nothing else. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal; font-weight: 300 700; font-display: swap;
+  src: url('fonts/cormorant-garamond.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url('fonts/geist-mono.woff2') format('woff2');
+}
+
+:root {
+  --bg: #0b1712;
+  --ink: #ece5d5;
+  --muted: #7f8d83;
+  --accent: #c2a05e;
+  --line: rgba(236, 229, 213, 0.10);
+  --display: 'Cormorant Garamond', Garamond, serif;
+  --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow-x: hidden;
-  font-family: var(--body);
-  background:
-    radial-gradient(ellipse 120% 80% at 50% -10%, rgba(90, 200, 140, 0.10), transparent 60%),
-    radial-gradient(ellipse 90% 60% at 50% 110%, rgba(20, 60, 40, 0.35), transparent 60%),
-    var(--canvas);
+  padding: 6vh 24px;
+  background: radial-gradient(120% 80% at 50% 0%, #12251b 0%, var(--bg) 62%);
   color: var(--ink);
-  padding: 6vh 5vw 5vh;
+  font-family: var(--mono);
+  -webkit-font-smoothing: antialiased;
 }
 
-.doom-wrap {
-  position: relative;
-  max-width: 640px;
+.wrap {
   width: 100%;
+  max-width: 840px;
   text-align: center;
 }
 
-/* ── decorative Elder Futhark flourish -- purely ornamental "runic"
-   atmosphere, not meaningful text, hence aria-hidden ── */
-.runes {
-  font-family: 'Geist Mono', monospace;
-  letter-spacing: 0.5em;
-  font-size: 0.95rem;
-  color: var(--accent-2);
-  opacity: 0.55;
-  margin: 0 0 1.1rem;
-  user-select: none;
-}
-
 .eyebrow {
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.32em;
+  margin: 0 0 1.4rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.42em;
   text-transform: uppercase;
-  color: var(--accent-2);
-  opacity: 0.85;
-  margin: 0 0 0.6rem;
+  color: var(--muted);
+  /* letter-spacing adds a trailing gap that breaks optical centring */
+  text-indent: 0.42em;
 }
 
-h1.age-title {
+h1 {
+  margin: 0;
   font-family: var(--display);
-  font-weight: 600;
-  font-size: clamp(2.4rem, 7vw, 4.2rem);
-  line-height: 1.05;
-  margin: 0 0 0.35rem;
-  color: var(--ink);
-  text-shadow: 0 0 34px rgba(120, 220, 160, 0.28);
+  font-weight: 300;
+  font-size: clamp(3rem, 12vw, 6rem);
+  line-height: 0.95;
+  letter-spacing: 0.01em;
 }
-h1.age-title .roman {
-  color: var(--accent-2);
+h1 .year { color: var(--accent); }
+
+.sub {
+  margin: 1rem 0 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-indent: 0.26em;
 }
 
-.tagline {
-  font-family: var(--display);
-  font-style: italic;
-  font-weight: 500;
-  font-size: clamp(1.15rem, 3.4vw, 1.55rem);
-  color: var(--ink-2);
-  margin: 0 0 2.6rem;
+.rule {
+  width: 40px;
+  height: 1px;
+  margin: 2.6rem auto 2.2rem;
+  background: var(--line);
 }
 
-/* ── the Doomsday Clock -- stained-glass rose-window dial ── */
-.dial-frame {
-  position: relative;
-  width: min(64vw, 300px);
-  aspect-ratio: 1;
-  margin: 0 auto 2.2rem;
-  filter: drop-shadow(0 0 40px rgba(80, 200, 130, 0.22));
-  animation: dial-breathe 6s ease-in-out infinite;
-}
-@keyframes dial-breathe {
-  0%, 100% { filter: drop-shadow(0 0 30px rgba(80, 200, 130, 0.18)); }
-  50%      { filter: drop-shadow(0 0 52px rgba(120, 230, 160, 0.34)); }
-}
-.dial-frame svg { width: 100%; height: 100%; display: block; }
-
-.hand {
-  transform-origin: 160px 160px;
-}
-.hand.minute { animation: hand-tremor 9s ease-in-out infinite; }
-.hand.hour   { animation: hand-tremor 11s ease-in-out infinite reverse; }
-@keyframes hand-tremor {
-  0%, 100% { transform: rotate(-0.4deg); }
-  50%      { transform: rotate(0.4deg); }
+canvas {
+  display: block;
+  width: 100%;
+  height: 230px;          /* JS keeps this in step with the scene scale */
+  background: transparent; /* the scene sits on the page gradient, not in a box */
+  touch-action: manipulation;
 }
 
-.countdown {
+.hint {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: clamp(0.5rem, 2.4vw, 1.1rem);
-  margin: 0 0 1.9rem;
-  font-family: var(--mono);
-}
-.countdown .unit {
-  min-width: 3.6rem;
-}
-.countdown .num {
-  display: block;
-  font-size: clamp(1.6rem, 6vw, 2.5rem);
-  font-weight: 600;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 22px rgba(120, 230, 160, 0.35);
-}
-.countdown .lbl {
-  display: block;
-  font-size: 0.62rem;
-  letter-spacing: 0.24em;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+  margin: 1.6rem 0 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ink-mute);
-  margin-top: 0.2rem;
+  color: var(--muted);
 }
-.countdown .sep {
-  font-size: clamp(1.6rem, 6vw, 2.5rem);
-  color: var(--rule-strong);
-  align-self: flex-start;
-  padding-top: 0.05em;
-}
-
-/* ── mysterious numerical runic codes -- live ciphers derived from the
-   countdown itself, arranged like inscriptions around the dial ── */
-.sigils {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 0.6rem;
-  max-width: 480px;
-  margin: 0 auto 2.4rem;
-  font-family: var(--mono);
-}
-.sigil {
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  padding: 0.55rem 0.4rem;
-  background: rgba(120, 230, 160, 0.04);
-}
-.sigil .glyph {
-  display: block;
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
-  color: var(--accent-2);
-  font-variant-numeric: tabular-nums;
-}
-.sigil .cipher-lbl {
-  display: block;
-  font-size: 0.56rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--ink-mute);
-  margin-top: 0.3rem;
-}
-
-.doom-note {
-  font-size: 0.8rem;
-  color: var(--ink-mute);
-  margin: 0 0 2.6rem;
-}
-
-.doom-foot {
-  font-size: 0.78rem;
-  color: var(--ink-mute);
-}
-.doom-foot a {
-  color: var(--accent-2);
+.hint .dot { opacity: 0.5; }
+.hint a {
+  color: var(--muted);
   text-decoration: none;
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--line);
+  transition: color 0.2s, border-color 0.2s;
 }
-.doom-foot a:hover { border-bottom-color: var(--accent-2); }
+.hint a:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
-@media (prefers-reduced-motion: reduce) {
-  .dial-frame, .hand.minute, .hand.hour { animation: none !important; }
+/* Below this the two halves stack, and the separator between them is
+   just noise. */
+@media (max-width: 460px) {
+  .hint .dot { display: none; }
+  .hint { flex-direction: column; }
+}
+
+kbd {
+  font: inherit;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.15em 0.45em;
 }
 </style>
 </head>
-<body class="doomsday-page">
+<body>
 
-<div class="doom-wrap">
+<main class="wrap">
 
-  <p class="runes" aria-hidden="true">ᛗᛁᛞᚾᛁᚷᚺᛏ ᛟᚠ ᚦᛖ ᚨᚷᛖ</p>
+  <p class="eyebrow">Annual Golf Extravaganza</p>
 
-  <p class="eyebrow">Annual Golf Extravaganza · Fifth Edition</p>
+  <h1>AGE <span class="year">2027</span></h1>
+  <p class="sub">More info coming soon</p>
 
-  <h1 class="age-title">The A.G.E. <span class="roman">2027</span></h1>
-  <p class="tagline">is coming&hellip;</p>
+  <div class="rule"></div>
 
-  <div class="dial-frame" role="img" aria-label="A doomsday clock, hands set just shy of midnight">
-    <svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <radialGradient id="sheen" cx="50%" cy="38%" r="65%">
-          <stop offset="0%" stop-color="#8fe0ac" stop-opacity="0.35"/>
-          <stop offset="55%" stop-color="#173d29" stop-opacity="0"/>
-          <stop offset="100%" stop-color="#04140b" stop-opacity="0.55"/>
-        </radialGradient>
-      </defs>
+  <canvas id="gameCanvas"></canvas>
 
-      <!-- stained-glass wedges -->
-      <g stroke="#d4ad6c" stroke-width="1.2" stroke-opacity="0.65">
-        <path d="M160,160 L160,10 A150,150 0 0,1 235,30.1 Z" fill="#173d29"/>
-        <path d="M160,160 L235,30.1 A150,150 0 0,1 289.9,85 Z" fill="#0f2e1f"/>
-        <path d="M160,160 L289.9,85 A150,150 0 0,1 310,160 Z" fill="#1f5236"/>
-        <path d="M160,160 L310,160 A150,150 0 0,1 289.9,235 Z" fill="#123423"/>
-        <path d="M160,160 L289.9,235 A150,150 0 0,1 235,289.9 Z" fill="#1c4a32"/>
-        <path d="M160,160 L235,289.9 A150,150 0 0,1 160,310 Z" fill="#0f2e1f"/>
-        <path d="M160,160 L160,310 A150,150 0 0,1 85,289.9 Z" fill="#1f5236"/>
-        <path d="M160,160 L85,289.9 A150,150 0 0,1 30.1,235 Z" fill="#173d29"/>
-        <path d="M160,160 L30.1,235 A150,150 0 0,1 10,160 Z" fill="#123423"/>
-        <path d="M160,160 L10,160 A150,150 0 0,1 30.1,85 Z" fill="#1c4a32"/>
-        <path d="M160,160 L30.1,85 A150,150 0 0,1 85,30.1 Z" fill="#0f2e1f"/>
-        <path d="M160,160 L85,30.1 A150,150 0 0,1 160,10 Z" fill="#1f5236"/>
-      </g>
+  <p class="hint">
+    <span>Tap or press <kbd>Space</kbd> to jump</span>
+    <span class="dot" aria-hidden="true">·</span>
+    <a href="index2026.html">Relive 2026</a>
+  </p>
 
-      <circle cx="160" cy="160" r="150" fill="url(#sheen)"/>
-
-      <!-- hour ticks -->
-      <g stroke="#d4ad6c" stroke-width="2" stroke-opacity="0.8">
-        <line x1="160" y1="12" x2="160" y2="28"/>
-        <line x1="234" y1="31.8" x2="224" y2="49.1"/>
-        <line x1="288.2" y1="86" x2="270.9" y2="96"/>
-        <line x1="308" y1="160" x2="288" y2="160"/>
-        <line x1="288.2" y1="234" x2="270.9" y2="224"/>
-        <line x1="234" y1="288.2" x2="224" y2="270.9"/>
-        <line x1="160" y1="308" x2="160" y2="292"/>
-        <line x1="86" y1="288.2" x2="96" y2="270.9"/>
-        <line x1="31.8" y1="234" x2="49.1" y2="224"/>
-        <line x1="12" y1="160" x2="32" y2="160"/>
-        <line x1="31.8" y1="86" x2="49.1" y2="96"/>
-        <line x1="86" y1="31.8" x2="96" y2="49.1"/>
-      </g>
-
-      <!-- rim -->
-      <circle cx="160" cy="160" r="150" fill="none" stroke="#d4ad6c" stroke-width="3" stroke-opacity="0.9"/>
-      <circle cx="160" cy="160" r="142" fill="none" stroke="#d4ad6c" stroke-width="1" stroke-opacity="0.4"/>
-
-      <!-- hands, frozen a few minutes shy of midnight -->
-      <line class="hand minute" x1="160" y1="160" x2="123.5" y2="47.8" stroke="#efe7d3" stroke-width="3" stroke-linecap="round"/>
-      <line class="hand hour" x1="160" y1="160" x2="147.8" y2="83" stroke="#efe7d3" stroke-width="4" stroke-linecap="round"/>
-      <circle cx="160" cy="160" r="6" fill="#d4ad6c"/>
-    </svg>
-  </div>
-
-  <div class="countdown" aria-hidden="true">
-    <div class="unit"><span class="num" id="cd-days">000</span><span class="lbl">Days</span></div>
-    <span class="sep">:</span>
-    <div class="unit"><span class="num" id="cd-hours">00</span><span class="lbl">Hrs</span></div>
-    <span class="sep">:</span>
-    <div class="unit"><span class="num" id="cd-mins">00</span><span class="lbl">Min</span></div>
-    <span class="sep">:</span>
-    <div class="unit"><span class="num" id="cd-secs">00</span><span class="lbl">Sec</span></div>
-  </div>
-  <p class="sr-only" id="cd-sr">Counting down to the fifth edition of the A.G.E., August 2027.</p>
-
-  <div class="sigils" aria-hidden="true">
-    <div class="sigil"><span class="glyph" id="sig-hex">0x000000</span><span class="cipher-lbl">Cipher I</span></div>
-    <div class="sigil"><span class="glyph" id="sig-bin">00000000</span><span class="cipher-lbl">Cipher II</span></div>
-    <div class="sigil"><span class="glyph" id="sig-roman">—</span><span class="cipher-lbl">Cipher III</span></div>
-  </div>
-
-  <p class="doom-note">Dates to be confirmed &mdash; the clock is aimed at August MMXXVII.</p>
-
-  <p class="doom-foot">The A.G.E. · Yarrawonga &amp; Mulwala &middot; <a href="index2026.html">Relive MMXXVI &rarr;</a></p>
-
-</div>
+</main>
 
 <script src="error-beacon.js?v=__CACHEBUST__"></script>
 <script>
-(function () {
-  // Aimed at August 2027 -- no fixed date is announced yet, so this
-  // targets the 1st in the Yarrawonga/Mulwala course's local offset
-  // (AEST, +10:00 -- no DST in effect in August) as a stand-in until a
-  // real date is set.
-  var TARGET = new Date('2027-08-01T00:00:00+10:00').getTime();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
 
-  function toRoman(num) {
-    if (num <= 0) return '—';
-    var map = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],
-      [50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
-    var out = '';
-    for (var i = 0; i < map.length; i++) {
-      while (num >= map[i][0]) { out += map[i][1]; num -= map[i][0]; }
+    // The scene is authored against an 800px-wide stage and scaled to
+    // whatever width it actually gets. Everything below -- sprite size,
+    // jump arc, scroll speed -- derives from that scale, so the game
+    // plays identically on a phone instead of being the same 800px world
+    // squeezed into 340px (which gave a phone under a second to react to
+    // the first cart).
+    const STAGE_W = 800;
+    const STAGE_H = 230;
+    const STAGE_GROUND = 190;
+
+    let S = 1;          // scene scale
+    let VIEW_W = 800;   // css px
+    let VIEW_H = 230;   // css px
+    let GROUND = 190;   // css px
+    let baseSpeed = 5;  // css px per frame at speed multiplier 1
+
+    const INK = '#ece5d5';
+    const MUTED = '#7f8d83';
+    const ACCENT = '#c2a05e';
+    const FONT_MONO = "'Geist Mono', ui-monospace, monospace";
+    const FONT_DISPLAY = "'Cormorant Garamond', Garamond, serif";
+
+    // Game Variables
+    let frames = 0;
+    let score = 0;
+    let speedMult = 1;
+    let isGameOver = false;
+    let obstacles = [];
+    let groundScroll = 0;
+
+    // Cart palettes -- muted and near-monochrome, with the player picked
+    // out in the site's gold and hazards in a desaturated clay.
+    const CART_PLAYER = { roof: INK, post: '#4a5a50', body: ACCENT, wheel: '#141e19', hub: '#6b7a70' };
+    const CART_HAZARD = { roof: '#8d7f72', post: '#3a2f29', body: '#9e4b3a', wheel: '#141e19', hub: '#59453d' };
+
+    // Player Object
+    const player = {
+        x: 60, y: 150, width: 60, height: 40,
+        dy: 0, jumpForce: -12, gravity: 0.6, grounded: true,
+        jump() {
+            if (this.grounded) {
+                this.dy = this.jumpForce;
+                this.grounded = false;
+            }
+        },
+        update() {
+            this.y += this.dy;
+            if (this.y + this.height < GROUND) {
+                this.dy += this.gravity;
+                this.grounded = false;
+            } else {
+                this.dy = 0;
+                this.grounded = true;
+                this.y = GROUND - this.height; // Snap to ground
+            }
+        },
+        draw() { drawCart(this.x, this.y, CART_PLAYER); }
+    };
+
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        VIEW_W = canvas.clientWidth || STAGE_W;
+        // Floor the scale so the sprites stay readable on a narrow phone
+        // rather than shrinking to a few pixels.
+        S = Math.min(1, Math.max(0.62, VIEW_W / STAGE_W));
+        VIEW_H = Math.round(STAGE_H * S);
+        GROUND = Math.round(STAGE_GROUND * S);
+
+        canvas.style.height = VIEW_H + 'px';
+        canvas.width = Math.round(VIEW_W * dpr);
+        canvas.height = Math.round(VIEW_H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+
+        // Speed is proportional to the stage width, which is what keeps
+        // the time between a cart appearing and reaching you constant at
+        // any screen size.
+        baseSpeed = VIEW_W / 160;
+
+        player.width = 60 * S;
+        player.height = 40 * S;
+        player.x = 60 * S;
+        player.jumpForce = -12 * S;
+        player.gravity = 0.6 * S;
+        if (player.grounded) player.y = GROUND - player.height;
+
+        for (const o of obstacles) {
+            o.width = 60 * S;
+            o.height = 40 * S;
+            o.y = GROUND - o.height;
+        }
+
+        // Setting canvas.width above wipes the bitmap. While the loop is
+        // running the next frame redraws it, but on the game-over screen
+        // nothing is scheduled -- so a rotate/resize there would leave a
+        // blank canvas until someone tapped to retry.
+        if (isGameOver) paint();
     }
-    return out;
-  }
-  function pad(n, len) { return String(n).padStart(len, '0'); }
 
-  var elDays = document.getElementById('cd-days');
-  var elHours = document.getElementById('cd-hours');
-  var elMins = document.getElementById('cd-mins');
-  var elSecs = document.getElementById('cd-secs');
-  var elHex = document.getElementById('sig-hex');
-  var elBin = document.getElementById('sig-bin');
-  var elRoman = document.getElementById('sig-roman');
+    // Helper: draw the 16-bit golf cart from a 60x46 sprite grid,
+    // scaled to the current stage.
+    function drawCart(x, y, p) {
+        const r = (a, b, w, h) => ctx.fillRect(x + a * S, y + b * S, w * S, h * S);
+        ctx.fillStyle = p.roof; r(5, 0, 50, 5);        // roof
+        ctx.fillStyle = p.post; r(10, 5, 4, 15); r(46, 5, 4, 15); // roof supports
+        ctx.fillStyle = p.body; r(0, 20, 60, 16);      // body
+        ctx.fillStyle = p.post; r(40, 13, 4, 7);       // steering wheel
+        ctx.fillStyle = p.wheel; r(8, 36, 12, 10); r(40, 36, 12, 10);
+        ctx.fillStyle = p.hub; r(11, 39, 6, 5); r(43, 39, 6, 5);
+    }
 
-  function tick() {
-    var remaining = Math.max(0, TARGET - Date.now());
-    var totalSeconds = Math.floor(remaining / 1000);
-    var days = Math.floor(totalSeconds / 86400);
-    var hours = Math.floor((totalSeconds % 86400) / 3600);
-    var mins = Math.floor((totalSeconds % 3600) / 60);
-    var secs = totalSeconds % 60;
+    // Obstacle Class
+    class Obstacle {
+        constructor() {
+            this.x = VIEW_W;
+            this.width = 60 * S;
+            this.height = 40 * S;
+            this.y = GROUND - this.height;
+        }
+        update() { this.x -= baseSpeed * speedMult; }
+        draw() { drawCart(this.x, this.y, CART_HAZARD); }
+    }
 
-    elDays.textContent = pad(days, 3);
-    elHours.textContent = pad(hours, 2);
-    elMins.textContent = pad(mins, 2);
-    elSecs.textContent = pad(secs, 2);
+    // Input Listeners
+    function poke(e) {
+        if (e) e.preventDefault();  // don't scroll the page out from under the game
+        if (isGameOver) resetGame();
+        else player.jump();
+    }
+    window.addEventListener('keydown', (e) => { if (e.code === 'Space') poke(e); });
+    window.addEventListener('touchstart', poke, { passive: false });
+    canvas.addEventListener('mousedown', poke);
+    window.addEventListener('resize', resize);
 
-    // Live "runic" ciphers -- decorative, derived straight from the
-    // countdown so they change every second without meaning anything on
-    // their own.
-    elHex.textContent = '0x' + pad(totalSeconds.toString(16).toUpperCase(), 6);
-    elBin.textContent = pad((hours & 0xFF).toString(2), 8);
-    elRoman.textContent = toRoman(days);
-  }
+    // The ground: a hairline with scrolling dashes, which is what sells
+    // the sense of speed now that the scene has no other scenery.
+    function drawGround() {
+        ctx.fillStyle = 'rgba(236, 229, 213, 0.14)';
+        ctx.fillRect(0, GROUND, VIEW_W, 1);
 
-  tick();
-  setInterval(tick, 1000);
-})();
+        const gap = 56 * S;
+        if (!isGameOver) groundScroll = (groundScroll + baseSpeed * speedMult) % gap;
+        ctx.fillStyle = 'rgba(236, 229, 213, 0.07)';
+        for (let x = -gap; x < VIEW_W + gap; x += gap) {
+            ctx.fillRect(x - groundScroll, GROUND + 7 * S, 22 * S, 1);
+        }
+    }
+
+    function handleObstacles() {
+        // Random spawn cadence, but never closer than a jump-arc's worth
+        // of road -- without the gap check two carts can land a frame
+        // apart and form a wall nothing can clear.
+        const last = obstacles[obstacles.length - 1];
+        const minGap = (2 * Math.abs(player.jumpForce) / player.gravity) * baseSpeed * speedMult + player.width;
+        if ((!last || last.x < VIEW_W - minGap) && frames % Math.floor(Math.random() * 60 + 80) === 0) {
+            obstacles.push(new Obstacle());
+        }
+
+        for (let i = 0; i < obstacles.length; i++) {
+            const obs = obstacles[i];
+            if (!isGameOver) obs.update();
+            obs.draw();
+
+            // Collision (AABB), padded so a near-miss over the roof reads
+            // as a near-miss rather than a hit.
+            const padX = 8 * S, padY = 6 * S;
+            if (player.x < obs.x + obs.width - padX &&
+                player.x + player.width - padX > obs.x &&
+                player.y < obs.y + obs.height - padY &&
+                player.y + player.height - padY > obs.y) {
+                isGameOver = true;
+            }
+
+            if (obs.x + obs.width < 0) { obstacles.splice(i, 1); i--; }
+        }
+    }
+
+    function setTracked(font, size, spacing) {
+        ctx.font = `${font === FONT_DISPLAY ? 300 : 500} ${size}px ${font}`;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = spacing;
+    }
+
+    function drawUI() {
+        // Text scales more gently than the scene -- shrinking it all the
+        // way down with S would leave it unreadable on a phone.
+        const t = Math.max(0.78, S);
+        const scoreLine = `SCORE ${String(Math.floor(score)).padStart(3, '0')}`;
+
+        if (!isGameOver) {
+            ctx.textAlign = 'left';
+            ctx.fillStyle = MUTED;
+            setTracked(FONT_MONO, 11 * t, '2px');
+            ctx.fillText(scoreLine, 0, 14 * t);
+            if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+            return;
+        }
+
+        // No scrim rectangle -- that painted the canvas box in a slightly
+        // different green to the page behind it, showing exactly where
+        // the canvas ended. The scene is ghosted back in animate()
+        // instead, so the panel floats on the page's own gradient.
+        // A narrow stage has far less headroom above the ground line, and
+        // the panel needs three lines there instead of two -- so it sits
+        // higher, clear of the ghosted carts.
+        const narrow = VIEW_W < 520;
+        const titleY = GROUND * (narrow ? 0.36 : 0.52);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = INK;
+        setTracked(FONT_DISPLAY, 46 * t, '0px');
+        ctx.fillText('Out of bounds', VIEW_W / 2, titleY);
+
+        ctx.fillStyle = MUTED;
+        setTracked(FONT_MONO, 11 * t, '2px');
+        if (narrow) {
+            ctx.fillText(scoreLine, VIEW_W / 2, titleY + 20 * t);
+            ctx.fillText('TAP TO RETRY', VIEW_W / 2, titleY + 36 * t);
+        } else {
+            ctx.fillText(`${scoreLine}  ·  TAP OR SPACE TO RETRY`, VIEW_W / 2, titleY + 28 * t);
+        }
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+        ctx.textAlign = 'left';
+    }
+
+    function resetGame() {
+        player.y = GROUND - player.height;
+        player.dy = 0;
+        player.grounded = true;
+        obstacles = [];
+        score = 0;
+        speedMult = 1;
+        frames = 0;
+        isGameOver = false;
+        animate();
+    }
+
+    // One full frame. Idempotent once isGameOver is set (nothing moves,
+    // the score stops accruing), so it doubles as the repaint for resize
+    // and late-loading fonts.
+    function paint() {
+        ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+
+        // On game over the scene ghosts out behind the panel instead of
+        // being covered by an opaque rectangle.
+        ctx.globalAlpha = isGameOver ? 0.16 : 1;
+        drawGround();
+        player.update();
+        player.draw();
+        handleObstacles();
+        ctx.globalAlpha = 1;
+
+        drawUI();
+    }
+
+    function animate() {
+        paint();
+
+        if (!isGameOver) {
+            score += 0.1;
+            frames++;
+            if (frames > 0 && frames % 300 === 0 && speedMult < 3) speedMult += 0.1;
+            requestAnimationFrame(animate);
+        } else {
+            // The collision is detected *during* the paint above, so that
+            // frame drew the scene at full opacity before the panel went
+            // on top. One more pass now that the flag is set gives the
+            // ghosted-back scene the panel is designed to sit on.
+            paint();
+        }
+    }
+
+    resize();
+    animate();
+    // Repaint the panel once the webfonts land, so a game that ended
+    // before they loaded isn't stuck on the fallback face.
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => { if (isGameOver) paint(); });
+    }
 </script>
 
 </body>

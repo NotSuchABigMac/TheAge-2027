@@ -1,18 +1,20 @@
 /* ─────────────────────────────────────
-   REGRESSION TEST — the A.G.E. 2027 "coming soon" homepage that replaced
-   the old index.html once the 2026 Wonga Cup wrapped.
+   REGRESSION TEST — the AGE 2027 placeholder homepage that replaced the
+   old index.html once the 2026 Wonga Cup wrapped.
 
-   Covers the three UI-visible pieces that are actually alive on the
-   page (as opposed to the static stained-glass SVG dial, which has
-   nothing to regress against):
+   It's a deliberately simple page: a "more info coming soon" line plus a
+   canvas golf-cart runner. The things worth guarding are the ones that
+   silently break without anyone noticing on a placeholder nobody's
+   watching:
 
-   1. The live countdown (#cd-days/#cd-hours/#cd-mins/#cd-secs) actually
-      ticks -- it isn't a static placeholder.
-   2. The decorative "rune cipher" readouts (#sig-hex/#sig-bin/#sig-roman)
-      are populated and derived from the same countdown (hex code is
-      strictly decreasing as time passes).
-   3. The "Relive MMXXVI" footer link still lands on index2026.html,
-      which now holds the archived 2026 tournament homepage.
+   1. The teaser line is actually on the page.
+   2. The game boots -- canvas present, 2D context live, and the
+      requestAnimationFrame loop actually painting pixels (a thrown error
+      in the script would leave a blank canvas and no console clue for a
+      visitor).
+   3. Space/tap jumps the cart rather than scrolling the page.
+   4. The "Relive 2026" link still lands on index2026.html, which now
+      holds the archived 2026 tournament homepage.
 
    Drives real index.html via a local static server, same pattern as
    repro-297/repro-183. Never touches Supabase or Google Fonts.
@@ -78,6 +80,16 @@ function fail(msg) {
   throw new Error(msg);
 }
 
+// How many non-transparent pixels the canvas is painting right now --
+// the cheapest honest "is the game actually running" signal.
+const PAINTED_PIXELS = () => {
+  const c = document.getElementById('gameCanvas');
+  const data = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  let n = 0;
+  for (let i = 3; i < data.length; i += 4) if (data[i] !== 0) n++;
+  return n;
+};
+
 async function main() {
   const site = await startStaticServer();
   const sitePort = site.address().port;
@@ -94,8 +106,7 @@ async function main() {
     await context.route('**fonts.googleapis.com**', route => route.abort());
     await context.route('**fonts.gstatic.com**', route => route.abort());
 
-    // 1+2. Loads clean (no console/page errors), and both the countdown
-    // and the rune ciphers are live -- not frozen placeholders.
+    // 1+2. Teaser copy is present and the game actually boots and paints.
     {
       const page = await context.newPage();
       const errors = [];
@@ -105,44 +116,50 @@ async function main() {
       await page.goto(homeUrl, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(300);
 
-      const secsBefore = await page.textContent('#cd-secs');
-      const hexBefore = await page.textContent('#sig-hex');
-      const daysBefore = await page.textContent('#cd-days');
-      if (!/^\d{3}$/.test(daysBefore)) fail(`expected #cd-days to be a 3-digit countdown, got ${JSON.stringify(daysBefore)}`);
-      if (Number(daysBefore) <= 0) fail(`expected the countdown to August 2027 to be positive, got ${daysBefore} days`);
+      const copy = (await page.textContent('body')) || '';
+      if (!/AGE\s*2027/i.test(copy)) fail(`expected "AGE 2027" on the page, got ${JSON.stringify(copy.slice(0, 200))}`);
+      if (!/more info coming soon/i.test(copy)) fail(`expected "more info coming soon" on the page, got ${JSON.stringify(copy.slice(0, 200))}`);
 
-      await page.waitForTimeout(1200);
-      const secsAfter = await page.textContent('#cd-secs');
-      const hexAfter = await page.textContent('#sig-hex');
+      if (await page.locator('#gameCanvas').count() !== 1) fail('expected exactly one #gameCanvas on the page');
 
-      if (secsBefore === secsAfter) fail(`expected #cd-secs to tick within ~1.2s, stayed at ${secsBefore}`);
-      if (hexBefore === hexAfter) fail(`expected #sig-hex to change alongside the countdown, stayed at ${hexBefore}`);
-      // Hex cipher is derived from seconds remaining, which strictly
-      // decreases -- confirms it isn't just re-rendering noise.
-      if (parseInt(hexAfter, 16) >= parseInt(hexBefore, 16)) {
-        fail(`expected #sig-hex to strictly decrease as time passes, saw ${hexBefore} -> ${hexAfter}`);
-      }
-
-      const roman = await page.textContent('#sig-roman');
-      if (!/^[MDCLXVI]+$/.test(roman)) fail(`expected #sig-roman to be a Roman numeral, got ${JSON.stringify(roman)}`);
+      const painted = await page.evaluate(PAINTED_PIXELS);
+      if (painted < 100) fail(`expected the game to be painting the cart onto the canvas, only ${painted} non-transparent pixels`);
 
       if (errors.length) fail(`expected zero console/page errors, saw: ${JSON.stringify(errors)}`);
       await page.close();
     }
 
-    // 3. The archive link lands on the renamed 2026 recap page.
+    // 3. Space jumps the cart (and doesn't scroll the page instead).
+    {
+      const page = await context.newPage();
+      await page.goto(homeUrl, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(300);
+
+      const groundY = await page.evaluate(() => player.y);
+      await page.keyboard.press('Space');
+      await page.waitForTimeout(100);
+      const airborneY = await page.evaluate(() => player.y);
+      if (!(airborneY < groundY)) {
+        fail(`expected Space to lift the cart (smaller y), went from ${groundY} to ${airborneY}`);
+      }
+      const scrolled = await page.evaluate(() => window.scrollY);
+      if (scrolled !== 0) fail(`expected Space to be prevented from scrolling the page, scrollY=${scrolled}`);
+      await page.close();
+    }
+
+    // 4. The archive link lands on the renamed 2026 recap page.
     {
       const page = await context.newPage();
       await page.goto(homeUrl, { waitUntil: 'domcontentloaded' });
       await Promise.all([
         page.waitForURL('**/index2026.html'),
-        page.click('text=Relive MMXXVI'),
+        page.click('text=Relive 2026'),
       ]);
       if (!page.url().endsWith('/index2026.html')) fail(`expected the archive link to land on index2026.html, got ${page.url()}`);
       await page.close();
     }
 
-    console.log('All A.G.E. 2027 homepage assertions passed.');
+    console.log('All AGE 2027 placeholder homepage assertions passed.');
   } catch (e) {
     console.log('Error:', e.message);
     ok = false;
