@@ -175,13 +175,19 @@ body {
     // shape. GROUND_CELL is the bump wavelength as a fraction of the cart's
     // length: near 1, so the front wheels crest a bump a beat before the
     // rear wheels reach the same one, which is the whole feel of a rumble.
-    const GROUND_CELL = 0.85;
-    const GROUND_AMP  = 0.85;   // height field range, in cart-lengths/100
-    const SUSP_HZ     = 3.4;    // body-on-springs frequency (a cart is stiff)
-    const SUSP_ZETA   = 0.38;   // damping -- under 1, so it rebounds
-    const HEAVE_LIFT  = 0.075;  // how much a crest scales the body up
-    const PITCH_SHIFT = 0.080;  // body travel over the wheels, in cart-lengths
-    const ROLL_SHIFT  = 0.065;
+    const GROUND_CELL  = 0.85;
+    const GROUND_AMP   = 1.55;  // height field range, in cart-lengths/100
+    // Erratic comes from the ground being uneven, not from higher
+    // frequencies -- fast noise is what made the first version buzz.
+    const GROUND_ROUGH = 5.5;   // wavelength of the rough/calm patches, in cells
+    const RUT_BITE     = 0.75;  // depth of the occasional hard edge
+    const RUT_WIDTH    = 3.2;   // higher is narrower; keep it several frames wide
+    const GROUND_DRIFT = 26;    // px/s the field slides, so laps don't repeat
+    const SUSP_HZ      = 3.8;   // body-on-springs frequency (a cart is stiff)
+    const SUSP_ZETA    = 0.26;  // damping -- well under 1, so a hit rings on
+    const HEAVE_LIFT   = 0.075; // how much a crest scales the body up
+    const PITCH_SHIFT  = 0.065; // body travel over the wheels, in cart-lengths
+    const ROLL_SHIFT   = 0.052;
 
     const INK = '236, 229, 213';
     const ACCENT = '#c2a05e';
@@ -316,11 +322,28 @@ body {
         return (a + (b - a) * sy) * 2 - 1;
     }
 
-    // Two octaves: long undulations with a finer chop on top.
+    // Long undulations, a finer chop on top, the odd hard rut, and none of
+    // it evenly distributed.
     function groundHeight(x, y) {
         const s = 1 / (GROUND_CELL * L);
-        return (valueNoise(x * s, y * s) * 0.72 +
-                valueNoise(x * s * 2.7 + 31.4, y * s * 2.7 + 17.2) * 0.28) * GROUND_AMP;
+        const u = x * s, v = y * s;
+
+        let h = valueNoise(u, v) * 0.62 + valueNoise(u * 2.7 + 31.4, v * 2.7 + 17.2) * 0.24;
+
+        // A rut: a ridged term, near zero almost everywhere, biting where
+        // the noise crosses zero -- which traces long wandering creases
+        // across the ground rather than isolated dots. Kept several frames
+        // wide, because a one-frame spike is a click, not a bump; the
+        // suspension spring below rounds the rest of the edge off.
+        const r = valueNoise(u * 1.6 - 12.3, v * 1.6 + 8.8);
+        const bite = Math.max(0, 1 - Math.abs(r) * RUT_WIDTH);
+        h -= bite * bite * RUT_BITE;
+
+        // ...and the whole lot scaled by how rough this patch of ground is.
+        // The cart crosses a calm stretch, then one that throws it about.
+        // This is most of what makes the ride erratic instead of metronomic.
+        const rough = 0.22 + 0.78 * (valueNoise(u / GROUND_ROUGH + 5.7, v / GROUND_ROUGH - 3.1) * 0.5 + 0.5);
+        return h * rough * GROUND_AMP;
     }
 
     // The body follows the ground through its springs rather than being
@@ -332,9 +355,16 @@ body {
     function stepSuspension(dt, cart) {
         let h0 = 0, h1 = 0, h2 = 0, h3 = 0;
         const hs = [0, 0, 0, 0];
+        // The field slides slowly under the circle. Without this the cart
+        // drives over the identical bumps every 3.4s lap, and a rumble you
+        // can set your watch by stops reading as rough ground. All four
+        // wheels share the offset at any instant, so the front-then-rear
+        // ordering over a given bump is untouched.
+        const gx = GROUND_DRIFT * simTime / 1000;
+        const gy = GROUND_DRIFT * 0.62 * simTime / 1000;
         for (let i = 0; i < WHEELS.length; i++) {
             const p = wheelPos(cart, WHEELS[i]);
-            hs[i] = groundHeight(p.x, p.y);
+            hs[i] = groundHeight(p.x + gx, p.y + gy);
         }
         h0 = hs[0]; h1 = hs[1]; h2 = hs[2]; h3 = hs[3];   // FL, FR, RL, RR
 
