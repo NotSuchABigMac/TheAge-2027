@@ -21,11 +21,17 @@
 <meta name="twitter:title" content="AGE 2027 — Drift">
 <meta name="twitter:description" content="AGE 2027 — a golf cart drifting a lazy circle, seen from above.">
 <meta name="twitter:image" content="https://thewongacup.golf/images/og-card.jpg">
+<link rel="preload" href="fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
 <style>
-/* Self-hosted font, the same file styles.css already ships (issue #197).
-   Declared inline rather than pulling in the full 45KB design system --
-   this page uses one family and nothing else. */
+/* Self-hosted fonts, the same two files styles.css already ships (issue
+   #197). Declared inline rather than pulling in the full 45KB design
+   system -- this page uses two families and nothing else. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal; font-weight: 300 700; font-display: swap;
+  src: url('fonts/cormorant-garamond.woff2') format('woff2');
+}
 @font-face {
   font-family: 'Geist Mono';
   font-style: normal; font-weight: 100 900; font-display: swap;
@@ -38,7 +44,12 @@
   --muted: #7f8d83;
   --accent: #c2a05e;
   --line: rgba(236, 229, 213, 0.10);
+  --display: 'Cormorant Garamond', Garamond, 'Times New Roman', serif;
   --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Written by resize(), so the tagline can sit clear of the circle
+     without CSS having to re-derive the geometry the canvas already owns. */
+  --circle-r: 10vh;
+  --cart-l: 40px;
 }
 
 * { box-sizing: border-box; }
@@ -73,19 +84,44 @@ body {
 .mark {
   position: relative;           /* above the canvas */
   margin: 0;
-  /* Sized off the viewport height, like the circle is, so the wordmark
-     always fits inside the cart's line with clearance -- a rem-based
-     floor here would collide with the cart on a short landscape window. */
-  font-size: clamp(0.4rem, 1.45vh, 0.95rem);
+  font-family: var(--display);
+  /* font-size is written by fitWordmark(): the wordmark is set as large
+     as the cart's circle allows, which no static clamp can express --
+     the circle is a fraction of the viewport height, but the text has to
+     fit a *chord* of it, so its own height feeds into the answer. */
+  font-size: 2rem;
   font-weight: 500;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
+  line-height: 1;
+  /* Cormorant defaults to old-style figures, which drops 2027 to x-height
+     next to full-height caps. A wordmark wants them lining. */
+  font-variant-numeric: lining-nums;
+  font-feature-settings: 'lnum' 1;
+  white-space: nowrap;          /* it's measured before it's sized */
+  letter-spacing: 0.14em;
   color: var(--ink);
   /* letter-spacing adds a trailing gap that breaks optical centring */
-  text-indent: 0.26em;
+  text-indent: 0.14em;
   user-select: none;
 }
 .mark .year { color: var(--accent); }
+
+/* The tagline sits below the circle rather than inside it: at 20% of the
+   viewport height there isn't a chord long enough to hold a line this
+   long at a readable size. */
+.sub {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + var(--circle-r) + var(--cart-l) / 2 + 1.5rem);
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: clamp(0.5rem, 1.05vh, 0.72rem);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  text-indent: 0.24em;
+  white-space: nowrap;
+  color: var(--muted);
+  user-select: none;
+}
 
 .back {
   position: fixed;
@@ -110,6 +146,7 @@ body {
 <canvas id="scene" aria-hidden="true"></canvas>
 
 <h1 class="mark">AGE <span class="year">2027</span></h1>
+<p class="sub">More info coming soon...</p>
 
 <a class="back" href="index.html">Home</a>
 
@@ -118,6 +155,7 @@ body {
 (function () {
     const canvas = document.getElementById('scene');
     const ctx = canvas.getContext('2d');
+    const mark = document.querySelector('.mark');
     const TAU = Math.PI * 2;
 
     // ── Scene constants ────────────────────────────────────────────────
@@ -131,6 +169,16 @@ body {
     const TRAIL_MS    = 1500;   // how long a skid mark takes to fade out
     const TRAIL_STEP  = 3;      // css px between sampled trail points
     const TRAIL_BANDS = 14;     // fade steps along a mark (see drawTrails)
+    const MARK_FIT    = 0.90;   // how much of the clear inner circle the wordmark fills
+
+    // Bumps. The cart is rumbling over turf, not gliding on rails: each
+    // jolt is a kick to a damped spring, so it rings out over a few frames
+    // instead of flickering. Amplitudes are fractions of the cart's length.
+    const BUMP_HZ    = 9;       // how fast a jolt oscillates away
+    const BUMP_ZETA  = 0.42;    // damping -- under 1, so it rings
+    const BUMP_SIZE  = 0.17;    // peak body displacement of a real bump
+    const BUMP_ROT   = 0.09;    // rad, peak rock of the body
+    const BUMP_GAP   = [120, 400];  // ms between bumps
 
     const INK = '236, 229, 213';
     const ACCENT = '#c2a05e';
@@ -166,6 +214,11 @@ body {
     let rafId = 0;
     const trails = WHEELS.map(() => []);   // [{x, y, t}] per wheel, oldest first
     let dust = [];
+    let pose = null;            // the cart as actually drawn: line + rumble
+    // lat/lon are fractions of the cart's length, rot is radians; each is
+    // a damped oscillator with its velocity alongside it.
+    const rumble = { lat: 0, latV: 0, lon: 0, lonV: 0, rot: 0, rotV: 0, next: 0 };
+    const clubTips = [];        // club butt-ends, cart-local px, filled while drawing
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -187,6 +240,10 @@ body {
         canvas.height = Math.round(VIEW_H * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+        document.documentElement.style.setProperty('--circle-r', R + 'px');
+        document.documentElement.style.setProperty('--cart-l', L + 'px');
+        fitWordmark();
+
         // Marks laid down at the old radius would hang in space around the
         // new circle, so they're dropped and immediately re-seeded -- a
         // resize shouldn't wipe the trail the cart is visibly mid-way
@@ -195,6 +252,20 @@ body {
         dust = [];
         seed();
         draw();
+    }
+
+    // The wordmark is set as large as the circle allows. Its width and its
+    // height both scale linearly with font-size, so one measurement at a
+    // probe size gives the answer outright: the half-diagonal of the text
+    // box has to fit inside the radius the cart leaves clear.
+    //   (w·F/2)² + (h·F/2)² ≤ (clear·MARK_FIT)²
+    function fitWordmark() {
+        const clear = R - L / 2;
+        const PROBE = 40;
+        mark.style.fontSize = PROBE + 'px';
+        const box = mark.getBoundingClientRect();
+        const diag = Math.hypot(box.width / PROBE, box.height / PROBE);
+        mark.style.fontSize = (2 * clear * MARK_FIT / diag).toFixed(2) + 'px';
     }
 
     // Where the cart is at a given moment: a point on the circle, turned
@@ -214,6 +285,39 @@ body {
         };
     }
 
+    // A jolt: a velocity kick to each oscillator. Peak displacement of a
+    // kick is roughly v/omega, which is how the amplitudes above are set.
+    function kick(scale) {
+        const omega = TAU * BUMP_HZ;
+        rumble.latV += (Math.random() * 2 - 1) * BUMP_SIZE * scale * omega;
+        rumble.lonV += (Math.random() * 2 - 1) * BUMP_SIZE * scale * omega * 0.55;
+        rumble.rotV += (Math.random() * 2 - 1) * BUMP_ROT * scale * omega;
+    }
+
+    function stepRumble(dt) {
+        rumble.next -= dt;
+        if (rumble.next <= 0) {
+            kick(1);
+            rumble.next = BUMP_GAP[0] + Math.random() * (BUMP_GAP[1] - BUMP_GAP[0]);
+        }
+        kick(0.06 * (dt / 16.7));   // constant low chatter between the real bumps
+
+        // Substepped at a fixed 8ms: semi-implicit Euler on a 9Hz spring
+        // goes unstable somewhere past a 20ms step, and a slow frame would
+        // otherwise send the cart into orbit.
+        const omega = TAU * BUMP_HZ, k = omega * omega, c = 2 * BUMP_ZETA * omega;
+        let left = dt;
+        while (left > 0) {
+            const h = Math.min(8, left) / 1000;
+            left -= 8;
+            for (const key of ['lat', 'lon', 'rot']) {
+                const v = rumble[key + 'V'] + (-k * rumble[key] - c * rumble[key + 'V']) * h;
+                rumble[key + 'V'] = v;
+                rumble[key] += v * h;
+            }
+        }
+    }
+
     function wheelPos(cart, w) {
         const c = Math.cos(cart.heading), s = Math.sin(cart.heading);
         const lx = w.x * L, ly = w.y * W;
@@ -224,7 +328,20 @@ body {
     // fast-forwarded to pre-fill the trails (see seed()).
     function step(dt) {
         simTime += dt;
-        const cart = cartAt(simTime);
+        stepRumble(dt);
+
+        // The rumble is applied in the cart's own frame and to the pose the
+        // wheels are read off, so the skid marks pick up the same wobble --
+        // a cart shaking over a mark it laid down smoothly would give the
+        // game away.
+        const line = cartAt(simTime);
+        const c = Math.cos(line.heading), s = Math.sin(line.heading);
+        const cart = pose = {
+            x: line.x + (rumble.lon * c - rumble.lat * s) * L,
+            y: line.y + (rumble.lon * s + rumble.lat * c) * L,
+            heading: line.heading + rumble.rot,
+            slip: line.slip
+        };
 
         for (let i = 0; i < WHEELS.length; i++) {
             const p = wheelPos(cart, WHEELS[i]);
@@ -346,8 +463,8 @@ body {
             ctx.restore();
         }
 
-        // Bag rack off the back, then the chassis over it -- gold, and
-        // visible as a rim around the roof, at the nose and across the tail.
+        // Rear rack, then the chassis over it -- gold, and visible as a rim
+        // around the roof, at the nose and across the tail.
         ctx.fillStyle = TYRE;
         roundRect(-0.60 * L, -0.30 * W, 0.14 * L, 0.60 * W, ww * 0.3);
         ctx.fillStyle = ACCENT;
@@ -364,14 +481,57 @@ body {
         ctx.arc(0.10 * L, 0, 0.07 * L, 0, TAU);
         ctx.fill();
 
+        drawClubs();
         ctx.restore();
+    }
+
+    // Two bags on the rack, clubs fanned out over the tail. The bags sit on
+    // the gold deck rather than behind it -- out on the dark ground a dark
+    // bag is invisible, which left the shafts looking like antennae.
+    // Drawn in the cart's own frame, so they swing with the tail.
+    function drawClubs() {
+        const shaft = Math.max(0.7, 0.022 * L);
+        clubTips.length = 0;
+        for (const side of [-1, 1]) {
+            const bx = -0.40 * L, by = side * 0.26 * W;
+
+            // Shafts first: they read as coming out of the bag rather than
+            // lying on top of it.
+            ctx.lineCap = 'round';
+            ctx.lineWidth = shaft;
+            for (let k = -1; k <= 1; k++) {
+                const a = Math.PI + k * 0.15 + side * 0.10;
+                const len = (0.26 - Math.abs(k) * 0.02) * L;
+                const tx = bx + Math.cos(a) * len, ty = by + Math.sin(a) * len;
+                ctx.strokeStyle = 'rgba(' + INK + ',0.5)';
+                ctx.beginPath();
+                ctx.moveTo(bx, by);
+                ctx.lineTo(tx, ty);
+                ctx.stroke();
+                // Grips: the butt ends standing proud of the bag.
+                ctx.fillStyle = DETAIL;
+                ctx.beginPath();
+                ctx.arc(tx, ty, shaft, 0, TAU);
+                ctx.fill();
+                clubTips.push({ x: tx, y: ty });   // local frame; see the test hook
+            }
+
+            ctx.fillStyle = DETAIL;
+            ctx.beginPath();
+            ctx.ellipse(bx, by, 0.095 * L, 0.075 * L, 0, 0, TAU);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(' + INK + ',0.30)';
+            ctx.beginPath();
+            ctx.ellipse(bx, by, 0.048 * L, 0.036 * L, 0, 0, TAU);
+            ctx.fill();
+        }
     }
 
     function draw() {
         ctx.clearRect(0, 0, VIEW_W, VIEW_H);
         drawTrails();
         drawDust();
-        drawCart(cartAt(simTime));
+        drawCart(pose || cartAt(simTime));
     }
 
     function frame(now) {
@@ -403,14 +563,31 @@ body {
     resize();
     start();
 
+    // The wordmark is sized by measuring it, and the first measurement
+    // happens against whatever face is loaded at boot -- the fallback
+    // serif, on a cold cache. Fit it again once the real one lands.
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitWordmark);
+
     // Test hook for test/repro-drift-page.mjs -- geometry and trail state
     // are otherwise only observable by pixel-peeping the canvas.
     window.__drift = {
         get radius() { return R; },
         get centre() { return { x: cx, y: cy }; },
-        get cart() { return cartAt(simTime); },
+        get cart() { return pose || cartAt(simTime); },     // as drawn, rumble included
+        get line() { return cartAt(simTime); },             // the ideal line it's rumbling around
         get cartLength() { return L; },
         get trailCounts() { return trails.map(t => t.length); },
+        // Club tips in world coordinates, so a test can check they're both
+        // behind the cart and actually painted.
+        get clubTips() {
+            const p = pose || cartAt(simTime);
+            const c = Math.cos(p.heading), s = Math.sin(p.heading);
+            return clubTips.map(t => ({
+                x: p.x + t.x * c - t.y * s,
+                y: p.y + t.x * s + t.y * c,
+                local: t
+            }));
+        },
         get reduced() { return reduceMotion.matches; },
         CIRCLE_VH: CIRCLE_VH
     };

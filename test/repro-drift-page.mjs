@@ -16,9 +16,13 @@
         off the direction of travel, with the nose inside the line.
      4. All four wheels leave skid marks, and those marks are really
         painted on the canvas behind the cart -- not just held in state.
-     5. The wordmark sits inside the circle with clearance, so the cart
-        never drives through the text.
-     6. Under prefers-reduced-motion the scene is painted but frozen.
+     5. The wordmark is the page's display serif, set as large as the
+        circle allows, and still sits inside it with clearance so the
+        cart never drives through the text. The tagline sits below.
+     6. The cart rumbles: the drawn pose is jostled off the ideal line
+        by a visible but small amount, and settles back to it.
+     7. There are clubs in the back -- painted, and behind the cart.
+     8. Under prefers-reduced-motion the scene is painted but frozen.
 
    Self-contained: a tiny static file server for the app; Google Fonts
    and Supabase blocked outright (this page talks to neither).
@@ -136,10 +140,11 @@ async function testDriftingMotion(browser) {
     await page.waitForTimeout(180);
   }
 
-  // On the circle, every sample.
+  // On the circle, every sample. The tolerance has to clear the bump
+  // rumble, which deliberately knocks the cart a few px off the line.
   for (const s of samples) {
     const r = Math.hypot(s.x - s.cx, s.y - s.cy);
-    if (Math.abs(r - s.R) / s.R > 0.05) {
+    if (Math.abs(r - s.R) / s.R > 0.08) {
       fail(`the cart left the circle: radius ${r.toFixed(1)} vs expected ${s.R.toFixed(1)}`);
     }
   }
@@ -209,6 +214,79 @@ async function testSkidMarks(browser) {
   console.log('skid-mark assertions passed (four trails, painted behind the cart, clear ahead of it).');
 }
 
+async function testRumble(browser) {
+  const { context, page } = await openDrift(browser);
+
+  // Sample the drawn pose against the ideal line it's meant to be rumbling
+  // around. Both come from the same frame, so this isolates the bumps from
+  // the cart's travel round the circle.
+  const stats = await page.evaluate(async () => {
+    const d = window.__drift;
+    let maxOffset = 0, maxRot = 0, sum = 0, n = 0;
+    for (let i = 0; i < 180; i++) {
+      const c = d.cart, l = d.line;
+      const off = Math.hypot(c.x - l.x, c.y - l.y);
+      let rot = c.heading - l.heading;
+      rot = Math.abs(Math.atan2(Math.sin(rot), Math.cos(rot)));
+      maxOffset = Math.max(maxOffset, off);
+      maxRot = Math.max(maxRot, rot);
+      sum += off; n++;
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    return { maxOffset, maxRot, mean: sum / n, L: d.cartLength };
+  });
+
+  if (stats.maxOffset < 0.02 * stats.L) {
+    fail(`expected the cart to be jostled off its line by the bumps; peak offset was only ${stats.maxOffset.toFixed(2)}px on a ${stats.L.toFixed(1)}px cart`);
+  }
+  if (stats.maxOffset > 0.30 * stats.L) {
+    fail(`the bump rumble is a wander, not a rumble: peak offset ${stats.maxOffset.toFixed(2)}px on a ${stats.L.toFixed(1)}px cart`);
+  }
+  // A damped spring spends most of its time near rest and only occasionally
+  // peaks. A mean anywhere near the peak would mean it's just permanently
+  // displaced rather than being knocked about and settling.
+  if (stats.mean > stats.maxOffset * 0.75) {
+    fail(`the rumble never settles back to the line: mean offset ${stats.mean.toFixed(2)}px vs peak ${stats.maxOffset.toFixed(2)}px`);
+  }
+  if (stats.maxRot < 0.004) fail(`expected the body to rock over the bumps, peak rotation was ${stats.maxRot.toFixed(4)} rad`);
+
+  await context.close();
+  console.log(`rumble assertions passed (peak ${stats.maxOffset.toFixed(2)}px / ${stats.maxRot.toFixed(3)} rad, mean ${stats.mean.toFixed(2)}px).`);
+}
+
+async function testClubsInTheBack(browser) {
+  const { context, page } = await openDrift(browser);
+  await page.waitForTimeout(300);
+
+  const clubs = await page.evaluate(() => {
+    const d = window.__drift;
+    const cv = document.getElementById('scene');
+    const c = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const tips = d.clubTips;
+    // Painted? Sample a small box at each tip and take the peak alpha.
+    const painted = tips.map(t => {
+      const half = Math.max(2, Math.round(0.05 * d.cartLength * dpr));
+      const px = c.getImageData(Math.round(t.x * dpr) - half, Math.round(t.y * dpr) - half, half * 2, half * 2).data;
+      let max = 0;
+      for (let i = 3; i < px.length; i += 4) if (px[i] > max) max = px[i];
+      return max;
+    });
+    return {
+      count: tips.length,
+      behind: tips.every(t => t.local.x < -0.5 * d.cartLength),   // past the tail of the body
+      minPainted: Math.min(...painted)
+    };
+  });
+
+  if (clubs.count < 4) fail(`expected a set of clubs in the back, found ${clubs.count} shafts`);
+  if (!clubs.behind) fail('expected the clubs to stick out past the back of the cart');
+  if (clubs.minPainted < 24) fail(`expected every club to be painted on the canvas, faintest tip had alpha ${clubs.minPainted}`);
+
+  await context.close();
+  console.log(`clubs assertions passed (${clubs.count} shafts, painted, past the tail).`);
+}
+
 async function testWordmarkClearance(browser) {
   const { context, page } = await openDrift(browser);
 
@@ -227,23 +305,43 @@ async function testWordmarkClearance(browser) {
     await page.waitForTimeout(120);
     const info = await page.evaluate(() => {
       const el = document.querySelector('.mark');
+      const sub = document.querySelector('.sub');
       const r = el.getBoundingClientRect();
+      const sr = sub.getBoundingClientRect();
       const d = window.__drift;
       const corners = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
       return {
         text: el.textContent.replace(/\s+/g, ' ').trim(),
+        family: getComputedStyle(el).fontFamily,
+        size: parseFloat(getComputedStyle(el).fontSize),
+        width: r.width,
         worst: Math.max(...corners.map(([x, y]) => Math.hypot(x - d.centre.x, y - d.centre.y))),
-        clear: d.radius - d.cartLength / 2
+        clear: d.radius - d.cartLength / 2,
+        subText: sub.textContent.replace(/\s+/g, ' ').trim(),
+        subTop: sr.top,
+        cartOuter: d.centre.y + d.radius + d.cartLength / 2
       };
     });
+
     if (info.text !== 'AGE 2027') fail(`expected the wordmark to read "AGE 2027", got "${info.text}"`);
+    if (!/Cormorant Garamond/.test(info.family)) fail(`expected the wordmark in the display serif, got "${info.family}"`);
     if (info.worst >= info.clear) {
       fail(`at ${viewport.width}x${viewport.height} the wordmark reaches ${info.worst.toFixed(1)}px from centre but the cart's inner edge is at ${info.clear.toFixed(1)}px -- the cart would drive through the text`);
+    }
+    // ...and it should genuinely fill that space, not just avoid it: the
+    // wordmark is meant to be set as large as the circle allows.
+    if (info.worst < info.clear * 0.75) {
+      fail(`at ${viewport.width}x${viewport.height} the wordmark only reaches ${info.worst.toFixed(1)}px of the ${info.clear.toFixed(1)}px available -- it isn't being fitted to the circle`);
+    }
+
+    if (info.subText !== 'More info coming soon...') fail(`expected the tagline to read "More info coming soon...", got "${info.subText}"`);
+    if (info.subTop <= info.cartOuter) {
+      fail(`at ${viewport.width}x${viewport.height} the tagline starts at y=${info.subTop.toFixed(1)}, inside the cart's outer edge at y=${info.cartOuter.toFixed(1)}`);
     }
   }
 
   await context.close();
-  console.log('wordmark-clearance assertions passed (text stays inside the cart\'s line).');
+  console.log('wordmark assertions passed (display serif, fitted to the circle, tagline clear below it).');
 }
 
 async function testReducedMotion(browser) {
@@ -291,6 +389,8 @@ async function main() {
     await testCircleSize(browser);
     await testDriftingMotion(browser);
     await testSkidMarks(browser);
+    await testRumble(browser);
+    await testClubsInTheBack(browser);
     await testWordmarkClearance(browser);
     await testReducedMotion(browser);
     console.log('All drift-page assertions passed.');
