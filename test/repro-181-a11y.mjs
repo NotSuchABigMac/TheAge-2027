@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────
    REGRESSION TEST — issue #181: accessibility pass.
 
-   Four independent problems, checked against the real index.html (chosen
+   Four independent problems, checked against the real index2026.html (chosen
    as one representative of the pages that all received the identical
    mobile-menu/modal treatment -- verified separately that the same
    pattern landed in format/golfers/practical/records.html too):
@@ -59,7 +59,7 @@ function startStaticServer() {
     const server = http.createServer(async (req, res) => {
       try {
         const urlPath = new URL(req.url, 'http://x').pathname;
-        const filePath = path.join(ROOT, urlPath === '/' ? '/index.html' : urlPath);
+        const filePath = path.join(ROOT, urlPath === '/' ? '/index2026.html' : urlPath);
         const body = await readFile(filePath);
         const ext = path.extname(filePath);
         res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -81,7 +81,7 @@ function fail(msg) {
 async function main() {
   const site = await startStaticServer();
   const sitePort = site.address().port;
-  const baseUrl = `http://127.0.0.1:${sitePort}/index.html`;
+  const baseUrl = `http://127.0.0.1:${sitePort}/index2026.html`;
 
   const chromium = await loadChromium();
   const launchOpts = { args: ['--no-sandbox', '--disable-dev-shm-usage'] };

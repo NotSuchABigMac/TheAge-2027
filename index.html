@@ -1,519 +1,357 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="green" data-mode="light" class="hero-page">
+<html lang="en" data-theme="green" data-mode="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="theme-color" content="#0e2418">
-<title>The Wonga Cup · MMXXVI · Yarrawonga</title>
-<meta name="description" content="Three days of golf, mateship, and mild chaos at Yarrawonga & Mulwala — the Wonga Cup, 7-9 August 2026.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07130c">
+<title>The A.G.E. 2027 · Coming Soon</title>
+<meta name="description" content="The Annual Golf Extravaganza returns in 2027. The fifth edition is coming — the clock is already counting down.">
 <link rel="canonical" href="https://thewongacup.golf/">
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="The Wonga Cup">
-<meta property="og:title" content="The Wonga Cup · MMXXVI · Yarrawonga">
-<meta property="og:description" content="Three days of golf, mateship, and mild chaos at Yarrawonga & Mulwala — the Wonga Cup, 7-9 August 2026.">
+<meta property="og:site_name" content="The A.G.E.">
+<meta property="og:title" content="The A.G.E. 2027 · Coming Soon">
+<meta property="og:description" content="The Annual Golf Extravaganza returns in 2027. The fifth edition is coming — the clock is already counting down.">
 <meta property="og:url" content="https://thewongacup.golf/">
 <meta property="og:image" content="https://thewongacup.golf/images/og-card.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="The Wonga Cup · MMXXVI · Yarrawonga">
-<meta name="twitter:description" content="Three days of golf, mateship, and mild chaos at Yarrawonga & Mulwala — the Wonga Cup, 7-9 August 2026.">
+<meta name="twitter:title" content="The A.G.E. 2027 · Coming Soon">
+<meta name="twitter:description" content="The Annual Golf Extravaganza returns in 2027. The fifth edition is coming — the clock is already counting down.">
 <meta name="twitter:image" content="https://thewongacup.golf/images/og-card.jpg">
 <link rel="preload" href="fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css?v=__CACHEBUST__">
-<!-- Issue #178: the hero photo is a CSS background-image, invisible to
-     the preload scanner -- without this it isn't discovered until
-     styles.css itself is parsed, delaying the page's LCP element. -->
-<link rel="preload" as="image" href="images/course-black-bull.webp">
+<!-- Issue: this is a standalone teaser page (fixed dark theme, no site
+     nav/hamburger/music-modal) -- same "own <style> block, no
+     theme.js/site.js" precedent tv.html already set for a page that
+     isn't part of the themeable multi-page shell. -->
+<style>
+html, body { height: 100%; }
+body.doomsday-page {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-x: hidden;
+  font-family: var(--body);
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -10%, rgba(90, 200, 140, 0.10), transparent 60%),
+    radial-gradient(ellipse 90% 60% at 50% 110%, rgba(20, 60, 40, 0.35), transparent 60%),
+    var(--canvas);
+  color: var(--ink);
+  padding: 6vh 5vw 5vh;
+}
+
+.doom-wrap {
+  position: relative;
+  max-width: 640px;
+  width: 100%;
+  text-align: center;
+}
+
+/* ── decorative Elder Futhark flourish -- purely ornamental "runic"
+   atmosphere, not meaningful text, hence aria-hidden ── */
+.runes {
+  font-family: 'Geist Mono', monospace;
+  letter-spacing: 0.5em;
+  font-size: 0.95rem;
+  color: var(--accent-2);
+  opacity: 0.55;
+  margin: 0 0 1.1rem;
+  user-select: none;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  opacity: 0.85;
+  margin: 0 0 0.6rem;
+}
+
+h1.age-title {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(2.4rem, 7vw, 4.2rem);
+  line-height: 1.05;
+  margin: 0 0 0.35rem;
+  color: var(--ink);
+  text-shadow: 0 0 34px rgba(120, 220, 160, 0.28);
+}
+h1.age-title .roman {
+  color: var(--accent-2);
+}
+
+.tagline {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(1.15rem, 3.4vw, 1.55rem);
+  color: var(--ink-2);
+  margin: 0 0 2.6rem;
+}
+
+/* ── the Doomsday Clock -- stained-glass rose-window dial ── */
+.dial-frame {
+  position: relative;
+  width: min(64vw, 300px);
+  aspect-ratio: 1;
+  margin: 0 auto 2.2rem;
+  filter: drop-shadow(0 0 40px rgba(80, 200, 130, 0.22));
+  animation: dial-breathe 6s ease-in-out infinite;
+}
+@keyframes dial-breathe {
+  0%, 100% { filter: drop-shadow(0 0 30px rgba(80, 200, 130, 0.18)); }
+  50%      { filter: drop-shadow(0 0 52px rgba(120, 230, 160, 0.34)); }
+}
+.dial-frame svg { width: 100%; height: 100%; display: block; }
+
+.hand {
+  transform-origin: 160px 160px;
+}
+.hand.minute { animation: hand-tremor 9s ease-in-out infinite; }
+.hand.hour   { animation: hand-tremor 11s ease-in-out infinite reverse; }
+@keyframes hand-tremor {
+  0%, 100% { transform: rotate(-0.4deg); }
+  50%      { transform: rotate(0.4deg); }
+}
+
+.countdown {
+  display: flex;
+  justify-content: center;
+  gap: clamp(0.5rem, 2.4vw, 1.1rem);
+  margin: 0 0 1.9rem;
+  font-family: var(--mono);
+}
+.countdown .unit {
+  min-width: 3.6rem;
+}
+.countdown .num {
+  display: block;
+  font-size: clamp(1.6rem, 6vw, 2.5rem);
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 22px rgba(120, 230, 160, 0.35);
+}
+.countdown .lbl {
+  display: block;
+  font-size: 0.62rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-top: 0.2rem;
+}
+.countdown .sep {
+  font-size: clamp(1.6rem, 6vw, 2.5rem);
+  color: var(--rule-strong);
+  align-self: flex-start;
+  padding-top: 0.05em;
+}
+
+/* ── mysterious numerical runic codes -- live ciphers derived from the
+   countdown itself, arranged like inscriptions around the dial ── */
+.sigils {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem;
+  max-width: 480px;
+  margin: 0 auto 2.4rem;
+  font-family: var(--mono);
+}
+.sigil {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.55rem 0.4rem;
+  background: rgba(120, 230, 160, 0.04);
+}
+.sigil .glyph {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+.sigil .cipher-lbl {
+  display: block;
+  font-size: 0.56rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-top: 0.3rem;
+}
+
+.doom-note {
+  font-size: 0.8rem;
+  color: var(--ink-mute);
+  margin: 0 0 2.6rem;
+}
+
+.doom-foot {
+  font-size: 0.78rem;
+  color: var(--ink-mute);
+}
+.doom-foot a {
+  color: var(--accent-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule);
+}
+.doom-foot a:hover { border-bottom-color: var(--accent-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dial-frame, .hand.minute, .hand.hour { animation: none !important; }
+}
+</style>
 </head>
-<body>
+<body class="doomsday-page">
 
-<a href="#top" class="skip-link">Skip to content</a>
+<div class="doom-wrap">
 
-<!-- Music Warning Modal -->
-<div id="music-modal" class="music-modal hidden">
-  <div class="music-modal-card">
-    <div class="music-modal-icon">🔊</div>
-    <div class="music-modal-title">⚠ WARNING</div>
-    <div class="music-modal-body">This site contains <strong>appropriate music.</strong><br><br>Click YES to agree to play music.<br><br><strong>Turn your volume all the way up.</strong></div>
-    <button class="music-yes" onclick="startMusic()">YES, I AGREE</button><br>
-    <button class="music-no" onclick="dismissMusic()">no thanks (wrong answer)</button>
+  <p class="runes" aria-hidden="true">ᛗᛁᛞᚾᛁᚷᚺᛏ ᛟᚠ ᚦᛖ ᚨᚷᛖ</p>
+
+  <p class="eyebrow">Annual Golf Extravaganza · Fifth Edition</p>
+
+  <h1 class="age-title">The A.G.E. <span class="roman">2027</span></h1>
+  <p class="tagline">is coming&hellip;</p>
+
+  <div class="dial-frame" role="img" aria-label="A doomsday clock, hands set just shy of midnight">
+    <svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="sheen" cx="50%" cy="38%" r="65%">
+          <stop offset="0%" stop-color="#8fe0ac" stop-opacity="0.35"/>
+          <stop offset="55%" stop-color="#173d29" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#04140b" stop-opacity="0.55"/>
+        </radialGradient>
+      </defs>
+
+      <!-- stained-glass wedges -->
+      <g stroke="#d4ad6c" stroke-width="1.2" stroke-opacity="0.65">
+        <path d="M160,160 L160,10 A150,150 0 0,1 235,30.1 Z" fill="#173d29"/>
+        <path d="M160,160 L235,30.1 A150,150 0 0,1 289.9,85 Z" fill="#0f2e1f"/>
+        <path d="M160,160 L289.9,85 A150,150 0 0,1 310,160 Z" fill="#1f5236"/>
+        <path d="M160,160 L310,160 A150,150 0 0,1 289.9,235 Z" fill="#123423"/>
+        <path d="M160,160 L289.9,235 A150,150 0 0,1 235,289.9 Z" fill="#1c4a32"/>
+        <path d="M160,160 L235,289.9 A150,150 0 0,1 160,310 Z" fill="#0f2e1f"/>
+        <path d="M160,160 L160,310 A150,150 0 0,1 85,289.9 Z" fill="#1f5236"/>
+        <path d="M160,160 L85,289.9 A150,150 0 0,1 30.1,235 Z" fill="#173d29"/>
+        <path d="M160,160 L30.1,235 A150,150 0 0,1 10,160 Z" fill="#123423"/>
+        <path d="M160,160 L10,160 A150,150 0 0,1 30.1,85 Z" fill="#1c4a32"/>
+        <path d="M160,160 L30.1,85 A150,150 0 0,1 85,30.1 Z" fill="#0f2e1f"/>
+        <path d="M160,160 L85,30.1 A150,150 0 0,1 160,10 Z" fill="#1f5236"/>
+      </g>
+
+      <circle cx="160" cy="160" r="150" fill="url(#sheen)"/>
+
+      <!-- hour ticks -->
+      <g stroke="#d4ad6c" stroke-width="2" stroke-opacity="0.8">
+        <line x1="160" y1="12" x2="160" y2="28"/>
+        <line x1="234" y1="31.8" x2="224" y2="49.1"/>
+        <line x1="288.2" y1="86" x2="270.9" y2="96"/>
+        <line x1="308" y1="160" x2="288" y2="160"/>
+        <line x1="288.2" y1="234" x2="270.9" y2="224"/>
+        <line x1="234" y1="288.2" x2="224" y2="270.9"/>
+        <line x1="160" y1="308" x2="160" y2="292"/>
+        <line x1="86" y1="288.2" x2="96" y2="270.9"/>
+        <line x1="31.8" y1="234" x2="49.1" y2="224"/>
+        <line x1="12" y1="160" x2="32" y2="160"/>
+        <line x1="31.8" y1="86" x2="49.1" y2="96"/>
+        <line x1="86" y1="31.8" x2="96" y2="49.1"/>
+      </g>
+
+      <!-- rim -->
+      <circle cx="160" cy="160" r="150" fill="none" stroke="#d4ad6c" stroke-width="3" stroke-opacity="0.9"/>
+      <circle cx="160" cy="160" r="142" fill="none" stroke="#d4ad6c" stroke-width="1" stroke-opacity="0.4"/>
+
+      <!-- hands, frozen a few minutes shy of midnight -->
+      <line class="hand minute" x1="160" y1="160" x2="123.5" y2="47.8" stroke="#efe7d3" stroke-width="3" stroke-linecap="round"/>
+      <line class="hand hour" x1="160" y1="160" x2="147.8" y2="83" stroke="#efe7d3" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="160" cy="160" r="6" fill="#d4ad6c"/>
+    </svg>
   </div>
-</div>
-<audio id="bg-audio" src="TheSong.mp3" loop preload="none" style="display:none"></audio>
 
-<!-- ═══════════════════════════════════════════════════════════════════════
-     MASTHEAD
-═══════════════════════════════════════════════════════════════════════ -->
-<header class="masthead" id="masthead">
-  <div class="masthead-inner">
-    <div class="masthead-left">
-      <span>A.G.E.</span>
-      <span class="moto">·</span>
-      <span class="moto">2026</span>
-    </div>
-    <a href="index.html" class="masthead-center">A.G.E IV: The Wonga Cup</a>
-    <div class="masthead-right">
-      <nav>
-        <a href="index.html">Home</a>
-        <a href="golfers.html">Golfers</a>
-        <a href="records.html">Records</a>
-        <a href="practical.html">Info</a>
-        <a href="format.html">Format</a>
-        <a href="scorecard-live.html" class="nav-cta">Scorecard ↗</a>
-      </nav>
-      <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
-    </div>
+  <div class="countdown" aria-hidden="true">
+    <div class="unit"><span class="num" id="cd-days">000</span><span class="lbl">Days</span></div>
+    <span class="sep">:</span>
+    <div class="unit"><span class="num" id="cd-hours">00</span><span class="lbl">Hrs</span></div>
+    <span class="sep">:</span>
+    <div class="unit"><span class="num" id="cd-mins">00</span><span class="lbl">Min</span></div>
+    <span class="sep">:</span>
+    <div class="unit"><span class="num" id="cd-secs">00</span><span class="lbl">Sec</span></div>
   </div>
-</header>
+  <p class="sr-only" id="cd-sr">Counting down to the fifth edition of the A.G.E., August 2027.</p>
 
-<!-- Mobile nav -->
-<nav class="mobile-menu" id="mobile-menu" aria-hidden="true" inert>
-  <a href="index.html" class="mm-link" onclick="closeMenu()">Home</a>
-  <a href="golfers.html" class="mm-link" onclick="closeMenu()">Golfers</a>
-  <a href="records.html" class="mm-link" onclick="closeMenu()">Records</a>
-  <a href="practical.html" class="mm-link" onclick="closeMenu()">Info</a>
-  <a href="format.html" class="mm-link" onclick="closeMenu()">Format</a>
-  <a href="scorecard-live.html" class="mm-link mm-cta">Live Scorecard ↗</a>
-</nav>
-
-<!-- ═══════════════════════════════════════════════════════════════════════
-     HERO
-═══════════════════════════════════════════════════════════════════════ -->
-<section class="hero bleed no-rule" id="top">
-  <div class="hero-photo" style="background-image:url('images/course-black-bull.webp')" aria-hidden="true"></div>
-  <div class="hero-scrim"></div>
-  <div class="hero-inner">
-    <div class="hero-middle">
-      <div class="hero-edition">IV</div>
-      <h1 class="hero-title">The Wonga Cup</h1>
-      <div class="hero-sub">Annual Golf Extravaganza · Fourth Edition · Yarrawonga 2026</div>
-    </div>
-
-    <div class="hero-bottom">
-      <div class="col">
-        <span>Host Club</span>
-        <span class="v">Yarrawonga &amp; Mulwala G.C.</span>
-      </div>
-      <div class="col">
-        <span>Field</span>
-        <span class="v">Fourteen Starters · Captain's Draft</span>
-      </div>
-      <div class="col">
-        <span>Format</span>
-        <span class="v">Three Rounds · Three Courses</span>
-      </div>
-      <div class="col">
-        <span>Prize</span>
-        <span class="v">The Cup &amp; six minor honours</span>
-      </div>
-    </div>
+  <div class="sigils" aria-hidden="true">
+    <div class="sigil"><span class="glyph" id="sig-hex">0x000000</span><span class="cipher-lbl">Cipher I</span></div>
+    <div class="sigil"><span class="glyph" id="sig-bin">00000000</span><span class="cipher-lbl">Cipher II</span></div>
+    <div class="sigil"><span class="glyph" id="sig-roman">—</span><span class="cipher-lbl">Cipher III</span></div>
   </div>
-</section>
 
-<!-- ═══════════════════════════════════════════════════════════════════════
-     WEATHER
-═══════════════════════════════════════════════════════════════════════ -->
-<section class="weather-strip" id="weather">
-  <div class="weather-strip-inner">
-    <div class="weather-days">
-      <div class="weather-day">
-        <div class="wd-top">
-          <span class="wd-date">Fri <em>Murray</em></span>
-          <span class="wd-temp">13&deg;<span class="lo">/5&deg;</span></span>
-        </div>
-        <div class="wd-bottom">
-          <span class="wd-icon" aria-hidden="true">&#127783;&#65039;</span>
-          <span class="wd-rain"><span class="v">40%</span> <span class="mm">(2mm)</span></span>
-          <span class="wd-wind"><span class="v">15km/h</span><span class="wd-arrow" style="transform:rotate(45deg)" title="Blowing to the NE">&#8593;</span></span>
-        </div>
-      </div>
-      <div class="weather-day">
-        <div class="wd-top">
-          <span class="wd-date">Sat <em>Black Bull</em></span>
-          <span class="wd-temp">14&deg;<span class="lo">/3&deg;</span></span>
-        </div>
-        <div class="wd-bottom">
-          <span class="wd-icon" aria-hidden="true">&#9925;&#65039;</span>
-          <span class="wd-rain"><span class="v">30%</span> <span class="mm">(1mm)</span></span>
-          <span class="wd-wind"><span class="v">18km/h</span><span class="wd-arrow" style="transform:rotate(90deg)" title="Blowing to the E">&#8593;</span></span>
-        </div>
-      </div>
-      <div class="weather-day">
-        <div class="wd-top">
-          <span class="wd-date">Sun <em>Lake</em></span>
-          <span class="wd-temp">15&deg;<span class="lo">/5&deg;</span></span>
-        </div>
-        <div class="wd-bottom">
-          <span class="wd-icon" aria-hidden="true">&#9728;&#65039;</span>
-          <span class="wd-rain"><span class="v">20%</span> <span class="mm">(&lt;1mm)</span></span>
-          <span class="wd-wind"><span class="v">12km/h</span><span class="wd-arrow" style="transform:rotate(135deg)" title="Blowing to the SE">&#8593;</span></span>
-        </div>
-      </div>
-    </div>
+  <p class="doom-note">Dates to be confirmed &mdash; the clock is aimed at August MMXXVII.</p>
 
-    <div class="weather-ticker">
-      <div class="weather-ticker-track">
-        <div class="weather-ticker-group">
-          <span class="wt-item">
-            <span class="wt-date">Fri <em>Murray</em></span>
-            <span class="wt-icon" aria-hidden="true">&#127783;&#65039;</span>
-            <span class="wt-temp">13&deg;<span class="lo">/5&deg;</span></span>
-            <span class="wt-rain"><span class="v">40%</span> <span class="mm">(2mm)</span></span>
-            <span class="wt-wind"><span class="v">15km/h</span><span class="wt-arrow" style="transform:rotate(45deg)" title="Blowing to the NE">&#8593;</span></span>
-          </span>
-          <span class="wt-sep" aria-hidden="true">&#8226;</span>
-          <span class="wt-item">
-            <span class="wt-date">Sat <em>Black Bull</em></span>
-            <span class="wt-icon" aria-hidden="true">&#9925;&#65039;</span>
-            <span class="wt-temp">14&deg;<span class="lo">/3&deg;</span></span>
-            <span class="wt-rain"><span class="v">30%</span> <span class="mm">(1mm)</span></span>
-            <span class="wt-wind"><span class="v">18km/h</span><span class="wt-arrow" style="transform:rotate(90deg)" title="Blowing to the E">&#8593;</span></span>
-          </span>
-          <span class="wt-sep" aria-hidden="true">&#8226;</span>
-          <span class="wt-item">
-            <span class="wt-date">Sun <em>Lake</em></span>
-            <span class="wt-icon" aria-hidden="true">&#9728;&#65039;</span>
-            <span class="wt-temp">15&deg;<span class="lo">/5&deg;</span></span>
-            <span class="wt-rain"><span class="v">20%</span> <span class="mm">(&lt;1mm)</span></span>
-            <span class="wt-wind"><span class="v">12km/h</span><span class="wt-arrow" style="transform:rotate(135deg)" title="Blowing to the SE">&#8593;</span></span>
-          </span>
-          <span class="wt-sep" aria-hidden="true">&#8226;</span>
-        </div>
-        <div class="weather-ticker-group" aria-hidden="true">
-          <span class="wt-item">
-            <span class="wt-date">Fri <em>Murray</em></span>
-            <span class="wt-icon" aria-hidden="true">&#127783;&#65039;</span>
-            <span class="wt-temp">13&deg;<span class="lo">/5&deg;</span></span>
-            <span class="wt-rain"><span class="v">40%</span> <span class="mm">(2mm)</span></span>
-            <span class="wt-wind"><span class="v">15km/h</span><span class="wt-arrow" style="transform:rotate(45deg)">&#8593;</span></span>
-          </span>
-          <span class="wt-sep">&#8226;</span>
-          <span class="wt-item">
-            <span class="wt-date">Sat <em>Black Bull</em></span>
-            <span class="wt-icon" aria-hidden="true">&#9925;&#65039;</span>
-            <span class="wt-temp">14&deg;<span class="lo">/3&deg;</span></span>
-            <span class="wt-rain"><span class="v">30%</span> <span class="mm">(1mm)</span></span>
-            <span class="wt-wind"><span class="v">18km/h</span><span class="wt-arrow" style="transform:rotate(90deg)">&#8593;</span></span>
-          </span>
-          <span class="wt-sep">&#8226;</span>
-          <span class="wt-item">
-            <span class="wt-date">Sun <em>Lake</em></span>
-            <span class="wt-icon" aria-hidden="true">&#9728;&#65039;</span>
-            <span class="wt-temp">15&deg;<span class="lo">/5&deg;</span></span>
-            <span class="wt-rain"><span class="v">20%</span> <span class="mm">(&lt;1mm)</span></span>
-            <span class="wt-wind"><span class="v">12km/h</span><span class="wt-arrow" style="transform:rotate(135deg)">&#8593;</span></span>
-          </span>
-          <span class="wt-sep">&#8226;</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+  <p class="doom-foot">The A.G.E. · Yarrawonga &amp; Mulwala &middot; <a href="index2026.html">Relive MMXXVI &rarr;</a></p>
 
-<!-- ═══════════════════════════════════════════════════════════════════════
-     KEY FACTS RIBBON
-═══════════════════════════════════════════════════════════════════════ -->
-<div class="tagline-strip">
-  <div class="tagline-strip-inner">
-    <div class="item"><span>Dates</span><span class="v">7 - 9 Aug</span></div>
-    <div class="item"><span>Rounds</span><span class="v">III</span></div>
-    <div class="item"><span>Courses</span><span class="v">Murray · Black Bull · Lake</span></div>
-    <div class="item"><span>Format</span><span class="v">Match · Scramble · Stableford</span></div>
-    <div class="item"><span id="ribbon-status-label">Holders</span><span class="v cap-italic" id="ribbon-status-value">Team Underdogs</span></div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════════════
-     ADDRESS FROM THE COMMITTEE
-═══════════════════════════════════════════════════════════════════════ -->
-<section id="welcome">
-  <div class="shell">
-    <div class="section-head">
-      <div class="meta">
-        <span>01</span>
-        <span class="num">Welcome</span>
-        <span>Inaugural Edition</span>
-      </div>
-      <div class="title-block">
-        <h2 class="h-section">(Mostly) Same blokes. <em class="serif--italic">Same trophy.</em> New course.</h2>
-        <p class="standfirst">It started as a long weekend with golf bags. Four years on, fourteen of us, three courses, one cup. Yarrawonga is host for 2026.</p>
-      </div>
-    </div>
-
-    <div class="address-grid">
-      <div class="body">
-        <div class="first">
-          <p class="dropcap">What began as a cheeky mates trip — a few blokes, a golf bag, and the optimistic belief that a weekend away would somehow improve everyone's handicap — has turned into an actual fixture on the calendar. Four years in, someone decided each year's instalment deserves its own name. This year's — hosted at Yarrawonga — is The Wonga Cup.</p>
-          <p>Fourteen players. Three days. Three courses. One trophy. The format has evolved, the field has matured (in numbers if not always in conduct), and the stories have stacked up into something resembling a genuine tournament history. Yarrawonga throws three different courses at the field this year — the Murray Course, Black Bull, and Lake Course — and none of them care how many trophies are on the shelf.</p>
-          <p>From Friday's match play battles to Saturday's scramble chaos and Sunday's individual Stableford grind, there are points up for grabs at every turn. The Wonga Cup is awarded to the winning team. Individual glory beckons in the form of Longest Drive, Nearest the Pin, and the not-entirely-coveted Silly Goose Hat. May the best team win — and may everyone else at least have a story worth telling at dinner.</p>
-        </div>
-        <div class="sig">
-          The Committee
-          <small>May 2026</small>
-        </div>
-      </div>
-
-      <aside class="stat-stack">
-        <div class="stat">
-          <div class="k">Edition</div>
-          <div class="v">4<sup style="font-size:0.5em;letter-spacing:0">th</sup></div>
-        </div>
-        <div class="stat">
-          <div class="k">First Held</div>
-          <div class="v">2023<small>Bellarine Peninsula</small></div>
-        </div>
-        <div class="stat">
-          <div class="k">Starters</div>
-          <div class="v">14<small>Captain's Draft</small></div>
-        </div>
-        <div class="stat">
-          <div class="k">Holes Played</div>
-          <div class="v">54<small>over three days</small></div>
-        </div>
-        <div class="stat">
-          <div class="k">Points on Offer</div>
-          <div class="v">24<small>across the three rounds</small></div>
-        </div>
-      </aside>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════════════════════
-     THE COURSE
-═══════════════════════════════════════════════════════════════════════ -->
-<section id="course" class="alt">
-  <div class="shell">
-    <div class="section-head">
-      <div class="meta">
-        <span>02</span>
-        <span class="num">Course</span>
-        <span>Three Layouts</span>
-      </div>
-      <div class="title-block">
-        <h2 class="h-section">Three courses, <em class="serif--italic">three very different tests.</em></h2>
-        <p class="standfirst">Hosted entirely by Yarrawonga &amp; Mulwala Golf Club Resort, on the banks of Lake Mulwala. Murray opens, Black Bull middles, the Lake closes.</p>
-      </div>
-    </div>
-
-    <article class="course">
-      <div class="photo" style="background-image:url('images/course-murray.webp')" role="img" aria-label="The Murray Course, Friday Day 1">
-        <div class="cap">The Murray Course · Friday Day 1</div>
-      </div>
-      <div class="copy">
-        <span class="day-tag">Day I · Friday 7 August · 12:00 PM · Singles Match Play</span>
-        <h3>The Murray Course</h3>
-        <div class="stats">
-          <div class="s"><span class="k">Par</span><span class="v">72</span></div>
-          <div class="s"><span class="k">Length</span><span class="v">~6,095m</span></div>
-          <div class="s"><span class="k">Designers</span><span class="v">Thomson &amp; Wolveridge</span></div>
-          <div class="s"><span class="k">Opened</span><span class="v">1986</span></div>
-        </div>
-        <p>The flagship layout at Yarrawonga Mulwala Golf Club Resort, designed by Peter Thomson (five-time Open champion) and Michael Wolveridge. The Murray Course opened in 1986 and winds through century-old river red gums and native bushland on the sandy flats of the Murray River - an out-and-back routing that keeps the river scenery in play throughout.</p>
-        <p>Generous fairways flatter off the tee, but the undulating greens and well-positioned water features make scoring harder than the card suggests. Ranked among Australia's Top 100 public access courses, it's a fitting stage for Day 1 match play.</p>
-        <div class="signature">
-          <div class="l">Format · Singles Match Play</div>
-          <div class="v">Six 1v1 singles matches. 12 players (Cayden Woods &amp; Ben Lepore join Saturday). Each match splits into a front 9 and back 9, worth 1pt apiece — 0.5pt each if a nine is halved.</div>
-        </div>
-      </div>
-    </article>
-
-    <article class="course flip">
-      <div class="photo" style="background-image:url('images/course-black-bull.webp')" role="img" aria-label="Black Bull, Saturday Day 2">
-        <div class="cap">Black Bull · Saturday Day 2</div>
-      </div>
-      <div class="copy">
-        <span class="day-tag">Day II · Saturday 8 August · 12:00 PM · Team Scramble</span>
-        <h3>Black Bull</h3>
-        <div class="stats">
-          <div class="s"><span class="k">Par</span><span class="v">72</span></div>
-          <div class="s"><span class="k">Length</span><span class="v">~6,256m</span></div>
-          <div class="s"><span class="k">Designers</span><span class="v">Thomson &amp; Perrett</span></div>
-          <div class="s"><span class="k">18 holes</span><span class="v">from 2015</span></div>
-        </div>
-        <p>Designed by Peter Thomson and Ross Perrett, Black Bull opened with 9 holes in 2010 and was extended to a full 18-hole championship layout in 2015. Set on the banks of Lake Mulwala, it plays as the longest of the three courses and demands consistent iron play into large, well-bunkered greens. The slope rating of 133 tells the story.</p>
-        <p>Holes 4, 5 and 6 are the self-styled <strong>Bull Ring</strong> — three holes that have ended more than one team's Saturday before the back nine even starts.</p>
-        <div class="signature">
-          <div class="l">Format · Team Scramble</div>
-          <div class="v">Each team splits into a group of 4 and a group of 3. In each grouping (4v4 and 3v3) the team with the better score wins points equal to the stroke differential. Whichever team's combined 4+3 score is better also takes a flat 5pt bonus.</div>
-        </div>
-      </div>
-    </article>
-
-    <article class="course">
-      <div class="photo" style="background-image:url('images/course-lake.jpg')" role="img" aria-label="The Lake Course, Sunday Day 3">
-        <div class="cap">The Lake Course · Sunday Day 3</div>
-      </div>
-      <div class="copy">
-        <span class="day-tag">Day III · Sunday 9 August · 10:00 AM · Individual Stableford</span>
-        <h3>The Lake Course</h3>
-        <div class="stats">
-          <div class="s"><span class="k">Par</span><span class="v">72</span></div>
-          <div class="s"><span class="k">Length</span><span class="v">~5,957m</span></div>
-          <div class="s"><span class="k">Designers</span><span class="v">Thomson &amp; Wolveridge</span></div>
-          <div class="s"><span class="k">Bunkers</span><span class="v">56</span></div>
-        </div>
-        <p>Also designed by Peter Thomson and Michael Wolveridge, the Lake Course sits alongside Lake Mulwala and plays as the most strategically demanding of the three layouts. Its 56 bunkers are placed to punish any deviation from the correct line - tee shots must be placed, not simply hit, and the approach game will separate the field.</p>
-        <p>The shorter overall length makes it the ideal Stableford closer: higher handicappers can post solid scores when the bunkers are avoided, but the sand traps are everywhere and they claim ambition regularly.</p>
-        <div class="signature">
-          <div class="l">Format · Individual Net Stableford</div>
-          <div class="v">All 14 players. Points by finishing position: 1st=14, 2nd=13, 3rd=12 … down to 14th=1. Tied players share averaged points. Each player's points go to their team total.</div>
-        </div>
-      </div>
-    </article>
-
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════════════════════
-     PROGRAMME / SCHEDULE
-═══════════════════════════════════════════════════════════════════════ -->
-<section id="programme">
-  <div class="shell">
-    <div class="section-head">
-      <div class="meta">
-        <span>03</span>
-        <span class="num">Schedule</span>
-        <span>Three Days</span>
-      </div>
-      <div class="title-block">
-        <h2 class="h-section">Three days. <em class="serif--italic">Each a different game.</em></h2>
-        <p class="standfirst">Friday is match play on the Murray. Saturday is a scramble at Black Bull. Sunday is Stableford on the Lake. The Cup is presented after Sunday's round.</p>
-      </div>
-    </div>
-
-    <div class="schedule">
-
-      <article class="day">
-        <div class="when">
-          <div class="dy">Friday<br><em class="cap-italic">7 Aug</em></div>
-          <div class="dt">Day I · Match Play</div>
-        </div>
-        <div class="what">
-          <div class="frm">Singles Match Play · 12 players · Murray Course</div>
-          <h3>The first twelve arrivals tee off at noon. Six 1v1 singles matches.</h3>
-          <p>Teams are set by Captain's Draft on Friday morning — the two peer-vote captains pick in snake order until all players are assigned. Six singles matches — 12 points up for grabs. Each match splits into a front 9 and back 9, worth 1pt apiece — 0.5pt each if a nine is halved. Cayden Woods &amp; Ben Lepore join the field Saturday morning.</p>
-        </div>
-        <div class="runs">
-          <div class="item"><div class="t">Morning</div><div class="x">Captain's Draft · teams drawn before tee-off<em>Peer vote captains; snake draft fills the sides</em></div></div>
-          <div class="item"><div class="t">12:00</div><div class="x">Tee off · Murray Course<em>Be on the practice green by 11:30</em></div></div>
-          <div class="item"><div class="t">14:00</div><div class="x">Check-in opens · <a href="https://www.google.com/maps/search/?api=1&amp;query=45%20Anchorage%20Way%202%2C%20Yarrawonga%20VIC%203730" target="_blank" rel="noopener">45 Anchorage Way 2</a><em>Keys held at reception until 7:00 PM</em></div></div>
-          <div class="item"><div class="t">Evening</div><div class="x">Team dinner · venue TBC<em>Scores settled, stories started</em></div></div>
-        </div>
-      </article>
-
-      <article class="day">
-        <div class="when">
-          <div class="dy">Saturday<br><em class="cap-italic">8 Aug</em></div>
-          <div class="dt">Day II · Team Scramble</div>
-        </div>
-        <div class="what">
-          <div class="frm">Team Scramble (Net vs Par) · 14 players · Black Bull</div>
-          <h3>Cayden, Ben &amp; the two new starters arrive Saturday morning. The full field of fourteen is assembled.</h3>
-          <p>Each side splits into a four and a three. In each grouping the team with the better score wins points equal to the stroke differential, plus a flat 5pt bonus for the better combined total. Pub Captain nominations open this evening.</p>
-        </div>
-        <div class="runs">
-          <div class="item"><div class="t">Morning</div><div class="x">Cayden &amp; Ben arrive · full field assembled</div></div>
-          <div class="item"><div class="t">12:00</div><div class="x">Tee off · Black Bull Golf Course<em>Tee groupings posted at the pro shop</em></div></div>
-          <div class="item"><div class="t">Evening</div><div class="x">Dinner &amp; pub session · Pub Captain's Choice nominations open</div></div>
-        </div>
-      </article>
-
-      <article class="day">
-        <div class="when">
-          <div class="dy">Sunday<br><em class="cap-italic">9 Aug</em></div>
-          <div class="dt">Day III · Stableford</div>
-        </div>
-        <div class="what">
-          <div class="frm">Individual Net Stableford · 14 players · The Lake</div>
-          <h3>All 14 play their own ball. The Cup is presented after the round.</h3>
-          <p>Each player keeps their own card. Points awarded by finishing position — 1st=14, 2nd=13, 3rd=12, 4th=11, 5th=10, 6th=9, 7th=8, 8th=7, 9th=6, 10th=5, 11th=4, 12th=3, 13th=2, 14th=1. Tied players share averaged points. Each player's points go to their team total.</p>
-        </div>
-        <div class="runs">
-          <div class="item"><div class="t">10:00</div><div class="x">Tee off · Lake Course, Yarrawonga Mulwala G.C.</div></div>
-          <div class="item"><div class="t">Post-round</div><div class="x">Presentation ceremony<em>Wonga Cup awarded, individual gongs distributed, Pub Captain has his say</em></div></div>
-          <div class="item"><div class="t">10:00 AM</div><div class="x">Checkout deadline · <a href="https://www.google.com/maps/search/?api=1&amp;query=45%20Anchorage%20Way%202%2C%20Yarrawonga%20VIC%203730" target="_blank" rel="noopener">45 Anchorage Way 2</a></div></div>
-        </div>
-      </article>
-
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════════════════════
-     FOOTER
-═══════════════════════════════════════════════════════════════════════ -->
-<footer class="foot">
-  <div class="shell">
-    <div class="row1">
-      <div class="col">
-        <h5>The Tournament</h5>
-        <ul>
-          <li><a href="index.html">Home</a></li>
-          <li><a href="golfers.html">Golfers</a></li>
-          <li><a href="records.html">History &amp; Records</a></li>
-          <li><a href="practical.html">Practical Info</a></li>
-          <li><a href="format.html">Format</a></li>
-          <li><a href="scorecard-live.html">Live Scorecard ↗</a></li>
-          <li><a href="tv.html">Clubhouse TV ↗</a></li>
-        </ul>
-      </div>
-      <div class="col">
-        <h5>Host Club</h5>
-        <ul>
-          <li><a href="https://www.google.com/maps/search/?api=1&amp;query=Yarrawonga%20%26%20Mulwala%20Golf%20Club%2C%20Park%20%26%20Murray%20Streets%2C%20Mulwala%20NSW%202647" target="_blank" rel="noopener">Yarrawonga &amp; Mulwala G.C.</a></li>
-          <li><a href="https://www.google.com/maps/search/?api=1&amp;query=Yarrawonga%20%26%20Mulwala%20Golf%20Club%2C%20Park%20%26%20Murray%20Streets%2C%20Mulwala%20NSW%202647" target="_blank" rel="noopener">Park &amp; Murray Streets</a></li>
-          <li><a href="https://www.google.com/maps/search/?api=1&amp;query=Yarrawonga%20%26%20Mulwala%20Golf%20Club%2C%20Park%20%26%20Murray%20Streets%2C%20Mulwala%20NSW%202647" target="_blank" rel="noopener">Mulwala NSW 2647</a></li>
-        </ul>
-      </div>
-      <div class="col">
-        <h5>Accommodation</h5>
-        <ul>
-          <li><a href="https://www.google.com/maps/search/?api=1&amp;query=45%20Anchorage%20Way%202%2C%20Yarrawonga%20VIC%203730" target="_blank" rel="noopener">45 Anchorage Way 2</a></li>
-          <li><a href="https://www.google.com/maps/search/?api=1&amp;query=45%20Anchorage%20Way%202%2C%20Yarrawonga%20VIC%203730" target="_blank" rel="noopener">Yarrawonga VIC 3730</a></li>
-          <li>Check-in from 2:00 PM, Friday</li>
-          <li>Checkout before 10:00 AM, Sunday</li>
-        </ul>
-      </div>
-    </div>
-    <div class="colophon">
-      <div>The Wonga Cup · Fourth Edition · 2026</div>
-      <div><a href="https://photos.app.goo.gl/DG13eR5Fbmyb2P9i8" target="_blank" rel="noopener">Tournament Photos ↗</a></div>
-      <div>Set in Cormorant &amp; Geist</div>
-    </div>
-  </div>
-</footer>
-
-<!-- ═══════════════════════════════════════════════════════════════════════
-     THEME SWITCHER
-═══════════════════════════════════════════════════════════════════════ -->
-<div class="theme-switcher" id="theme-switcher" hidden>
-  <div class="tlabel">Coat of Paint</div>
-  <div class="row" role="radiogroup" aria-label="theme">
-    <button data-theme="green"  aria-label="green theme">Green</button>
-    <button data-theme="claret" aria-label="claret theme">Claret</button>
-    <button data-theme="navy"   aria-label="navy theme">Navy</button>
-  </div>
-  <div class="tlabel">Mode</div>
-  <div class="row" role="radiogroup" aria-label="light or dark">
-    <button data-mode="light">Light</button>
-    <button data-mode="dark">Dark</button>
-  </div>
 </div>
 
 <script src="error-beacon.js?v=__CACHEBUST__"></script>
-<script src="theme.js?v=__CACHEBUST__"></script>
-<script src="site.js?v=__CACHEBUST__"></script>
-<script src="scoring.js?v=__CACHEBUST__"></script>
-<script src="courses.js?v=__CACHEBUST__"></script>
-<script src="players.js?v=__CACHEBUST__"></script>
-<script src="ribbon-status.js?v=__CACHEBUST__"></script>
+<script>
+(function () {
+  // Aimed at August 2027 -- no fixed date is announced yet, so this
+  // targets the 1st in the Yarrawonga/Mulwala course's local offset
+  // (AEST, +10:00 -- no DST in effect in August) as a stand-in until a
+  // real date is set.
+  var TARGET = new Date('2027-08-01T00:00:00+10:00').getTime();
+
+  function toRoman(num) {
+    if (num <= 0) return '—';
+    var map = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],
+      [50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+    var out = '';
+    for (var i = 0; i < map.length; i++) {
+      while (num >= map[i][0]) { out += map[i][1]; num -= map[i][0]; }
+    }
+    return out;
+  }
+  function pad(n, len) { return String(n).padStart(len, '0'); }
+
+  var elDays = document.getElementById('cd-days');
+  var elHours = document.getElementById('cd-hours');
+  var elMins = document.getElementById('cd-mins');
+  var elSecs = document.getElementById('cd-secs');
+  var elHex = document.getElementById('sig-hex');
+  var elBin = document.getElementById('sig-bin');
+  var elRoman = document.getElementById('sig-roman');
+
+  function tick() {
+    var remaining = Math.max(0, TARGET - Date.now());
+    var totalSeconds = Math.floor(remaining / 1000);
+    var days = Math.floor(totalSeconds / 86400);
+    var hours = Math.floor((totalSeconds % 86400) / 3600);
+    var mins = Math.floor((totalSeconds % 3600) / 60);
+    var secs = totalSeconds % 60;
+
+    elDays.textContent = pad(days, 3);
+    elHours.textContent = pad(hours, 2);
+    elMins.textContent = pad(mins, 2);
+    elSecs.textContent = pad(secs, 2);
+
+    // Live "runic" ciphers -- decorative, derived straight from the
+    // countdown so they change every second without meaning anything on
+    // their own.
+    elHex.textContent = '0x' + pad(totalSeconds.toString(16).toUpperCase(), 6);
+    elBin.textContent = pad((hours & 0xFF).toString(2), 8);
+    elRoman.textContent = toRoman(days);
+  }
+
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
 
 </body>
 </html>
