@@ -13,8 +13,12 @@
       in the script would leave a blank canvas and no console clue for a
       visitor).
    3. Space/tap jumps the cart rather than scrolling the page.
-   4. The "Relive 2026" link still lands on index2026.html, which now
-      holds the archived 2026 tournament homepage.
+   4. drift.html plays first, full-screen, over the game (which is
+      already running underneath, not started fresh on dismiss); a click
+      drops the overlay.
+   5. The "Relive 2026" link still lands on index2026.html, which now
+      holds the archived 2026 tournament homepage -- reachable only once
+      the overlay covering it is dismissed.
 
    Drives real index.html via a local static server, same pattern as
    repro-297/repro-183. Never touches Supabase or Google Fonts.
@@ -147,10 +151,43 @@ async function main() {
       await page.close();
     }
 
-    // 4. The archive link lands on the renamed 2026 recap page.
+    // 4. The drift.html overlay covers the page on load and a click drops
+    // it, revealing the game it was covering (which was already running
+    // underneath, not started fresh on dismiss).
     {
       const page = await context.newPage();
       await page.goto(homeUrl, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(300);
+
+      const overlay = page.locator('#drift-overlay');
+      if (await overlay.count() !== 1) fail('expected exactly one #drift-overlay button on the page');
+
+      const iframeSrc = await page.locator('#drift-overlay iframe').getAttribute('src');
+      if (!/^drift\.html(\?|$)/.test(iframeSrc || '')) fail(`expected the overlay iframe to point at drift.html, got ${JSON.stringify(iframeSrc)}`);
+
+      const visibleBefore = await overlay.evaluate((el) => getComputedStyle(el).display !== 'none');
+      if (!visibleBefore) fail('expected the drift overlay to cover the page before any interaction');
+
+      // The game underneath is live the whole time -- the overlay is only
+      // ever a visual cover, so a jump taken before the click still counts.
+      const scoreBefore = await page.evaluate(() => score);
+      await page.waitForTimeout(600);
+      const scoreAfterWait = await page.evaluate(() => score);
+      if (!(scoreAfterWait > scoreBefore)) fail(`expected the score to accrue under the overlay (game already running), stayed at ${scoreBefore}`);
+
+      await overlay.click();
+      const visibleAfter = await overlay.evaluate((el) => getComputedStyle(el).display !== 'none');
+      if (visibleAfter) fail('expected the drift overlay to be hidden after a click');
+      await page.close();
+    }
+
+    // 5. The archive link lands on the renamed 2026 recap page, once the
+    // overlay covering it has been dismissed.
+    {
+      const page = await context.newPage();
+      await page.goto(homeUrl, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(300);
+      await page.click('#drift-overlay');
       await Promise.all([
         page.waitForURL('**/index2026.html'),
         page.click('text=Relive 2026'),
