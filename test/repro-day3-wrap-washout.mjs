@@ -169,13 +169,16 @@ async function main() {
     await page.waitForTimeout(350);
     if (!(await page.locator('#day2-recap-fab').isVisible())) fail('expected the Day 2 Wrap icon to appear immediately after the Day 1 Wrap is opened');
 
-    // Declare a Day 3 washout directly on state (bypassing setDay3Washout()'s
-    // requireUsername() gate, same convention as the Day 1/Day 2 tests
-    // bypass their own gated setters).
+    // Declare a Day 3 washout through the real gated setDay3Washout() path
+    // (not a direct state write) so the admin-only auto-lock it triggers
+    // gets exercised too -- needs a simulated admin session, same shortcut
+    // test/repro-302-teams-admin-lock.mjs uses for currentUsername/
+    // currentWriteToken/currentAdminToken rather than a real PIN prompt.
     await page.evaluate(() => {
-      state.day3.washoutMm = 28;
-      renderDay3();
-      updateScoreboard();
+      currentUsername = 'James McIntyre';
+      currentWriteToken = 'test-token';
+      currentAdminToken = 'test-admin-pin';
+      setDay3Washout('28');
     });
     await page.waitForTimeout(50);
 
@@ -189,6 +192,29 @@ async function main() {
     if (!/28mm/.test(washoutBanner)) fail(`expected the Day 3 tab's washout banner to mention 28mm, got "${washoutBanner}"`);
     const winBanner = (await page.locator('#win-banner').textContent()).trim();
     if (!/WASHED OUT/.test(winBanner) || !/28MM/.test(winBanner)) fail(`expected the win banner to mention the washout and its mm, got "${winBanner}"`);
+
+    // Declaring the washout must have auto-locked Day 3 -- a round that
+    // never happened shouldn't stay open for a score to be fat-fingered
+    // into afterwards.
+    const day3LockedAfterWashout = await page.evaluate(() => isDayLocked(3));
+    if (!day3LockedAfterWashout) fail('expected declaring a Day 3 washout to auto-lock Day 3');
+
+    // The win banner appearing for the first time must have kicked off the
+    // flamingo shower (a celebratory flourish, not conditional on which
+    // team actually wins).
+    const shower = await page.evaluate(() => {
+      const el = document.querySelector('.flamingo-shower');
+      return el ? { count: el.children.length, allFlamingos: [...el.children].every(c => c.textContent === '🦩') } : null;
+    });
+    if (!shower) fail('expected a .flamingo-shower element once the win banner first appears');
+    if (shower.count === 0 || !shower.allFlamingos) fail(`expected the flamingo shower to be full of 🦩 spans, got ${JSON.stringify(shower)}`);
+
+    // It must only fire once per page load -- further updateScoreboard()
+    // calls (e.g. from the upcoming Day 2/Day 3 Wrap opens) must not stack
+    // a second shower container on top.
+    await page.evaluate(() => updateScoreboard());
+    const showerCount = await page.evaluate(() => document.querySelectorAll('.flamingo-shower').length);
+    if (showerCount !== 1) fail(`expected exactly one flamingo shower container, got ${showerCount}`);
 
     // Read Day 2 -> Day 3's icon should appear immediately.
     await page.locator('#day2-recap-fab').click();

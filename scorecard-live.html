@@ -88,6 +88,21 @@
 .win-banner{background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));color:var(--navy);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 2s ease-in-out infinite}
 .sd-banner{background:linear-gradient(90deg,#7a0000,#c00,#7a0000);color:var(--white);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
+
+/* Flamingo shower (issue: win-banner celebration) -- a brief, one-time-
+   per-page-load confetti effect the moment the Wonga Cup is actually won
+   (see startFlamingoShower(), fired from updateScoreboard()'s win-banner
+   branch). Each 🦩 falls top-to-bottom on its own randomized timing/size,
+   looping back to the top for as long as the container lives (removed
+   after FLAMINGO_SHOWER_MS) rather than a single one-shot burst. */
+.flamingo-shower{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:10050}
+.flamingo-shower span{position:absolute;top:-10%;line-height:1;animation-name:flamingo-fall;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform,opacity}
+@keyframes flamingo-fall{
+  0%{transform:translateY(-10vh) rotate(0deg);opacity:0}
+  8%{opacity:1}
+  92%{opacity:1}
+  100%{transform:translateY(110vh) rotate(360deg);opacity:0}
+}
 .photo-banner{width:100%;max-height:340px;object-fit:cover;border-radius:var(--rl);margin-bottom:24px;display:block}
 .photo-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
 .photo-pair img{width:100%;height:200px;object-fit:cover;border-radius:var(--r)}
@@ -4127,6 +4142,12 @@ function setDay3Washout(rawMm) {
     const fields = { value: mm === null ? null : String(mm) };
     insertUpdate('day3_washout', fields);
     if (mm !== previous) showUndoToast({ update_type: 'day3_washout', ...fields }, previous === null || previous === undefined ? null : String(previous));
+    // Declaring a washout locks Day 3 too -- a round that never happened
+    // shouldn't stay open for someone to fat-finger a Stableford score in
+    // afterwards and quietly change the declared result. One-way:
+    // clearing the washout does NOT auto-unlock -- the admin can do that
+    // deliberately from the Day 3 lock control if Day 3 is genuinely back on.
+    if (mm !== null && !isDayLocked(3)) toggleDayLock(3);
     renderDay3Washout();
     updateScoreboard();
     updateDay3RecapTrigger();
@@ -5165,6 +5186,30 @@ function setTiebreak(team) {
   });
 }
 
+// Fires once per page load, the moment the win banner first appears
+// (see updateScoreboard() below) -- not persisted, so a fresh visit to an
+// already-decided tournament shows it again, which is the point rather
+// than a bug for a celebratory flourish.
+let flamingoShowerFired = false;
+const FLAMINGO_SHOWER_COUNT = 24;
+const FLAMINGO_SHOWER_MS = 6000;
+function startFlamingoShower() {
+  const container = document.createElement('div');
+  container.className = 'flamingo-shower';
+  container.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < FLAMINGO_SHOWER_COUNT; i++) {
+    const span = document.createElement('span');
+    span.textContent = '🦩';
+    span.style.left = `${Math.random() * 100}%`;
+    span.style.fontSize = `${1.2 + Math.random() * 1.4}rem`;
+    span.style.animationDuration = `${2.5 + Math.random() * 2}s`;
+    span.style.animationDelay = `${Math.random() * -4}s`; // negative -- some start already mid-fall
+    container.appendChild(span);
+  }
+  document.body.appendChild(container);
+  setTimeout(() => container.remove(), FLAMINGO_SHOWER_MS);
+}
+
 function updateScoreboard() {
   updateTeamNames();
   const d1 = calcDay1();
@@ -5227,6 +5272,7 @@ function updateScoreboard() {
         : `🏆 ${winnerName} WIN THE WONGA CUP — ${fmt(Math.max(totalA,totalB))} to ${fmt(Math.min(totalA,totalB))}${washoutNote} 🏆`;
       banner.style.display = '';
       if (tiebreakControl) tiebreakControl.style.display = 'none';
+      if (!flamingoShowerFired) { flamingoShowerFired = true; startFlamingoShower(); }
     }
   } else {
     banner.style.display = 'none';
