@@ -19,8 +19,10 @@
      5. The wordmark is the page's display serif, set as large as the
         circle allows, and still sits inside it with clearance so the
         cart never drives through the text. The tagline sits below.
-     6. The cart rumbles: the drawn pose is jostled off the ideal line
-        by a visible but small amount, and settles back to it.
+     6. The cart rumbles over ground with a shape: the body moves on its
+        springs, that motion is coherent rather than per-frame random,
+        the ground repeats for a given place, and the contact patches
+        stay on the line so the skid marks don't pick the bumps up.
      7. There are clubs in the back -- painted, and behind the cart.
      8. Under prefers-reduced-motion the scene is painted but frozen.
 
@@ -140,11 +142,12 @@ async function testDriftingMotion(browser) {
     await page.waitForTimeout(180);
   }
 
-  // On the circle, every sample. The tolerance has to clear the bump
-  // rumble, which deliberately knocks the cart a few px off the line.
+  // On the circle, every sample. The contact patches sit exactly on the
+  // line now that the bumps move only the body, so the only slack needed
+  // is the radius breathe.
   for (const s of samples) {
     const r = Math.hypot(s.x - s.cx, s.y - s.cy);
-    if (Math.abs(r - s.R) / s.R > 0.08) {
+    if (Math.abs(r - s.R) / s.R > 0.03) {
       fail(`the cart left the circle: radius ${r.toFixed(1)} vs expected ${s.R.toFixed(1)}`);
     }
   }
@@ -216,42 +219,66 @@ async function testSkidMarks(browser) {
 
 async function testRumble(browser) {
   const { context, page } = await openDrift(browser);
+  await page.waitForTimeout(300);
 
-  // Sample the drawn pose against the ideal line it's meant to be rumbling
-  // around. Both come from the same frame, so this isolates the bumps from
-  // the cart's travel round the circle.
   const stats = await page.evaluate(async () => {
     const d = window.__drift;
-    let maxOffset = 0, maxRot = 0, sum = 0, n = 0;
-    for (let i = 0; i < 180; i++) {
-      const c = d.cart, l = d.line;
-      const off = Math.hypot(c.x - l.x, c.y - l.y);
-      let rot = c.heading - l.heading;
-      rot = Math.abs(Math.atan2(Math.sin(rot), Math.cos(rot)));
-      maxOffset = Math.max(maxOffset, off);
-      maxRot = Math.max(maxRot, rot);
-      sum += off; n++;
+    const series = { heave: [], pitch: [], roll: [] };
+    for (let i = 0; i < 300; i++) {
+      const s = d.suspension;
+      series.heave.push(s.heave);
+      series.pitch.push(s.pitch);
+      series.roll.push(s.roll);
       await new Promise(r => requestAnimationFrame(r));
     }
-    return { maxOffset, maxRot, mean: sum / n, L: d.cartLength };
+    const stat = (a) => {
+      const mean = a.reduce((x, y) => x + y, 0) / a.length;
+      const sd = Math.sqrt(a.reduce((x, y) => x + (y - mean) * (y - mean), 0) / a.length);
+      let steps = 0;
+      for (let i = 1; i < a.length; i++) steps += Math.abs(a[i] - a[i - 1]);
+      return { sd, peak: Math.max(...a.map(Math.abs)), step: steps / (a.length - 1) };
+    };
+    return {
+      heave: stat(series.heave), pitch: stat(series.pitch), roll: stat(series.roll),
+      // The ground is a function of place, not of time: the same spot has
+      // to give the same height, and different spots different ones. This
+      // is what makes the front and rear wheels hit the same bump, and the
+      // same bumps come round again next lap.
+      repeatable: d.groundHeight(123.4, 56.7) === d.groundHeight(123.4, 56.7),
+      varies: d.groundHeight(123.4, 56.7) !== d.groundHeight(999.1, 12.3)
+    };
   });
 
-  if (stats.maxOffset < 0.02 * stats.L) {
-    fail(`expected the cart to be jostled off its line by the bumps; peak offset was only ${stats.maxOffset.toFixed(2)}px on a ${stats.L.toFixed(1)}px cart`);
+  for (const axis of ['heave', 'pitch', 'roll']) {
+    const s = stats[axis];
+    if (s.peak < 0.05) fail(`the body barely moves in ${axis}: peak ${s.peak.toFixed(3)}`);
+    if (s.peak > 3) fail(`${axis} is wildly out of range at ${s.peak.toFixed(3)} -- the suspension spring may be unstable`);
+
+    // The point of the whole rewrite. A signal redrawn at random every
+    // frame steps about 1.13 standard deviations per frame; smooth,
+    // coherent motion steps a small fraction of one. This is what
+    // separates "driving over ground that has a shape" from an
+    // electrical buzz, and it's the thing that regressed before.
+    const ratio = s.step / s.sd;
+    if (ratio > 0.35) {
+      fail(`${axis} jitters instead of rumbling: it moves ${ratio.toFixed(2)} standard deviations per frame (white noise is ~1.13, coherent motion well under 0.35)`);
+    }
   }
-  if (stats.maxOffset > 0.30 * stats.L) {
-    fail(`the bump rumble is a wander, not a rumble: peak offset ${stats.maxOffset.toFixed(2)}px on a ${stats.L.toFixed(1)}px cart`);
-  }
-  // A damped spring spends most of its time near rest and only occasionally
-  // peaks. A mean anywhere near the peak would mean it's just permanently
-  // displaced rather than being knocked about and settling.
-  if (stats.mean > stats.maxOffset * 0.75) {
-    fail(`the rumble never settles back to the line: mean offset ${stats.mean.toFixed(2)}px vs peak ${stats.maxOffset.toFixed(2)}px`);
-  }
-  if (stats.maxRot < 0.004) fail(`expected the body to rock over the bumps, peak rotation was ${stats.maxRot.toFixed(4)} rad`);
+  if (!stats.repeatable) fail('the ground is not a function of position -- the same spot gave two different heights');
+  if (!stats.varies) fail('the ground is flat -- two different places gave the same height');
+
+  // ...and the contact patches stay on the line: a tyre does not slide
+  // sideways because the ground under it rose, which is what keeps the
+  // skid marks smooth instead of serrated.
+  const onLine = await page.evaluate(() => {
+    const d = window.__drift, c = d.cart, l = d.line;
+    return Math.hypot(c.x - l.x, c.y - l.y);
+  });
+  if (onLine > 0.001) fail(`the cart's contact patches are displaced ${onLine.toFixed(3)}px off the line -- the skid marks will pick that up`);
 
   await context.close();
-  console.log(`rumble assertions passed (peak ${stats.maxOffset.toFixed(2)}px / ${stats.maxRot.toFixed(3)} rad, mean ${stats.mean.toFixed(2)}px).`);
+  const r = ['heave', 'pitch', 'roll'].map(a => `${a} ${(stats[a].step / stats[a].sd).toFixed(2)}`).join(', ');
+  console.log(`rumble assertions passed (coherent: ${r} sd/frame vs 1.13 for white noise).`);
 }
 
 async function testClubsInTheBack(browser) {
