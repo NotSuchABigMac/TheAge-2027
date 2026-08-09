@@ -2905,12 +2905,14 @@ function renderDay1() {
   updateDay2RecapTrigger();
 }
 
-// Deliberately looser than isDay1Complete() (which the win-banner/tiebreak
-// flow uses and requires literally all 6 match slots filled and decided):
-// a slot nobody ever assigned two players to isn't a match still being
-// played, it's just unused, and shouldn't hold the recap hostage forever
-// -- "the day's actually-played matches are all finished" is the bar for
-// a wrap-up, not "every physical slot got used".
+// "The day's actually-played matches are all finished" is the bar here,
+// not "every physical slot got used" -- a slot nobody ever assigned two
+// players to isn't a match still being played, it's just unused, and
+// shouldn't hold the recap (or, via isDay1Complete() below, the win
+// banner/tiebreak flow) hostage forever. Confirmed against the real 2026
+// data: the field never filled all 6 possible Day 1 slots, and
+// isDay1Complete() used to require literally all 6 before this was
+// unified -- meaning the win banner could never have fired at all.
 function isDay1RecapReady() {
   const assigned = state.day1.matches.filter(m => m.pA[0] !== null && m.pB[0] !== null);
   if (assigned.length === 0) return false;
@@ -5140,8 +5142,14 @@ function calcDay3() {
   return { a: base.a + ntp.a, b: base.b + ntp.b, base, ntp };
 }
 
+// Same "every ASSIGNED match decided" semantics as isDay1RecapReady() --
+// used to separately require literally all 6 match slots filled, which
+// the real 2026 field never did (one slot was structurally never
+// assigned two players), permanently keeping the win banner/tiebreak
+// flow from ever firing. Unified rather than duplicated now that both
+// answer the same underlying question ("is Day 1 actually done").
 function isDay1Complete() {
-  return state.day1.matches.map(effectiveMatch).every(m => m.front9 !== null && m.back9 !== null);
+  return isDay1RecapReady();
 }
 
 function isDay2Complete() {

@@ -115,13 +115,14 @@ async function main() {
       if (!(await page.locator('#' + id).isHidden())) fail(`expected #${id} to stay hidden on a fresh load`);
     }
 
-    // Complete Day 1: fill all 6 match slots (isDay1Complete(), which the
-    // win banner uses, is strict about every slot being decided -- unlike
-    // isDay1RecapReady()'s looser "only assigned matches" gate) with the
-    // 12 Friday-eligible players, Team A sweeping every match 2-0 (same
-    // unambiguous-margin trick as repro-day1-wrap-newspaper.mjs) so Day 1 +
-    // Day 2 combined gives Team A a clean, unambiguous standing lead for
-    // the washout to hand the Cup on.
+    // Complete Day 1: fill all 6 match slots with the 12 Friday-eligible
+    // players, Team A sweeping every match 2-0 (same unambiguous-margin
+    // trick as repro-day1-wrap-newspaper.mjs) so Day 1 + Day 2 combined
+    // gives Team A a clean, unambiguous standing lead for the washout to
+    // hand the Cup on. (isDay1Complete() is now the same "every ASSIGNED
+    // match decided" check as isDay1RecapReady() -- filling all 6 here is
+    // just for a clean, fully-used-field scenario, not because it's
+    // required for the win banner to consider Day 1 done.)
     // Team A/B membership doesn't affect match scoring itself (matchPoints()
     // is purely structural -- whichever player sits in a match's pA slot
     // scores for Team A) so the default DEFAULT_A/DEFAULT_B split is left
