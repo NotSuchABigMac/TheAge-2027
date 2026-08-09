@@ -1825,6 +1825,17 @@
         // an accidental edit, not a viewer-facing gate.
         state.teamsLocked = v === 'true';
         break;
+      case 'day3_washout': {
+        // No field_key -- a single global value, same shape as tiebreak/
+        // team_lock. Admin-declared: Day 3 didn't happen (rained out), so
+        // the tournament is decided on the Day 1 + Day 2 standing lead
+        // instead of waiting on Stableford scores that will never come.
+        // null/unparseable clears it back to "Day 3 happened normally".
+        const n = parseFloat(v);
+        if (!state.day3) break;
+        state.day3.washoutMm = isNaN(n) ? null : Math.max(0, n);
+        break;
+      }
     }
   }
 
@@ -1856,7 +1867,8 @@
     player_team:     { label: 'Player Team Assignment',          addressing: 'player',      restorable: true, cascadeWarning: 'May also clear Day 1 match assignments for this player.' },
     player_hcp:      { label: 'Player Handicap (override)',      addressing: 'player',      restorable: true, cascadeWarning: 'Retroactively changes every derived match/scramble/Stableford score for this player.' },
     day_lock:        { label: 'Day Lock',                        addressing: 'field',       fieldKeys: ['day1', 'day2', 'day3'], restorable: true },
-    team_lock:       { label: 'Team Lock',                       addressing: 'none',        restorable: true }
+    team_lock:       { label: 'Team Lock',                       addressing: 'none',        restorable: true },
+    day3_washout:    { label: 'Day 3 — Washout (mm of rain)',    addressing: 'none',        restorable: true }
   };
 
   // Decodes one tournament_updates row into human-readable {fieldLabel,
@@ -1942,6 +1954,8 @@
       }
       case 'team_lock':
         return { fieldLabel: 'Team Lock', valueLabel: isCleared ? '(cleared)' : (v === 'true' ? 'Locked' : 'Unlocked') };
+      case 'day3_washout':
+        return { fieldLabel: 'Day 3 Washout', valueLabel: isCleared ? '(cleared -- Day 3 back on)' : `${v}mm of rain` };
       default:
         // An update_type this version of the app doesn't recognize (e.g. a
         // future type, or a forged row) must render *something* rather than

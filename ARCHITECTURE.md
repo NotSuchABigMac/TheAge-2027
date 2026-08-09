@@ -155,6 +155,7 @@ mean for each (kept in sync with `applyUpdateToState()` in `scoring.js`):
 | `player_team` | — (uses `player_id`) | `'A'` or `'B'` — the team that player was just moved to |
 | `player_hcp` | — (uses `player_id`) | an admin-entered handicap override, or `null`/unparseable to clear it and revert to the `players.js` default (issue #206) |
 | `team_lock` | — | `'true'` \| `'false'` — admin-only "Lock Teams" toggle guarding Team Setup (now in the Admin tab) against an accidental edit once the draft is final; unlocking warns in the UI first (issue #302) |
+| `day3_washout` | — | mm of rain (number), or `null`/unparseable to clear — admin-declared "Day 3 didn't happen" so the tournament is decided on the Day 1 + Day 2 standing lead instead of waiting on Stableford scores that will never come |
 | `rollback` | — | ISO timestamp of the rollback cutoff — a synced marker (issue #140, page-layer-only, not in `applyUpdateToState`) telling every device to wipe its local cache and reload after an admin rollback, since a server-side `DELETE` alone produces no sync signal a normal replay could act on |
 
 - **Save:** insert one row per change (no PATCH/GET logic needed).

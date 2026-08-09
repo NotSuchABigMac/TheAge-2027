@@ -185,6 +185,13 @@ async function main() {
       m0.pA = [p0, null]; m0.pB = [p1, null];
       for (let i = 0; i < 18; i++) { m0.holesA[i] = 1; m0.holesB[i] = 15; }
       renderDay1();
+      // Day 2's icon now deliberately waits for the Day 1 Wrap to have
+      // been read first (day2RecapBlockedByDay1(), see
+      // test/repro-day3-wrap-washout.mjs for that ordering rule itself) --
+      // marking it seen directly here keeps this test's focus on Day 2's
+      // own fab-stacking/content, not re-litigating that rule.
+      localStorage.setItem('demo_wongaCup2026_day1RecapSeen', '1');
+      updateDay2RecapTrigger();
     });
     await page.waitForTimeout(50);
     const bothVisible = await page.evaluate(() => {
