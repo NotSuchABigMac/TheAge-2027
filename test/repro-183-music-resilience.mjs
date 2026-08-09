@@ -11,7 +11,7 @@
    2. Each page's <audio> starts TheSong.mp3 from 0:00, so navigating
       means hearing the same opening bars forever.
 
-   This test drives the real index.html (chosen as one representative of
+   This test drives the real index2026.html (chosen as one representative of
    the five pages that all received the identical fix -- verified
    separately that the same block landed in format/golfers/practical/
    records.html too) via a local static server, stubbing
@@ -61,7 +61,7 @@ function startStaticServer() {
     const server = http.createServer(async (req, res) => {
       try {
         const urlPath = new URL(req.url, 'http://x').pathname;
-        const filePath = path.join(ROOT, urlPath === '/' ? '/index.html' : urlPath);
+        const filePath = path.join(ROOT, urlPath === '/' ? '/index2026.html' : urlPath);
         const body = await readFile(filePath);
         const ext = path.extname(filePath);
         res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -83,7 +83,7 @@ function fail(msg) {
 async function main() {
   const site = await startStaticServer();
   const sitePort = site.address().port;
-  const baseUrl = `http://127.0.0.1:${sitePort}/index.html`;
+  const baseUrl = `http://127.0.0.1:${sitePort}/index2026.html`;
 
   const chromium = await loadChromium();
   const launchOpts = { args: ['--no-sandbox', '--disable-dev-shm-usage'] };

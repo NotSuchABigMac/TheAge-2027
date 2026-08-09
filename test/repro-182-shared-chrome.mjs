@@ -9,13 +9,13 @@
        already meant three different bugs)
      - format.html's mobile menu -- previously its own separate
        implementation -- now behaves identically to the shared one
-       (inert toggling, exactly like #181 already proved for index.html)
+       (inert toggling, exactly like #181 already proved for index2026.html)
      - a hero-less page's masthead is NOT touched by the masthead-scroll
        logic at load (a bug the extraction itself could have introduced:
        an earlier draft ran the scrollY fallback unconditionally, which
        would have stripped masthead--scrolled off a page that hardcodes
        it in markup and has no hero to scroll past)
-     - index.html's own hero page still gets the real masthead-scroll
+     - index2026.html's own hero page still gets the real masthead-scroll
        behavior
 
    Self-contained: a tiny static file server for the five pages; Supabase
@@ -63,7 +63,7 @@ function startStaticServer() {
     const server = http.createServer(async (req, res) => {
       try {
         const urlPath = new URL(req.url, 'http://x').pathname;
-        const filePath = path.join(ROOT, urlPath === '/' ? '/index.html' : urlPath);
+        const filePath = path.join(ROOT, urlPath === '/' ? '/index2026.html' : urlPath);
         const body = await readFile(filePath);
         const ext = path.extname(filePath);
         res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -100,7 +100,7 @@ async function main() {
 
     // 1. None of the five pages duplicates the chrome as its own inline
     // <script> anymore -- all load the shared site.js instead.
-    const pages = ['index.html', 'golfers.html', 'practical.html', 'records.html', 'format.html'];
+    const pages = ['index2026.html', 'golfers.html', 'practical.html', 'records.html', 'format.html'];
     for (const p of pages) {
       const page = await context.newPage();
       await page.goto(`${base}/${p}`, { waitUntil: 'domcontentloaded' });
@@ -141,14 +141,14 @@ async function main() {
       await page.close();
     }
 
-    // 4. index.html's actual hero page still gets real masthead-scroll
+    // 4. index2026.html's actual hero page still gets real masthead-scroll
     // behavior: transparent at top, solid once the hero scrolls past.
     {
       const page = await context.newPage();
-      await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${base}/index2026.html`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(300);
       const atTop = await page.evaluate(() => document.querySelector('.masthead').classList.contains('masthead--scrolled'));
-      if (atTop) fail('expected index.html\'s masthead to start transparent (not masthead--scrolled) while the hero is in view');
+      if (atTop) fail('expected index2026.html\'s masthead to start transparent (not masthead--scrolled) while the hero is in view');
       // Scroll to the very bottom of the document rather than computing
       // an offset from the hero's height -- more robust against layout
       // not having fully settled (images still loading) by the time this
@@ -157,7 +157,7 @@ async function main() {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await page.waitForTimeout(300);
       const afterScroll = await page.evaluate(() => document.querySelector('.masthead').classList.contains('masthead--scrolled'));
-      if (!afterScroll) fail('expected index.html\'s masthead to become masthead--scrolled once scrolled past the hero');
+      if (!afterScroll) fail('expected index2026.html\'s masthead to become masthead--scrolled once scrolled past the hero');
       await page.close();
     }
 

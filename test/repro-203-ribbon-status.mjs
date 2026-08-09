@@ -2,7 +2,7 @@
    REGRESSION TEST — issue #203: homepage countdown -> live score ->
    final result.
 
-   index.html is a static brochure right up until the moment traffic
+   index2026.html is a static brochure right up until the moment traffic
    actually peaks. ribbon-status.js swaps the ribbon's "Holders" slot
    through three date-driven phases (WongaScoring.phaseFor), computing
    the live score via the exact same WongaScoring.computeSeasonTotals()
@@ -60,7 +60,7 @@ function startStaticServer() {
     const server = http.createServer(async (req, res) => {
       try {
         const urlPath = new URL(req.url, 'http://x').pathname;
-        const filePath = path.join(ROOT, urlPath === '/' ? '/index.html' : urlPath);
+        const filePath = path.join(ROOT, urlPath === '/' ? '/index2026.html' : urlPath);
         const body = await readFile(filePath);
         const ext = path.extname(filePath);
         res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -135,7 +135,7 @@ async function main() {
       const page = await context.newPage();
       await page.addInitScript(dateMockScript('2026-07-20T00:00:00Z'));
       await context.route('**wtyyarvyscbrrkawjcvo**', route => route.abort());
-      await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${base}/index2026.html`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(200);
       await page.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
       const label = await page.textContent('#ribbon-status-label');
@@ -156,7 +156,7 @@ async function main() {
         if (route.request().url().includes('/tournament_updates')) { route.fallback(); return; }
         route.abort();
       });
-      await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${base}/index2026.html`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(400);
       await page.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
       const label = await page.textContent('#ribbon-status-label');
@@ -178,7 +178,7 @@ async function main() {
         if (route.request().url().includes('/tournament_updates')) { route.fallback(); return; }
         route.abort();
       });
-      await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${base}/index2026.html`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(400);
       await page.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
       const label = await page.textContent('#ribbon-status-label');
@@ -194,7 +194,7 @@ async function main() {
       const page = await context.newPage();
       await page.addInitScript(dateMockScript('2026-08-08T02:00:00Z'));
       await context.route('**wtyyarvyscbrrkawjcvo**', route => route.abort());
-      await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${base}/index2026.html`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(400);
       await page.evaluate(() => document.getElementById('music-modal')?.classList.add('hidden'));
       const label = await page.textContent('#ribbon-status-label');

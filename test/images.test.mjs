@@ -51,7 +51,10 @@ test('no source file references the old course-black-bull.jpg or teams-photo.png
   assert.deepEqual(offenders, [], `found stale references to the removed image filenames in: ${offenders.join(', ')}`);
 });
 
-test('index.html preloads the hero WebP (invisible to the preload scanner as a CSS background-image)', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+test('index2026.html preloads the hero WebP (invisible to the preload scanner as a CSS background-image)', () => {
+  // index.html was repurposed as the A.G.E. 2027 teaser once the 2026
+  // tournament wrapped; the hero photo/preload live on with the archived
+  // 2026 recap page instead (renamed from index.html, same content).
+  const html = readFileSync(path.join(ROOT, 'index2026.html'), 'utf8');
   assert.match(html, /<link rel="preload" as="image" href="images\/course-black-bull\.webp">/);
 });

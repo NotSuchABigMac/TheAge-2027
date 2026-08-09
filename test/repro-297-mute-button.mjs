@@ -9,13 +9,13 @@
       the initial consent modal, so a visitor can silence/resume the
       track at any time without leaving the site.
    2. The "⚠ WARNING -- appropriate music" consent modal now only ever
-      shows itself on the homepage (index.html). A deep-linked/shared
+      shows itself on the homepage (index2026.html). A deep-linked/shared
       link straight to an inner page (golfers.html here) silently
       respects the existing `musicConsented` session state instead of
       re-prompting -- including when a consented-return `play()` gets
       rejected, which used to reopen the modal on every page.
 
-   Drives real index.html/golfers.html via a local static server, same
+   Drives real index2026.html/golfers.html via a local static server, same
    pattern as repro-183. Never touches Supabase or Google Fonts.
 
    Run: node test/repro-297-mute-button.mjs
@@ -60,7 +60,7 @@ function startStaticServer() {
     const server = http.createServer(async (req, res) => {
       try {
         const urlPath = new URL(req.url, 'http://x').pathname;
-        const filePath = path.join(ROOT, urlPath === '/' ? '/index.html' : urlPath);
+        const filePath = path.join(ROOT, urlPath === '/' ? '/index2026.html' : urlPath);
         const body = await readFile(filePath);
         const ext = path.extname(filePath);
         res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -82,7 +82,7 @@ function fail(msg) {
 async function main() {
   const site = await startStaticServer();
   const sitePort = site.address().port;
-  const homeUrl = `http://127.0.0.1:${sitePort}/index.html`;
+  const homeUrl = `http://127.0.0.1:${sitePort}/index2026.html`;
   const innerUrl = `http://127.0.0.1:${sitePort}/golfers.html`;
 
   const chromium = await loadChromium();

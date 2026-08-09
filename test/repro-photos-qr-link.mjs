@@ -4,12 +4,12 @@
    A QR code (encoding the Wonga Cup Google Photos album,
    https://photos.app.goo.gl/DG13eR5Fbmyb2P9i8) was added to the bottom
    corner of the Clubhouse TV page (tv.html), and a plain link to the same
-   album was added to the bottom of the main site (index.html's footer).
+   album was added to the bottom of the main site (index2026.html's footer).
 
    Checks:
      1. tv.html renders a fixed-position corner element linking to the
         photos URL, containing the QR image (images/photos-qr.png).
-     2. index.html's footer colophon has a link to the same photos URL.
+     2. index2026.html's footer colophon has a link to the same photos URL.
 
    Self-contained: a tiny static file server for the app; Google Fonts
    blocked outright (no other network dependency on either page for this
@@ -119,17 +119,17 @@ async function testIndexFooterLink(browser) {
   const page = await context.newPage();
 
   const site = global.__wongaSite;
-  await page.goto(`http://127.0.0.1:${site.port}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${site.port}/index2026.html`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(300);
 
   const href = await page.evaluate((url) => {
     const link = Array.from(document.querySelectorAll('.foot .colophon a')).find(a => a.getAttribute('href') === url);
     return link ? link.getAttribute('href') : null;
   }, PHOTOS_URL);
-  if (href !== PHOTOS_URL) fail(`expected index.html's footer colophon to link to "${PHOTOS_URL}", got "${href}"`);
+  if (href !== PHOTOS_URL) fail(`expected index2026.html's footer colophon to link to "${PHOTOS_URL}", got "${href}"`);
 
   await context.close();
-  console.log('index.html footer link assertions passed.');
+  console.log('index2026.html footer link assertions passed.');
 }
 
 async function main() {
