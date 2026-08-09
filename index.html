@@ -463,14 +463,27 @@ kbd {
 
         ctx.textAlign = 'center';
         ctx.fillStyle = INK;
-        setTracked(FONT_DISPLAY, 46 * t, '0px');
-        ctx.fillText('Out of bounds', VIEW_W / 2, titleY);
+        // Fit the headline to the stage rather than trusting a fixed size:
+        // at 46px this string is wider than a phone-width canvas, and
+        // canvas text doesn't wrap or clip -- it just runs off the edge.
+        const headline = 'Cart damaged - pay $300';
+        let titleSize = 46 * t;
+        setTracked(FONT_DISPLAY, titleSize, '0px');
+        const maxWidth = VIEW_W - 40 * t;
+        const measured = ctx.measureText(headline).width;
+        if (measured > maxWidth) {
+            titleSize *= maxWidth / measured;
+            setTracked(FONT_DISPLAY, titleSize, '0px');
+        }
+        ctx.fillText(headline, VIEW_W / 2, titleY);
 
         ctx.fillStyle = MUTED;
         setTracked(FONT_MONO, 11 * t, '2px');
         if (narrow) {
-            ctx.fillText(scoreLine, VIEW_W / 2, titleY + 20 * t);
-            ctx.fillText('TAP TO RETRY', VIEW_W / 2, titleY + 36 * t);
+            // Extra clearance under the headline -- its descenders ("pay
+            // $300") drop close to the line below it at this size.
+            ctx.fillText(scoreLine, VIEW_W / 2, titleY + 26 * t);
+            ctx.fillText('TAP TO RETRY', VIEW_W / 2, titleY + 42 * t);
         } else {
             ctx.fillText(`${scoreLine}  ·  TAP OR SPACE TO RETRY`, VIEW_W / 2, titleY + 28 * t);
         }
@@ -514,7 +527,9 @@ kbd {
         if (!isGameOver) {
             score += 0.1;
             frames++;
-            if (frames > 0 && frames % 300 === 0 && speedMult < 3) speedMult += 0.1;
+            // Ramp every 150 frames rather than 300 -- twice as fast to
+            // reach the same 3x ceiling.
+            if (frames > 0 && frames % 150 === 0 && speedMult < 3) speedMult += 0.1;
             requestAnimationFrame(animate);
         } else {
             // The collision is detected *during* the paint above, so that
