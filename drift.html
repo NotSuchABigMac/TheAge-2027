@@ -164,8 +164,12 @@ body {
     // it here and the cart, the wheels and the skid marks all follow.
     const CIRCLE_VH   = 0.20;
     const LAP_SECONDS = 3.4;    // one lap of the circle
-    const SLIP        = 0.42;   // radians of oversteer: how sideways the cart sits
-    const SLIP_WOBBLE = 0.07;   // the drift breathes rather than being machined
+    const SLIP        = 0.46;   // radians of oversteer: how sideways the cart sits
+    const SLIP_SWING  = 0.26;   // how much further the tail steps out, and tucks back
+    const SLIP_PERIOD = 900;    // ms, roughly one step-out-and-catch
+    const FRONT_AXLE  = 0.30;   // the point that follows the line (matches WHEELS)
+    const LINE_WANDER = 0.025;  // the line itself isn't a compass circle
+    const STEER_LEAD  = 320;    // how hard the front wheels lead the slide
     const TRAIL_MS    = 1500;   // how long a skid mark takes to fade out
     const TRAIL_STEP  = 3;      // css px between sampled trail points
     const TRAIL_BANDS = 14;     // fade steps along a mark (see drawTrails)
@@ -277,20 +281,48 @@ body {
         mark.style.fontSize = (2 * clear * MARK_FIT / diag).toFixed(2) + 'px';
     }
 
-    // Where the cart is at a given moment: a point on the circle, turned
-    // sideways by the slip angle so the nose points inside the line it's
-    // actually travelling.
+    // How far the tail is stepped out at a given moment. Coherent noise
+    // rather than a sine, so the slide doesn't breathe on a metronome --
+    // two octaves, the slower one carrying the big step-outs and the
+    // faster one the small corrections on top.
+    function slipAt(t) {
+        const n = valueNoise(t / SLIP_PERIOD, 3.7) * 0.72 +
+                  valueNoise(t / (SLIP_PERIOD * 0.42) + 11.5, 8.3) * 0.28;
+        return SLIP + n * SLIP_SWING;
+    }
+
+    // Where the cart is at a given moment.
+    //
+    // It's the *front axle* that follows the circle, not the middle of the
+    // cart -- that one choice is what makes the tail do the moving. The
+    // body hangs off that point at the slip angle, so when the slide runs
+    // wide the back end swings out and the nose stays roughly on line,
+    // which is what catching a drift looks like from above. The cart's
+    // centre traces something visibly out-of-round as a result, and the
+    // radius wanders underneath all that as well.
     function cartAt(t) {
         const theta = (t / (LAP_SECONDS * 1000)) * TAU;
-        const slip = SLIP + Math.sin(t / 620) * SLIP_WOBBLE;
-        // The radius breathes a touch too, so the cart hunts for the line
-        // the way a real one does instead of tracing a perfect compass arc.
-        const r = R * (1 + Math.sin(t / 940) * 0.012);
+        const slip = slipAt(t);
+        // Slip rate, by finite difference: the driver's hands lead the
+        // slide, so the counter-steer at the front wheels follows this
+        // rather than the angle alone.
+        const slipRate = (slip - slipAt(t - 60)) / 60;
+
+        // Hanging the body back off the front axle pushes the cart's centre
+        // outboard by about this much, so the line it rides is pulled in by
+        // the same amount and the mean stays the circle the brief asked for.
+        const r = (R - FRONT_AXLE * L * Math.sin(SLIP)) *
+                  (1 + valueNoise(t / 1400 + 21.3, 47.9) * LINE_WANDER);
+        const fx = cx + Math.cos(theta) * r;
+        const fy = cy + Math.sin(theta) * r;
+        const heading = theta + Math.PI / 2 + slip;   // travel direction + oversteer
+
         return {
-            x: cx + Math.cos(theta) * r,
-            y: cy + Math.sin(theta) * r,
-            heading: theta + Math.PI / 2 + slip,   // travel direction + oversteer
-            slip: slip
+            x: fx - Math.cos(heading) * FRONT_AXLE * L,
+            y: fy - Math.sin(heading) * FRONT_AXLE * L,
+            heading: heading,
+            slip: slip,
+            slipRate: slipRate
         };
     }
 
@@ -530,7 +562,10 @@ body {
         // where the ground is. The front pair are on opposite lock --
         // steering into the slide, which is the detail that makes it read
         // as a drift and not a spin.
-        const steer = -cart.slip * 0.85;
+        // Opposite lock, and the hands lead the slide: the rate term is why
+        // the wheels saw hardest at the moment the tail is stepping out,
+        // rather than simply sitting at an angle proportional to it.
+        const steer = -(cart.slip * 0.7 + (cart.slipRate || 0) * STEER_LEAD);
         const wl = 0.20 * L, ww = 0.085 * L;
         ctx.fillStyle = TYRE;
         for (const w of WHEELS) {

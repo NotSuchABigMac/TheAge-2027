@@ -13,7 +13,10 @@
         not hardcoded).
      2. The cart stays on that circle and actually travels round it.
      3. It's drifting: the body's heading is held at a real slip angle
-        off the direction of travel, with the nose inside the line.
+        off the direction of travel, with the nose inside the line -- and
+        it's the tail doing the moving. The front axle follows the line
+        while the back end swings well wide of it, so the cart's centre
+        traces something out-of-round rather than a compass circle.
      4. All four wheels leave skid marks, and those marks are really
         painted on the canvas behind the cart -- not just held in state.
      5. The wordmark is the page's display serif, set as large as the
@@ -142,12 +145,13 @@ async function testDriftingMotion(browser) {
     await page.waitForTimeout(180);
   }
 
-  // On the circle, every sample. The contact patches sit exactly on the
-  // line now that the bumps move only the body, so the only slack needed
-  // is the radius breathe.
+  // Near the circle, every sample -- but only near it. The cart's centre
+  // deliberately doesn't trace a circle any more: the front axle follows
+  // the line and the body hangs off it, so the centre swings in and out as
+  // the slide runs wide and gets caught.
   for (const s of samples) {
     const r = Math.hypot(s.x - s.cx, s.y - s.cy);
-    if (Math.abs(r - s.R) / s.R > 0.03) {
+    if (Math.abs(r - s.R) / s.R > 0.12) {
       fail(`the cart left the circle: radius ${r.toFixed(1)} vs expected ${s.R.toFixed(1)}`);
     }
   }
@@ -170,8 +174,32 @@ async function testDriftingMotion(browser) {
     if (offset > 1.0) fail(`slip offset of ${offset.toFixed(3)} rad reads as a spin, not a drift`);
   }
 
+  // It's the tail that does the moving. The front axle is the point that
+  // follows the line, and the body hangs off it, so the back end should
+  // swing in and out by a multiple of whatever the front does -- that
+  // asymmetry is the whole reason the line isn't a compass circle.
+  const swing = await page.evaluate(async () => {
+    const d = window.__drift, L = d.cartLength, C = d.centre;
+    const front = [], rear = [];
+    for (let i = 0; i < 300; i++) {
+      const c = d.cart, ch = Math.cos(c.heading), sh = Math.sin(c.heading);
+      front.push(Math.hypot(c.x + 0.30 * L * ch - C.x, c.y + 0.30 * L * sh - C.y));
+      rear.push(Math.hypot(c.x - 0.31 * L * ch - C.x, c.y - 0.31 * L * sh - C.y));
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    const span = (a) => Math.max(...a) - Math.min(...a);
+    return { front: span(front), rear: span(rear), L };
+  });
+
+  if (swing.rear < 0.08 * swing.L) {
+    fail(`the tail barely moves: rear axle swings ${swing.rear.toFixed(1)}px on a ${swing.L.toFixed(1)}px cart`);
+  }
+  if (swing.rear < swing.front * 2.5) {
+    fail(`expected the back of the cart to move far more than the front (the front holds the line, the tail steps out); rear swung ${swing.rear.toFixed(1)}px against the front's ${swing.front.toFixed(1)}px`);
+  }
+
   await context.close();
-  console.log('drift-motion assertions passed (on the circle, moving, held at a slip angle).');
+  console.log(`drift-motion assertions passed (slip angle held; tail swings ${swing.rear.toFixed(1)}px vs the front's ${swing.front.toFixed(1)}px).`);
 }
 
 async function testSkidMarks(browser) {
@@ -330,14 +358,32 @@ async function testWordmarkClearance(browser) {
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
     await page.waitForTimeout(120);
-    const info = await page.evaluate(() => {
+    const info = await page.evaluate(async () => {
       const el = document.querySelector('.mark');
       const sub = document.querySelector('.sub');
       const r = el.getBoundingClientRect();
       const sr = sub.getBoundingClientRect();
       const d = window.__drift;
       const corners = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
+
+      // How close the cart's body actually gets to the middle, measured
+      // rather than assumed. The line isn't a circle and the cart isn't
+      // side-on to it, so radius-minus-half-a-cart is now only a rough
+      // stand-in for the real inner reach.
+      const C = d.centre, L = d.cartLength, W = L * 0.52;
+      let reach = Infinity;
+      for (let i = 0; i < 80; i++) {
+        const c = d.cart, ch = Math.cos(c.heading), sh = Math.sin(c.heading);
+        for (const [ax, ay] of [[0.5, 0.5], [0.5, -0.5], [-0.5, 0.5], [-0.5, -0.5]]) {
+          const px = c.x + ax * L * ch - ay * W * sh;
+          const py = c.y + ax * L * sh + ay * W * ch;
+          reach = Math.min(reach, Math.hypot(px - C.x, py - C.y));
+        }
+        await new Promise(res => requestAnimationFrame(res));
+      }
+
       return {
+        measuredReach: reach,
         text: el.textContent.replace(/\s+/g, ' ').trim(),
         family: getComputedStyle(el).fontFamily,
         size: parseFloat(getComputedStyle(el).fontSize),
@@ -354,6 +400,11 @@ async function testWordmarkClearance(browser) {
     if (!/Cormorant Garamond/.test(info.family)) fail(`expected the wordmark in the display serif, got "${info.family}"`);
     if (info.worst >= info.clear) {
       fail(`at ${viewport.width}x${viewport.height} the wordmark reaches ${info.worst.toFixed(1)}px from centre but the cart's inner edge is at ${info.clear.toFixed(1)}px -- the cart would drive through the text`);
+    }
+    // ...and against where the cart was actually seen to go, with margin,
+    // since the sampled window can't have caught the very worst excursion.
+    if (info.worst >= info.measuredReach * 0.94) {
+      fail(`at ${viewport.width}x${viewport.height} the wordmark reaches ${info.worst.toFixed(1)}px from centre and the cart was measured coming within ${info.measuredReach.toFixed(1)}px -- too close`);
     }
     // ...and it should genuinely fill that space, not just avoid it: the
     // wordmark is meant to be set as large as the circle allows.
