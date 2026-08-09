@@ -207,11 +207,29 @@ kbd {
 <script>
 // The game underneath is already running the instant the page loads --
 // this button is purely a visual cover over it, so dismissing is nothing
-// more than taking the cover off. { once: true } because there's nothing
-// left to dismiss after that.
+// more than taking the cover off.
 (function () {
     const overlay = document.getElementById('drift-overlay');
-    if (overlay) overlay.addEventListener('click', () => { overlay.style.display = 'none'; }, { once: true });
+    if (!overlay) return;
+
+    function dismiss(e) {
+        if (e) e.preventDefault();
+        overlay.style.display = 'none';
+    }
+    // Covers mouse clicks and native <button> keyboard activation
+    // (Enter/Space fire this automatically once the button has focus).
+    overlay.addEventListener('click', dismiss, { once: true });
+
+    // On a phone this click listener alone never fires: the game's own
+    // window-level "tap to jump" handler (below) calls preventDefault()
+    // on every touchstart on the page, and per spec that suppresses the
+    // browser's synthetic click for that touch entirely -- so a tap here
+    // reaches touchstart/touchend but the click dismiss() is waiting for
+    // never comes. Stop the touch at its source instead of depending on
+    // that synthetic click, and stop it from bubbling to window so the
+    // same tap doesn't also silently jump the hidden cart underneath.
+    overlay.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: false });
+    overlay.addEventListener('touchend', (e) => { e.stopPropagation(); dismiss(e); }, { passive: false });
 })();
 </script>
 

@@ -16,7 +16,10 @@
    4. drift.html plays first, full-screen, over the game (which is
       already running underneath, not started fresh on dismiss); a click
       drops the overlay.
-   5. The "Relive 2026" link still lands on index2026.html, which now
+   5. So does a real touch tap -- not just a synthetic mouse click, which
+      takes a different path on a touchscreen (see the comment at that
+      assertion for why the two are not equivalent here).
+   6. The "Relive 2026" link still lands on index2026.html, which now
       holds the archived 2026 tournament homepage -- reachable only once
       the overlay covering it is dismissed.
 
@@ -181,7 +184,40 @@ async function main() {
       await page.close();
     }
 
-    // 5. The archive link lands on the renamed 2026 recap page, once the
+    // 5. A real touch tap dismisses the overlay too -- not just a mouse
+    // click. This is its own context because page.tap() requires
+    // hasTouch. It matters because a *synthetic* click (page.click(),
+    // step 4 above) goes through a completely different code path on a
+    // touchscreen than an actual tap does: the game's own window-level
+    // "tap to jump" handler calls preventDefault() on every touchstart on
+    // the page, which per spec suppresses the browser's synthetic click
+    // for that touch -- so a real tap on the overlay used to reach
+    // touchstart/touchend but the click the old dismiss handler was
+    // waiting for never came, and nothing happened. Also confirms that
+    // same tap doesn't leak through to the hidden game and jump the cart.
+    {
+      const touchContext = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 700 } });
+      const page = await touchContext.newPage();
+      const errors = [];
+      page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+      await page.goto(homeUrl, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(300);
+
+      const groundedBefore = await page.evaluate(() => player.grounded);
+      await page.tap('#drift-overlay');
+      await page.waitForTimeout(200);
+
+      const visibleAfterTap = await page.evaluate(() => getComputedStyle(document.getElementById('drift-overlay')).display !== 'none');
+      if (visibleAfterTap) fail('expected a real touch tap to dismiss the drift overlay, same as a mouse click does');
+
+      const groundedAfter = await page.evaluate(() => player.grounded);
+      if (groundedAfter !== groundedBefore) fail('expected dismissing the overlay by tap not to also jump the hidden cart underneath');
+
+      if (errors.length) fail(`expected zero page errors from the tap, saw: ${JSON.stringify(errors)}`);
+      await touchContext.close();
+    }
+
+    // 6. The archive link lands on the renamed 2026 recap page, once the
     // overlay covering it has been dismissed.
     {
       const page = await context.newPage();
