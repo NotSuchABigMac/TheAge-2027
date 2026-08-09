@@ -89,12 +89,12 @@
 .sd-banner{background:linear-gradient(90deg,#7a0000,#c00,#7a0000);color:var(--white);text-align:center;padding:11px 24px;font-family:var(--font-d);font-size:1.4rem;letter-spacing:2px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
 
-/* Flamingo shower (issue: win-banner celebration) -- a brief, one-time-
-   per-page-load confetti effect the moment the Wonga Cup is actually won
-   (see startFlamingoShower(), fired from updateScoreboard()'s win-banner
-   branch). Each 🦩 falls top-to-bottom on its own randomized timing/size,
-   looping back to the top for as long as the container lives (removed
-   after FLAMINGO_SHOWER_MS) rather than a single one-shot burst. */
+/* Flamingo shower -- a sparse, slow-drifting confetti effect that starts
+   once per page load the moment the Wonga Cup is actually won (see
+   startFlamingoShower(), fired from updateScoreboard()'s win-banner
+   branch) and just quietly keeps going for as long as the tab stays open
+   -- each 🦩 falls top-to-bottom on its own randomized timing/size, then
+   loops back to the top and does it again, rather than a one-shot burst. */
 .flamingo-shower{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:10050}
 .flamingo-shower span{position:absolute;top:-10%;line-height:1;animation-name:flamingo-fall;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform,opacity}
 @keyframes flamingo-fall{
@@ -5189,10 +5189,12 @@ function setTiebreak(team) {
 // Fires once per page load, the moment the win banner first appears
 // (see updateScoreboard() below) -- not persisted, so a fresh visit to an
 // already-decided tournament shows it again, which is the point rather
-// than a bug for a celebratory flourish.
+// than a bug for a celebratory flourish. Deliberately sparse and slow
+// (a handful of flamingos on a long, lazy drift) and never cleaned up --
+// it's meant to keep quietly going in the background for as long as the
+// tab stays open, not announce itself as a one-shot burst.
 let flamingoShowerFired = false;
-const FLAMINGO_SHOWER_COUNT = 24;
-const FLAMINGO_SHOWER_MS = 6000;
+const FLAMINGO_SHOWER_COUNT = 9;
 function startFlamingoShower() {
   const container = document.createElement('div');
   container.className = 'flamingo-shower';
@@ -5201,13 +5203,12 @@ function startFlamingoShower() {
     const span = document.createElement('span');
     span.textContent = '🦩';
     span.style.left = `${Math.random() * 100}%`;
-    span.style.fontSize = `${1.2 + Math.random() * 1.4}rem`;
-    span.style.animationDuration = `${2.5 + Math.random() * 2}s`;
-    span.style.animationDelay = `${Math.random() * -4}s`; // negative -- some start already mid-fall
+    span.style.fontSize = `${1.1 + Math.random() * 1}rem`;
+    span.style.animationDuration = `${11 + Math.random() * 8}s`;
+    span.style.animationDelay = `${Math.random() * -19}s`; // negative -- some start already mid-fall
     container.appendChild(span);
   }
   document.body.appendChild(container);
-  setTimeout(() => container.remove(), FLAMINGO_SHOWER_MS);
 }
 
 function updateScoreboard() {
