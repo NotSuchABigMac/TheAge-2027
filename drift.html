@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b1712">
+<title>AGE 2027 — Drift</title>
+<meta name="description" content="AGE 2027 — a golf cart drifting a lazy circle, seen from above.">
+<link rel="canonical" href="https://theage.golf/drift.html">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The A.G.E.">
+<meta property="og:title" content="AGE 2027 — Drift">
+<meta property="og:description" content="AGE 2027 — a golf cart drifting a lazy circle, seen from above.">
+<meta property="og:url" content="https://theage.golf/drift.html">
+<meta property="og:image" content="https://theage.golf/images/og-card.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AGE 2027 — Drift">
+<meta name="twitter:description" content="AGE 2027 — a golf cart drifting a lazy circle, seen from above.">
+<meta name="twitter:image" content="https://theage.golf/images/og-card.jpg">
+<link rel="preload" href="fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* Self-hosted fonts, the same two files styles.css already ships (issue
+   #197). Declared inline rather than pulling in the full 45KB design
+   system -- this page uses two families and nothing else. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal; font-weight: 300 700; font-display: swap;
+  src: url('fonts/cormorant-garamond.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url('fonts/geist-mono.woff2') format('woff2');
+}
+
+:root {
+  --bg: #0b1712;
+  --ink: #ece5d5;
+  --muted: #7f8d83;
+  --accent: #c2a05e;
+  --line: rgba(236, 229, 213, 0.10);
+  --display: 'Cormorant Garamond', Garamond, 'Times New Roman', serif;
+  --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Written by resize(), so the tagline can sit clear of the circle
+     without CSS having to re-derive the geometry the canvas already owns. */
+  --circle-r: 10vh;
+  --cart-l: 40px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;             /* the scene is the whole viewport; nothing scrolls */
+  background: radial-gradient(120% 80% at 50% 45%, #12251b 0%, var(--bg) 65%);
+  color: var(--ink);
+  font-family: var(--mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The cart is painted on a full-viewport canvas sitting *behind* the
+   wordmark, so "AGE 2027" stays real selectable text for a screen reader
+   (and for the font stack) rather than being drawn into the bitmap. The
+   circle is sized so the cart never crosses the text. */
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mark {
+  position: relative;           /* above the canvas */
+  margin: 0;
+  font-family: var(--display);
+  /* font-size is written by fitWordmark(): the wordmark is set as large
+     as the cart's circle allows, which no static clamp can express --
+     the circle is a fraction of the viewport height, but the text has to
+     fit a *chord* of it, so its own height feeds into the answer. */
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1;
+  /* Cormorant defaults to old-style figures, which drops 2027 to x-height
+     next to full-height caps. A wordmark wants them lining. */
+  font-variant-numeric: lining-nums;
+  font-feature-settings: 'lnum' 1;
+  white-space: nowrap;          /* it's measured before it's sized */
+  letter-spacing: 0.14em;
+  color: var(--ink);
+  /* letter-spacing adds a trailing gap that breaks optical centring */
+  text-indent: 0.14em;
+  user-select: none;
+}
+.mark .year { color: var(--accent); }
+
+/* The tagline sits below the circle rather than inside it: at 20% of the
+   viewport height there isn't a chord long enough to hold a line this
+   long at a readable size. */
+.sub {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + var(--circle-r) + var(--cart-l) / 2 + 1.5rem);
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: clamp(0.5rem, 1.05vh, 0.72rem);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  text-indent: 0.24em;
+  white-space: nowrap;
+  color: var(--muted);
+  user-select: none;
+}
+
+.back {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-indent: 0.22em;
+  color: var(--muted);
+  text-decoration: none;
+  opacity: 0.55;
+  border-bottom: 1px solid transparent;
+  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
+}
+.back:hover, .back:focus-visible { opacity: 1; color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<h1 class="mark">AGE <span class="year">2027</span></h1>
+<p class="sub">More info coming soon...</p>
+
+<a class="back" href="index.html">Home</a>
+
+<script src="error-beacon.js?v=__CACHEBUST__"></script>
+<script>
+(function () {
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+    const mark = document.querySelector('.mark');
+    const TAU = Math.PI * 2;
+
+    // ── Scene constants ────────────────────────────────────────────────
+    // The brief: a circle roughly 20% of the vertical viewport. That's
+    // the *diameter*, so the radius is half of it -- one constant, change
+    // it here and the cart, the wheels and the skid marks all follow.
+    const CIRCLE_VH   = 0.20;
+    const LAP_SECONDS = 3.4;    // one lap of the circle
+    const SLIP        = 0.42;   // radians of oversteer: how sideways the cart sits
+    const SLIP_WOBBLE = 0.07;   // the drift breathes rather than being machined
+    const TRAIL_MS    = 1500;   // how long a skid mark takes to fade out
+    const TRAIL_STEP  = 3;      // css px between sampled trail points
+    const TRAIL_BANDS = 14;     // fade steps along a mark (see drawTrails)
+    const MARK_FIT    = 0.90;   // how much of the clear inner circle the wordmark fills
+
+    // Bumps. The cart is rumbling over turf, not gliding on rails: each
+    // jolt is a kick to a damped spring, so it rings out over a few frames
+    // instead of flickering. Amplitudes are fractions of the cart's length.
+    const BUMP_HZ    = 9;       // how fast a jolt oscillates away
+    const BUMP_ZETA  = 0.42;    // damping -- under 1, so it rings
+    const BUMP_SIZE  = 0.17;    // peak body displacement of a real bump
+    const BUMP_ROT   = 0.09;    // rad, peak rock of the body
+    const BUMP_GAP   = [120, 400];  // ms between bumps
+
+    const INK = '236, 229, 213';
+    const ACCENT = '#c2a05e';
+    // Two darks, because they sit on opposite grounds: a true tyre black
+    // disappears into the deep green, so the wheels get a slate that reads
+    // against the page, and only the details drawn on the cream roof get
+    // to be properly dark.
+    const TYRE = '#4a5a50';
+    const DETAIL = '#1b2a22';
+
+    // ── Cart geometry, in units of body length (nose at +x, local space) ──
+    // Wheel order is fixed: 0/1 front, 2/3 rear. The rear pair lay down
+    // the dark marks; the fronts only scuff, which is what reads as a
+    // drift rather than a four-wheel skid.
+    // The track is deliberately wider than the body (|y| > 0.5), so the
+    // tyres sit proud of it -- from above, four dark stubs outside a gold
+    // rectangle is most of what makes it read as a cart at 40px.
+    const WHEELS = [
+        { x:  0.30, y: -0.60, rear: false },
+        { x:  0.30, y:  0.60, rear: false },
+        { x: -0.31, y: -0.62, rear: true  },
+        { x: -0.31, y:  0.62, rear: true  }
+    ];
+
+    // ── Live state ─────────────────────────────────────────────────────
+    let VIEW_W = 0, VIEW_H = 0;
+    let cx = 0, cy = 0;         // circle centre, css px
+    let R = 0;                  // circle radius, css px
+    let L = 0, W = 0;           // cart body length / width, css px
+
+    let simTime = 0;            // ms of animation time (not wall clock)
+    let lastFrame = 0;
+    let rafId = 0;
+    const trails = WHEELS.map(() => []);   // [{x, y, t}] per wheel, oldest first
+    let dust = [];
+    let pose = null;            // the cart as actually drawn: line + rumble
+    // lat/lon are fractions of the cart's length, rot is radians; each is
+    // a damped oscillator with its velocity alongside it.
+    const rumble = { lat: 0, latV: 0, lon: 0, lonV: 0, rot: 0, rotV: 0, next: 0 };
+    const clubTips = [];        // club butt-ends, cart-local px, filled while drawing
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        VIEW_W = canvas.clientWidth;
+        VIEW_H = canvas.clientHeight;
+        cx = VIEW_W / 2;
+        cy = VIEW_H / 2;
+        R = (VIEW_H * CIRCLE_VH) / 2;
+
+        // The cart is sized off the circle so the proportion holds at any
+        // viewport, but clamped: below ~16px it stops reading as a cart,
+        // and on a tall desktop window it shouldn't grow into the text.
+        L = Math.max(16, Math.min(60, R * 0.52));
+        W = L * 0.52;
+
+        canvas.width = Math.round(VIEW_W * dpr);
+        canvas.height = Math.round(VIEW_H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        document.documentElement.style.setProperty('--circle-r', R + 'px');
+        document.documentElement.style.setProperty('--cart-l', L + 'px');
+        fitWordmark();
+
+        // Marks laid down at the old radius would hang in space around the
+        // new circle, so they're dropped and immediately re-seeded -- a
+        // resize shouldn't wipe the trail the cart is visibly mid-way
+        // through laying.
+        for (const t of trails) t.length = 0;
+        dust = [];
+        seed();
+        draw();
+    }
+
+    // The wordmark is set as large as the circle allows. Its width and its
+    // height both scale linearly with font-size, so one measurement at a
+    // probe size gives the answer outright: the half-diagonal of the text
+    // box has to fit inside the radius the cart leaves clear.
+    //   (w·F/2)² + (h·F/2)² ≤ (clear·MARK_FIT)²
+    function fitWordmark() {
+        const clear = R - L / 2;
+        const PROBE = 40;
+        mark.style.fontSize = PROBE + 'px';
+        const box = mark.getBoundingClientRect();
+        const diag = Math.hypot(box.width / PROBE, box.height / PROBE);
+        mark.style.fontSize = (2 * clear * MARK_FIT / diag).toFixed(2) + 'px';
+    }
+
+    // Where the cart is at a given moment: a point on the circle, turned
+    // sideways by the slip angle so the nose points inside the line it's
+    // actually travelling.
+    function cartAt(t) {
+        const theta = (t / (LAP_SECONDS * 1000)) * TAU;
+        const slip = SLIP + Math.sin(t / 620) * SLIP_WOBBLE;
+        // The radius breathes a touch too, so the cart hunts for the line
+        // the way a real one does instead of tracing a perfect compass arc.
+        const r = R * (1 + Math.sin(t / 940) * 0.012);
+        return {
+            x: cx + Math.cos(theta) * r,
+            y: cy + Math.sin(theta) * r,
+            heading: theta + Math.PI / 2 + slip,   // travel direction + oversteer
+            slip: slip
+        };
+    }
+
+    // A jolt: a velocity kick to each oscillator. Peak displacement of a
+    // kick is roughly v/omega, which is how the amplitudes above are set.
+    function kick(scale) {
+        const omega = TAU * BUMP_HZ;
+        rumble.latV += (Math.random() * 2 - 1) * BUMP_SIZE * scale * omega;
+        rumble.lonV += (Math.random() * 2 - 1) * BUMP_SIZE * scale * omega * 0.55;
+        rumble.rotV += (Math.random() * 2 - 1) * BUMP_ROT * scale * omega;
+    }
+
+    function stepRumble(dt) {
+        rumble.next -= dt;
+        if (rumble.next <= 0) {
+            kick(1);
+            rumble.next = BUMP_GAP[0] + Math.random() * (BUMP_GAP[1] - BUMP_GAP[0]);
+        }
+        kick(0.06 * (dt / 16.7));   // constant low chatter between the real bumps
+
+        // Substepped at a fixed 8ms: semi-implicit Euler on a 9Hz spring
+        // goes unstable somewhere past a 20ms step, and a slow frame would
+        // otherwise send the cart into orbit.
+        const omega = TAU * BUMP_HZ, k = omega * omega, c = 2 * BUMP_ZETA * omega;
+        let left = dt;
+        while (left > 0) {
+            const h = Math.min(8, left) / 1000;
+            left -= 8;
+            for (const key of ['lat', 'lon', 'rot']) {
+                const v = rumble[key + 'V'] + (-k * rumble[key] - c * rumble[key + 'V']) * h;
+                rumble[key + 'V'] = v;
+                rumble[key] += v * h;
+            }
+        }
+    }
+
+    function wheelPos(cart, w) {
+        const c = Math.cos(cart.heading), s = Math.sin(cart.heading);
+        const lx = w.x * L, ly = w.y * W;
+        return { x: cart.x + lx * c - ly * s, y: cart.y + lx * s + ly * c };
+    }
+
+    // One simulation step. Drawing is separate so the same stepping can be
+    // fast-forwarded to pre-fill the trails (see seed()).
+    function step(dt) {
+        simTime += dt;
+        stepRumble(dt);
+
+        // The rumble is applied in the cart's own frame and to the pose the
+        // wheels are read off, so the skid marks pick up the same wobble --
+        // a cart shaking over a mark it laid down smoothly would give the
+        // game away.
+        const line = cartAt(simTime);
+        const c = Math.cos(line.heading), s = Math.sin(line.heading);
+        const cart = pose = {
+            x: line.x + (rumble.lon * c - rumble.lat * s) * L,
+            y: line.y + (rumble.lon * s + rumble.lat * c) * L,
+            heading: line.heading + rumble.rot,
+            slip: line.slip
+        };
+
+        for (let i = 0; i < WHEELS.length; i++) {
+            const p = wheelPos(cart, WHEELS[i]);
+            const trail = trails[i];
+            const last = trail[trail.length - 1];
+            // Sample by distance, not by frame: the mark stays the same
+            // density on a 120Hz display as on a 30Hz one.
+            if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= TRAIL_STEP) {
+                trail.push({ x: p.x, y: p.y, t: simTime });
+            }
+            while (trail.length && simTime - trail[0].t > TRAIL_MS) trail.shift();
+        }
+
+        // A little turf kicked off the rear wheels. Deliberately sparse --
+        // enough to sell the slide, not enough to become weather.
+        if (dust.length < 40 && Math.random() < dt / 55) {
+            const w = WHEELS[2 + (Math.random() < 0.5 ? 0 : 1)];
+            const p = wheelPos(cart, w);
+            const a = Math.random() * TAU;
+            const sp = (0.02 + Math.random() * 0.05) * L;
+            dust.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, born: simTime });
+        }
+        for (let i = dust.length - 1; i >= 0; i--) {
+            const d = dust[i];
+            d.x += d.vx * (dt / 16.7);
+            d.y += d.vy * (dt / 16.7);
+            if (simTime - d.born > 620) dust.splice(i, 1);
+        }
+
+        return cart;
+    }
+
+    // Run the simulation forward one trail's worth without painting, so
+    // the first painted frame already has skid marks behind the cart
+    // instead of the cart appearing to start from a standstill.
+    function seed() {
+        const dt = 16.7;
+        for (let i = 0; i < Math.ceil(TRAIL_MS / dt); i++) step(dt);
+    }
+
+    // A mark is stroked as a handful of contiguous polylines, one per fade
+    // step -- *not* one stroke per sampled segment. Per-segment strokes
+    // overlap at every joint, and semi-transparent overlaps accumulate, so
+    // the mark comes out beaded like a dotted line. Butt caps and shared
+    // endpoints between bands mean nothing is ever painted twice.
+    function drawTrails() {
+        ctx.lineCap = 'butt';
+        ctx.lineJoin = 'round';
+        for (let i = 0; i < trails.length; i++) {
+            const trail = trails[i];
+            if (trail.length < 2) continue;
+            const rear = WHEELS[i].rear;
+            const peak = rear ? 0.30 : 0.13;
+            ctx.lineWidth = (rear ? 0.10 : 0.075) * L;
+
+            const per = Math.max(2, Math.ceil(trail.length / TRAIL_BANDS));
+            for (let s = 0; s < trail.length - 1; s += per - 1) {
+                const e = Math.min(trail.length - 1, s + per - 1);
+                const age = (simTime - trail[(s + e) >> 1].t) / TRAIL_MS;
+                if (age >= 1) continue;
+                // Squared falloff: the mark stays dark just behind the
+                // wheel and thins out fast, rather than leaving an evenly
+                // grey ring all the way round.
+                ctx.strokeStyle = 'rgba(' + INK + ',' + (peak * (1 - age) * (1 - age)).toFixed(3) + ')';
+                ctx.beginPath();
+                ctx.moveTo(trail[s].x, trail[s].y);
+                for (let j = s + 1; j <= e; j++) ctx.lineTo(trail[j].x, trail[j].y);
+                ctx.stroke();
+            }
+        }
+    }
+
+    function drawDust() {
+        for (const d of dust) {
+            const age = (simTime - d.born) / 620;
+            ctx.fillStyle = 'rgba(' + INK + ',' + (0.16 * (1 - age)).toFixed(3) + ')';
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, Math.max(0.6, 0.022 * L), 0, TAU);
+            ctx.fill();
+        }
+    }
+
+    function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function drawCart(cart) {
+        // A soft shadow, offset in *world* space (down and right) so it
+        // stays put as the cart rotates instead of swinging round with it.
+        ctx.save();
+        ctx.translate(cart.x + 0.05 * L, cart.y + 0.07 * L);
+        ctx.rotate(cart.heading);
+        ctx.fillStyle = 'rgba(4, 10, 7, 0.35)';
+        roundRect(-L / 2, -W / 2, L, W, W * 0.22);
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(cart.x, cart.y);
+        ctx.rotate(cart.heading);
+
+        // Wheels first, so the body sits over their inner ends. The front
+        // pair are on opposite lock -- steering into the slide, which is
+        // the detail that makes it read as a drift and not a spin.
+        const steer = -cart.slip * 0.85;
+        const wl = 0.20 * L, ww = 0.085 * L;
+        ctx.fillStyle = TYRE;
+        for (const w of WHEELS) {
+            ctx.save();
+            ctx.translate(w.x * L, w.y * W);
+            if (!w.rear) ctx.rotate(steer);
+            roundRect(-wl / 2, -ww / 2, wl, ww, ww * 0.35);
+            ctx.restore();
+        }
+
+        // Rear rack, then the chassis over it -- gold, and visible as a rim
+        // around the roof, at the nose and across the tail.
+        ctx.fillStyle = TYRE;
+        roundRect(-0.60 * L, -0.30 * W, 0.14 * L, 0.60 * W, ww * 0.3);
+        ctx.fillStyle = ACCENT;
+        roundRect(-L / 2, -W / 2, L, W, W * 0.22);
+
+        // Roof panel -- from above this is most of what you'd actually see.
+        ctx.fillStyle = 'rgba(' + INK + ',0.92)';
+        roundRect(-0.31 * L, -0.35 * W, 0.57 * L, 0.70 * W, W * 0.16);
+
+        // Windscreen line and steering wheel, dark on the pale roof.
+        ctx.fillStyle = DETAIL;
+        ctx.fillRect(0.22 * L, -0.35 * W, 0.045 * L, 0.70 * W);
+        ctx.beginPath();
+        ctx.arc(0.10 * L, 0, 0.07 * L, 0, TAU);
+        ctx.fill();
+
+        drawClubs();
+        ctx.restore();
+    }
+
+    // Two bags on the rack, clubs fanned out over the tail. The bags sit on
+    // the gold deck rather than behind it -- out on the dark ground a dark
+    // bag is invisible, which left the shafts looking like antennae.
+    // Drawn in the cart's own frame, so they swing with the tail.
+    function drawClubs() {
+        const shaft = Math.max(0.7, 0.022 * L);
+        clubTips.length = 0;
+        for (const side of [-1, 1]) {
+            const bx = -0.40 * L, by = side * 0.26 * W;
+
+            // Shafts first: they read as coming out of the bag rather than
+            // lying on top of it.
+            ctx.lineCap = 'round';
+            ctx.lineWidth = shaft;
+            for (let k = -1; k <= 1; k++) {
+                const a = Math.PI + k * 0.15 + side * 0.10;
+                const len = (0.26 - Math.abs(k) * 0.02) * L;
+                const tx = bx + Math.cos(a) * len, ty = by + Math.sin(a) * len;
+                ctx.strokeStyle = 'rgba(' + INK + ',0.5)';
+                ctx.beginPath();
+                ctx.moveTo(bx, by);
+                ctx.lineTo(tx, ty);
+                ctx.stroke();
+                // Grips: the butt ends standing proud of the bag.
+                ctx.fillStyle = DETAIL;
+                ctx.beginPath();
+                ctx.arc(tx, ty, shaft, 0, TAU);
+                ctx.fill();
+                clubTips.push({ x: tx, y: ty });   // local frame; see the test hook
+            }
+
+            ctx.fillStyle = DETAIL;
+            ctx.beginPath();
+            ctx.ellipse(bx, by, 0.095 * L, 0.075 * L, 0, 0, TAU);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(' + INK + ',0.30)';
+            ctx.beginPath();
+            ctx.ellipse(bx, by, 0.048 * L, 0.036 * L, 0, 0, TAU);
+            ctx.fill();
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+        drawTrails();
+        drawDust();
+        drawCart(pose || cartAt(simTime));
+    }
+
+    function frame(now) {
+        // Clamped: coming back to a backgrounded tab hands you one huge
+        // delta, which would teleport the cart and lay a chord straight
+        // across the circle.
+        const dt = Math.min(50, now - lastFrame || 16.7);
+        lastFrame = now;
+        step(dt);
+        draw();
+        rafId = requestAnimationFrame(frame);
+    }
+
+    function start() {
+        cancelAnimationFrame(rafId);
+        if (reduceMotion.matches) {
+            // Reduced motion still gets the picture -- a cart parked
+            // sideways with its marks behind it -- just no movement.
+            draw();
+            return;
+        }
+        lastFrame = 0;
+        rafId = requestAnimationFrame(function first(now) { lastFrame = now; rafId = requestAnimationFrame(frame); });
+    }
+
+    window.addEventListener('resize', resize);
+    if (reduceMotion.addEventListener) reduceMotion.addEventListener('change', start);
+
+    resize();
+    start();
+
+    // The wordmark is sized by measuring it, and the first measurement
+    // happens against whatever face is loaded at boot -- the fallback
+    // serif, on a cold cache. Fit it again once the real one lands.
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitWordmark);
+
+    // Test hook for test/repro-drift-page.mjs -- geometry and trail state
+    // are otherwise only observable by pixel-peeping the canvas.
+    window.__drift = {
+        get radius() { return R; },
+        get centre() { return { x: cx, y: cy }; },
+        get cart() { return pose || cartAt(simTime); },     // as drawn, rumble included
+        get line() { return cartAt(simTime); },             // the ideal line it's rumbling around
+        get cartLength() { return L; },
+        get trailCounts() { return trails.map(t => t.length); },
+        // Club tips in world coordinates, so a test can check they're both
+        // behind the cart and actually painted.
+        get clubTips() {
+            const p = pose || cartAt(simTime);
+            const c = Math.cos(p.heading), s = Math.sin(p.heading);
+            return clubTips.map(t => ({
+                x: p.x + t.x * c - t.y * s,
+                y: p.y + t.x * s + t.y * c,
+                local: t
+            }));
+        },
+        get reduced() { return reduceMotion.matches; },
+        CIRCLE_VH: CIRCLE_VH
+    };
+})();
+</script>
+
+</body>
+</html>
