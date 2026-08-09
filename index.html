@@ -185,6 +185,11 @@ kbd {
     const STAGE_W = 800;
     const STAGE_H = 230;
     const STAGE_GROUND = 190;
+    // The cart sprite is authored on a 60x46 grid. The box is the full
+    // sprite (wheels included) so the tyres sit *on* the ground line
+    // rather than hanging through it.
+    const SPRITE_W = 60;
+    const SPRITE_H = 46;
 
     let S = 1;          // scene scale
     let VIEW_W = 800;   // css px
@@ -207,14 +212,27 @@ kbd {
     let groundScroll = 0;
 
     // Cart palettes -- muted and near-monochrome, with the player picked
-    // out in the site's gold and hazards in a desaturated clay.
-    const CART_PLAYER = { roof: INK, post: '#4a5a50', body: ACCENT, wheel: '#141e19', hub: '#6b7a70' };
-    const CART_HAZARD = { roof: '#8d7f72', post: '#3a2f29', body: '#9e4b3a', wheel: '#141e19', hub: '#59453d' };
+    // out in the site's gold and hazards in a desaturated clay. Three
+    // body tones per cart (lit top, mid, shaded bottom) is what gives the
+    // flat fillRect sprite any sense of volume.
+    // Tyres are a slate/umber rather than near-black: against a #0b1712
+    // page a true-black tyre just disappears and the cart reads as
+    // floating on two little hubs.
+    const CART_PLAYER = {
+        roof: '#f4eee0', post: '#46564c', bodyLight: '#dbc189', body: ACCENT,
+        bodyDark: '#96793f', wheel: '#2f3e36', hub: '#7d8b81',
+        bag: '#38463d', bagTrim: '#8b9990'
+    };
+    const CART_HAZARD = {
+        roof: '#a2937f', post: '#3b2f28', bodyLight: '#b85c48', body: '#9e4b3a',
+        bodyDark: '#713327', wheel: '#3a2d27', hub: '#8a6a5b',
+        bag: '#33261f', bagTrim: '#866d5e'
+    };
 
     // Player Object
     const player = {
-        x: 60, y: 150, width: 60, height: 40,
-        dy: 0, jumpForce: -12, gravity: 0.6, grounded: true,
+        x: 60, y: 150, width: SPRITE_W, height: SPRITE_H,
+        dy: 0, jumpForce: -9.8, gravity: 0.4, grounded: true,
         jump() {
             if (this.grounded) {
                 this.dy = this.jumpForce;
@@ -253,18 +271,22 @@ kbd {
         // Speed is proportional to the stage width, which is what keeps
         // the time between a cart appearing and reaching you constant at
         // any screen size.
-        baseSpeed = VIEW_W / 160;
+        baseSpeed = VIEW_W / 110;
 
-        player.width = 60 * S;
-        player.height = 40 * S;
+        player.width = SPRITE_W * S;
+        player.height = SPRITE_H * S;
         player.x = 60 * S;
-        player.jumpForce = -12 * S;
-        player.gravity = 0.6 * S;
+        // Lower gravity with a matching lower launch keeps the same apex
+        // height but stretches the hang time, so the faster scroll below
+        // doesn't demand tighter timing -- the arc covers ~5x the width
+        // of a cart.
+        player.jumpForce = -9.8 * S;
+        player.gravity = 0.4 * S;
         if (player.grounded) player.y = GROUND - player.height;
 
         for (const o of obstacles) {
-            o.width = 60 * S;
-            o.height = 40 * S;
+            o.width = SPRITE_W * S;
+            o.height = SPRITE_H * S;
             o.y = GROUND - o.height;
         }
 
@@ -275,28 +297,84 @@ kbd {
         if (isGameOver) paint();
     }
 
-    // Helper: draw the 16-bit golf cart from a 60x46 sprite grid,
-    // scaled to the current stage.
-    function drawCart(x, y, p) {
-        const r = (a, b, w, h) => ctx.fillRect(x + a * S, y + b * S, w * S, h * S);
-        ctx.fillStyle = p.roof; r(5, 0, 50, 5);        // roof
-        ctx.fillStyle = p.post; r(10, 5, 4, 15); r(46, 5, 4, 15); // roof supports
-        ctx.fillStyle = p.body; r(0, 20, 60, 16);      // body
-        ctx.fillStyle = p.post; r(40, 13, 4, 7);       // steering wheel
-        ctx.fillStyle = p.wheel; r(8, 36, 12, 10); r(40, 36, 12, 10);
-        ctx.fillStyle = p.hub; r(11, 39, 6, 5); r(43, 39, 6, 5);
+    // The cart, drawn on the 60x46 sprite grid facing right.
+    //
+    // The shape follows a real cart's side profile rather than a filled
+    // rectangle: a thin floor deck carried on two chunky wheels, an OPEN
+    // cabin you can see straight through (canopy on two posts, seat back
+    // and steering column standing in the gap), and the bag deck slung
+    // off the back behind the rear post with clubs poking up. The open
+    // cabin and the tail-hung bag are what actually make it read as a
+    // golf cart -- the previous solid slab read as a bench.
+    //
+    // `flip` mirrors it to face left, so hazards look like oncoming
+    // traffic instead of carts driving backwards.
+    // Nothing is thinner than 3 grid units, so it survives the 0.62
+    // scale a narrow phone gets.
+    function drawCart(x, y, p, flip) {
+        ctx.save();
+        ctx.translate(x + (flip ? SPRITE_W * S : 0), y);
+        if (flip) ctx.scale(-1, 1);
+        const r = (a, b, w, h) => ctx.fillRect(a * S, b * S, w * S, h * S);
+        const disc = (cx, cy, rad, fill) => {
+            ctx.beginPath();
+            ctx.arc(cx * S, cy * S, rad * S, 0, Math.PI * 2);
+            ctx.fillStyle = fill;
+            ctx.fill();
+        };
+
+        // Canopy: lit top face over a shaded underside
+        ctx.fillStyle = p.roof; r(16, 0, 38, 3);
+        ctx.fillStyle = p.post; r(18, 3, 34, 2);
+
+        // Canopy posts -- rear and front, framing the open cabin
+        ctx.fillStyle = p.post; r(19, 5, 3, 18); r(48, 5, 3, 22);
+
+        // Clubs and bag, slung off the tail behind the rear post
+        ctx.fillStyle = p.bagTrim; r(4, 6, 3, 7); r(8, 8, 3, 5);
+        ctx.fillStyle = p.bag; r(2, 13, 11, 16);
+        ctx.fillStyle = p.bagTrim; r(2, 17, 11, 3);
+
+        // Seat: upright back and cushion, standing in the open cabin
+        ctx.fillStyle = p.bodyDark; r(25, 10, 4, 13); r(25, 19, 15, 4);
+
+        // Steering wheel and column
+        ctx.fillStyle = p.post; r(42, 13, 6, 2); r(44, 15, 3, 6);
+
+        // Body, stepped rather than a single plank: a tall seat box in the
+        // middle, a low deck off the tail and a lower nose out front. The
+        // steps are what stop the silhouette reading as a tabletop.
+        ctx.fillStyle = p.bodyLight; r(14, 23, 34, 2);
+        ctx.fillStyle = p.body; r(14, 25, 34, 6);
+        ctx.fillStyle = p.bodyDark; r(14, 31, 34, 2);
+
+        ctx.fillStyle = p.body; r(2, 29, 12, 2);          // tail deck
+        ctx.fillStyle = p.bodyDark; r(2, 31, 12, 2);
+
+        ctx.fillStyle = p.bodyLight; r(48, 27, 10, 2);    // nose
+        ctx.fillStyle = p.body; r(48, 29, 10, 2);
+        ctx.fillStyle = p.bodyDark; r(48, 31, 10, 2);
+
+        // Round wheels -- square ones were what made this read as
+        // furniture rather than a vehicle.
+        disc(14, 39.5, 6.5, p.wheel);
+        disc(45, 39.5, 6.5, p.wheel);
+        disc(14, 39.5, 2.5, p.hub);
+        disc(45, 39.5, 2.5, p.hub);
+
+        ctx.restore();
     }
 
     // Obstacle Class
     class Obstacle {
         constructor() {
             this.x = VIEW_W;
-            this.width = 60 * S;
-            this.height = 40 * S;
+            this.width = SPRITE_W * S;
+            this.height = SPRITE_H * S;
             this.y = GROUND - this.height;
         }
         update() { this.x -= baseSpeed * speedMult; }
-        draw() { drawCart(this.x, this.y, CART_HAZARD); }
+        draw() { drawCart(this.x, this.y, CART_HAZARD, true); }
     }
 
     // Input Listeners
