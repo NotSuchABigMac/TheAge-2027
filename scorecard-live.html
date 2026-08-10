@@ -6745,9 +6745,15 @@ function closeUsernameModal() {
 // trusting whatever the user typed -- previously the PIN was accepted
 // unchecked here and only ever found to be wrong the first time a score
 // write hit RLS, by which point the user looked fully logged in. Returns
-// true/false when Supabase actually answered, or throws if it couldn't be
-// reached at all (offline/timeout), which callers must handle separately
-// since "couldn't check" is not the same as "checked and wrong".
+// 'valid' | 'invalid' | 'throttled' when Supabase actually answered (issue
+// #16: the RPC used to return a bare boolean, and its lockout path
+// returned the same `false` a genuinely wrong PIN gets -- since the RPC
+// is reachable by anyone, not just real scorers, that let a third party
+// manufacture a "wrong PIN" answer for the whole tournament by keeping
+// the shared lockout permanently engaged), or throws if Supabase couldn't
+// be reached at all (offline/timeout), which callers must handle
+// separately since "couldn't check" is not the same as "checked and
+// wrong".
 async function validateTournamentPin(token) {
   const resp = await fetchWithTimeout(`${SUPABASE_CONFIG.apiUrl}/rest/v1/rpc/validate_tournament_pin`, {
     method: 'POST',
@@ -6755,7 +6761,7 @@ async function validateTournamentPin(token) {
     body: JSON.stringify({ p_token: token })
   });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return await resp.json(); // true | false
+  return await resp.json(); // 'valid' | 'invalid' | 'throttled'
 }
 
 function completeLogin(name, token) {
@@ -6793,10 +6799,10 @@ async function confirmUsername() {
   btn.disabled = true;
   btn.textContent = 'Checking PIN…';
   try {
-    const valid = await validateTournamentPin(token);
+    const result = await validateTournamentPin(token);
     btn.disabled = false;
     btn.textContent = 'Enter Tournament';
-    if (!valid) {
+    if (result === 'invalid') {
       tokenInput.value = '';
       tokenInput.style.borderColor = '#ff6b6b';
       tokenInput.setAttribute('aria-invalid', 'true');
@@ -6804,6 +6810,21 @@ async function confirmUsername() {
       error.style.display = 'block';
       tokenInput.focus();
       setTimeout(() => { tokenInput.style.borderColor = ''; }, 300);
+      return;
+    }
+    if (result === 'throttled') {
+      // Issue #16: the RPC didn't actually check the token here -- it's
+      // rate-limited and someone (not necessarily this user) has driven
+      // it into lockout. That's not the same as a confirmed-wrong PIN, so
+      // don't tell this scorer their PIN is wrong when it might be
+      // right. Same provisional-login path as an unreachable Supabase,
+      // below: insertUpdate()'s existing 'auth' handling still catches a
+      // genuinely wrong PIN at first write.
+      tokenInput.removeAttribute('aria-invalid');
+      authNeeded = true;
+      showSaveToast('⚠ PIN check is temporarily busy — will confirm on first save', 'error');
+      completeLogin(name, token);
+      renderSyncBar();
       return;
     }
     tokenInput.removeAttribute('aria-invalid');
