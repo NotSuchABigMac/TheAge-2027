@@ -5904,8 +5904,19 @@ function flashElement(el, row) {
   requestAnimationFrame(() => requestAnimationFrame(() => {
     el.classList.add('remote-flash-out');
   }));
-  const cleanup = () => el.classList.remove('remote-flash', 'remote-flash-out');
-  el.addEventListener('transitionend', cleanup, { once: true });
+  // AbortController ties the listener's removal to whichever path fires
+  // first. Without it, { once: true } only self-removes on transitionend
+  // -- under prefers-reduced-motion (transition:none on .remote-flash),
+  // transitionend never fires, so the setTimeout fallback used to tidy up
+  // the classes but leave the listener behind. flashElement() runs once
+  // per remotely-changed field per poll, on long-lived score inputs, so
+  // that leaked a listener per flash for the whole session.
+  const controller = new AbortController();
+  const cleanup = () => {
+    controller.abort();
+    el.classList.remove('remote-flash', 'remote-flash-out');
+  };
+  el.addEventListener('transitionend', cleanup, { once: true, signal: controller.signal });
   // prefers-reduced-motion sets transition:none on .remote-flash, so
   // transitionend never fires there -- this fallback still tidies up the
   // classes (the title/aria-label deliberately stays, since that's the
