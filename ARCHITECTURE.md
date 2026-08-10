@@ -213,17 +213,22 @@ wrappers passing this page's `PLAYERS`/`COURSES`/`state`, and
 one set of tests (`test/scoring-season-totals.test.mjs`), both pages
 guaranteed to agree on what the score actually is.
 
-`index.html`'s ribbon (`ribbon-status.js`) drives three date-based
-phases via `WongaScoring.phaseFor()`/`daysUntilDay1()` (Melbourne-local,
-same `TOURNAMENT_DAY_DATES` `defaultDay()` already keys off): a
-countdown before 7 Aug, a live score (fresh full read of
+The 2026 homepage's ribbon (`ribbon-status.js`, since removed) drove
+three date-based phases via `WongaScoring.phaseFor()`/`daysUntilDay1()`
+(Melbourne-local, same `TOURNAMENT_DAY_DATES` `defaultDay()` already
+keys off): a countdown before 7 Aug, a live score (fresh full read of
 `tournament_updates` each render/poll, replayed via the same
 `normalizeState`/`applyUpdateToState`/`processUpdateRows` the live
 scorecard uses, then `computeSeasonTotals`) during the tournament, and a
-frozen result after. It's read-only forever — no login, no writes, no
-`localStorage` sync-cursor machinery — and degrades to the ribbon's
-shipped static content on any fetch/parse failure rather than showing a
-spinner or error state.
+frozen result after. Once the 2026 season was over and the repo moved
+to `index2026.html` as its archived recap page, that live-replay-per-visit
+cost had nothing left to buy — the phase could only ever resolve to
+"final" from then on — so the result was computed once (replaying
+`snapshots/tournament-updates.json`, the same permanent 2026 archive the
+backup runbook above describes) and frozen straight into
+`index2026.html`'s ribbon markup; the script and its `scoring.js`/
+`courses.js`/`players.js` loads were dropped from that page entirely
+(issue #20).
 
 ## Day 1 automatic hole-by-hole scoring (issue #124)
 
@@ -333,9 +338,11 @@ handed (`matchStrokesForPlayers`, `effectiveMatchFor`, `day2GroupHandicapFor`,
 reach all of them by passing `playersWithOverrides(PLAYERS, state.hcp)`
 (scorecard-live.html's `currentPlayers()` helper) in place of the raw
 roster at each call site, rather than threading a new parameter through
-scoring.js's function signatures. `ribbon-status.js` does the same after
-replaying `state.hcp` from the transaction log, so index.html's live score
-never silently disagrees with the scorecard over a corrected handicap.
+scoring.js's function signatures. `tv.html` does the same after replaying
+`state.hcp` from the transaction log, so the clubhouse board never
+silently disagrees with the scorecard over a corrected handicap
+(`ribbon-status.js` used to as well, before it was retired — see the
+frozen-ribbon note above).
 Composes independently of issue #149's anthem adjustment: the anthem rule
 now adds strokes straight to a group's score (`day2AnthemStrokesFor()`,
 see below) rather than touching `.hcp`, so an overridden base handicap
@@ -434,8 +441,9 @@ keeps updating normally. `ribbon-status.js`'s `schedulePoll()` has the same
 shape of bug: it only re-arms its next `setTimeout` after its own
 `await renderLive()` settles.
 
-`fetchWithTimeout()` (one copy in each file, `FETCH_TIMEOUT_MS = 15000`)
-wraps every Supabase-hitting `fetch` with an `AbortController` timeout —
+`fetchWithTimeout()` (now one shared copy in `scoring.js`, see issue #24 —
+originally a divergent copy per file) wraps every Supabase-hitting
+`fetch` with an `AbortController` timeout, `FETCH_TIMEOUT_MS = 15000` —
 comfortably under the 30s poll cadence — so a hang becomes an ordinary
 failed request instead. The existing offline handling already does the
 right thing with that: `isOffline` gets set, the red banner appears, and

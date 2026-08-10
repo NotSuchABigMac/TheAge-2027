@@ -225,7 +225,14 @@
     <div class="item"><span>Rounds</span><span class="v">III</span></div>
     <div class="item"><span>Courses</span><span class="v">Murray · Black Bull · Lake</span></div>
     <div class="item"><span>Format</span><span class="v">Match · Scramble · Stableford</span></div>
-    <div class="item"><span id="ribbon-status-label">Holders</span><span class="v cap-italic" id="ribbon-status-value">Team Underdogs</span></div>
+    <!-- Issue #20: frozen once the 2026 season ended -- ribbon-status.js
+         used to compute this on every pageview via a full replay of the
+         update log, but past Day 3 it could only ever resolve to this
+         same final result, so the cost bought nothing. Computed by
+         replaying snapshots/tournament-updates.json (the permanent 2026
+         archive) through the app's own scoring.js, the same calculation
+         ribbon-status.js used to run live. -->
+    <div class="item"><span>Result</span><span class="v cap-italic">🏆 Flamingos win 23.5–4.5</span></div>
   </div>
 </div>
 
@@ -511,10 +518,6 @@
 <script src="error-beacon.js?v=__CACHEBUST__"></script>
 <script src="theme.js?v=__CACHEBUST__"></script>
 <script src="site.js?v=__CACHEBUST__"></script>
-<script src="scoring.js?v=__CACHEBUST__"></script>
-<script src="courses.js?v=__CACHEBUST__"></script>
-<script src="players.js?v=__CACHEBUST__"></script>
-<script src="ribbon-status.js?v=__CACHEBUST__"></script>
 
 </body>
 </html>
