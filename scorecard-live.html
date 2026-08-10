@@ -1606,6 +1606,7 @@ body{padding-top:58px;padding-bottom:52px}
   </div>
 </div>
 
+<script src="supabase-config.js?v=__CACHEBUST__"></script>
 <script src="error-beacon.js?v=__CACHEBUST__"></script>
 <script src="theme.js?v=__CACHEBUST__"></script>
 <script src="scoring.js?v=__CACHEBUST__"></script>
@@ -1645,13 +1646,18 @@ if (isDemoMode) {
 }
 
 /* ─────────────────────────────────────
-   SUPABASE CONFIG — REPLACE WITH YOUR VALUES
+   SUPABASE CONFIG (issue #23: URL/key/tournament id/columns now live once
+   in supabase-config.js, shared with tv.html/ribbon-status.js/
+   error-beacon.js -- this page still derives its own demo-mode variant
+   of tournamentId/sessionKey on top, since the shared module has no
+   notion of demo mode.)
 ───────────────────────────────────── */
+const SUPABASE_CONFIG_SHARED = SupabaseConfig;
 const SUPABASE_CONFIG = {
-  apiUrl: 'https://wtyyarvyscbrrkawjcvo.supabase.co',
-  apiKey: 'sb_publishable_T1z1rYbZ7yMoDdBXZMrjKw_R3aTxsrx',
-  tournamentId: isDemoMode ? 'wonga-demo-2026' : 'wonga-cup-2026',
-  sessionKey: isDemoMode ? 'wonga-demo-2026' : 'wonga-cup-2026'
+  apiUrl: SUPABASE_CONFIG_SHARED.URL,
+  apiKey: SUPABASE_CONFIG_SHARED.ANON_KEY,
+  tournamentId: isDemoMode ? 'wonga-demo-2026' : SUPABASE_CONFIG_SHARED.TOURNAMENT_ID,
+  sessionKey: isDemoMode ? 'wonga-demo-2026' : SUPABASE_CONFIG_SHARED.TOURNAMENT_ID
 };
 const STATE_KEY = KEY_PREFIX + 'wongaCup2026';
 const LAST_SYNC_KEY = KEY_PREFIX + 'wongaCup2026_lastSync';
@@ -1917,7 +1923,9 @@ let rollbackInProgress = false;
 // of tournament_updates must name this list explicitly: a bare `select=*`
 // now gets a permission-denied error from Postgres rather than silently
 // leaking the shared write token back out to anyone loading the page.
-const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,field_key,value,updated_by,updated_at';
+// Issue #23: shared with tv.html/ribbon-status.js/error-beacon.js via
+// supabase-config.js.
+const SAFE_SELECT_COLUMNS = SUPABASE_CONFIG_SHARED.SAFE_SELECT_COLUMNS;
 
 // Issue #285: a fetch has no default timeout -- on a flaky course wifi/cell
 // connection it can hang indefinitely instead of failing. loadFromSupabase()
@@ -1931,15 +1939,13 @@ const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,fi
 // updating normally while this one silently freezes on a stale score. A
 // hard timeout turns the hang into an ordinary failed request, which the
 // existing offline handling already surfaces loudly (red banner, retry).
+// Issue #24: the actual timeout logic now lives once in scoring.js,
+// shared with tv.html and ribbon-status.js -- this keeps this page's own
+// 15s value (all three happened to already agree) rather than silently
+// picking up scoring.js's default if it ever changes.
 const FETCH_TIMEOUT_MS = 15000;
 async function fetchWithTimeout(url, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+  return WongaScoring.fetchWithTimeout(url, options, FETCH_TIMEOUT_MS);
 }
 
 /* ─────────────────────────────────────

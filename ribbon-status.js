@@ -36,14 +36,15 @@
   const { COURSES } = WongaCourses;
   const { PLAYERS } = WongaPlayers;
 
-  // Same publishable anon key already shipped in scorecard-live.html's
-  // page source (not a secret -- RLS is the boundary, see
-  // supabase/migrations/). anon can SELECT the safe columns only, same
-  // grant the live scorecard reads under.
-  const SUPABASE_URL = 'https://wtyyarvyscbrrkawjcvo.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_T1z1rYbZ7yMoDdBXZMrjKw_R3aTxsrx';
-  const TOURNAMENT_ID = 'wonga-cup-2026';
-  const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,field_key,value,updated_by,updated_at';
+  // Issue #23: shared with every other Supabase-reading file via
+  // supabase-config.js. anon can SELECT the safe columns only, same
+  // grant the live scorecard reads under -- RLS is the boundary, see
+  // supabase/migrations/.
+  if (typeof SupabaseConfig === 'undefined') return;
+  const SUPABASE_URL = SupabaseConfig.URL;
+  const SUPABASE_ANON_KEY = SupabaseConfig.ANON_KEY;
+  const TOURNAMENT_ID = SupabaseConfig.TOURNAMENT_ID;
+  const SAFE_SELECT_COLUMNS = SupabaseConfig.SAFE_SELECT_COLUMNS;
 
   const DAY_LABELS = { day1: 'Day 1', day2: 'Day 2', day3: 'Day 3' };
 
@@ -57,45 +58,20 @@
     valueEl.textContent = days <= 0 ? 'Today' : (days === 1 ? '1 Day' : `${days} Days`);
   }
 
-  // Issue #285: a fetch has no default timeout -- on a flaky connection it
-  // can hang indefinitely instead of failing. schedulePoll() only re-arms
-  // its next setTimeout after its `await renderLive()` settles, so a fetch
-  // that never settles here means the ribbon simply stops polling forever,
-  // frozen on whatever score it last showed with no visible sign anything
-  // is wrong (this ribbon has no offline banner by design). A hard timeout
-  // turns the hang into an ordinary rejection, which schedulePoll()'s
-  // existing catch already handles (keep last render, re-arm next tick).
-  const FETCH_TIMEOUT_MS = 15000;
-  async function fetchWithTimeout(url, options) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
-      return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  // A deliberately simpler full-refresh read than the live scorecard's
-  // exact-once cursor/id tracking (issue #111) -- this is read-only
-  // display, not the source of truth for scoring, so re-applying a
-  // boundary row that shares its exact timestamp with the next page's
-  // first row at worst re-sets a field to the value it already has
-  // (every applyUpdateToState case is idempotent for a repeated
-  // identical row), never corrupts anything.
-  async function fetchAllRows() {
-    const rows = [];
-    let cursor = '1970-01-01T00:00:00.000Z';
-    while (true) {
-      const url = `${SUPABASE_URL}/rest/v1/tournament_updates?select=${SAFE_SELECT_COLUMNS}&tournament_id=eq.${TOURNAMENT_ID}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
-      const resp = await fetchWithTimeout(url, { headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' } });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const page = await resp.json();
-      rows.push(...page);
-      if (page.length < 500) break;
-      cursor = page[page.length - 1].updated_at;
-    }
-    return rows;
+  // Issue #24: shared with tv.html via scoring.js's fetchWithTimeout()/
+  // fetchAllRows() -- both were byte-for-byte duplicated between the two
+  // files (fetchWithTimeout also existed a third time, divergently, in
+  // scorecard-live.html). Issue #285 is why fetchWithTimeout exists at
+  // all: a fetch has no default timeout, and schedulePoll() only re-arms
+  // its next setTimeout after its `await renderLive()` settles -- so a
+  // fetch that never settles here means the ribbon simply stops polling
+  // forever, frozen on whatever score it last showed with no visible
+  // sign anything is wrong (this ribbon has no offline banner by
+  // design). A hard timeout turns the hang into an ordinary rejection,
+  // which schedulePoll()'s existing catch already handles (keep last
+  // render, re-arm next tick).
+  function fetchAllRows() {
+    return WongaScoring.fetchAllRows({ baseUrl: SUPABASE_URL, apiKey: SUPABASE_ANON_KEY, tournamentId: TOURNAMENT_ID, columns: SAFE_SELECT_COLUMNS });
   }
 
   function replayState(rows) {

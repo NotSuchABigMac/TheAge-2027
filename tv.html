@@ -436,6 +436,7 @@ body.tv-page {
   <span class="tv-photos-qr-label">Scan for photos</span>
 </a>
 
+<script src="supabase-config.js?v=__CACHEBUST__"></script>
 <script src="error-beacon.js?v=__CACHEBUST__"></script>
 <script src="courses.js?v=__CACHEBUST__"></script>
 <script src="players.js?v=__CACHEBUST__"></script>
@@ -472,14 +473,15 @@ body.tv-page {
   const { COURSES, NTP_HOLES } = WongaCourses;
   const { PLAYERS } = WongaPlayers;
 
-  // Read-only anon key, same one already shipped in scorecard-live.html /
-  // ribbon-status.js -- RLS is the access boundary, not this key (see
-  // ARCHITECTURE.md). No login, no writes: this page never needs a
-  // write_token.
-  const SUPABASE_URL = 'https://wtyyarvyscbrrkawjcvo.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_T1z1rYbZ7yMoDdBXZMrjKw_R3aTxsrx';
-  const TOURNAMENT_ID = 'wonga-cup-2026';
-  const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,field_key,value,updated_by,updated_at';
+  // Issue #23: shared with every other Supabase-reading file via
+  // supabase-config.js. Read-only anon key -- RLS is the access
+  // boundary, not this key (see ARCHITECTURE.md). No login, no writes:
+  // this page never needs a write_token.
+  if (typeof SupabaseConfig === 'undefined') return;
+  const SUPABASE_URL = SupabaseConfig.URL;
+  const SUPABASE_ANON_KEY = SupabaseConfig.ANON_KEY;
+  const TOURNAMENT_ID = SupabaseConfig.TOURNAMENT_ID;
+  const SAFE_SELECT_COLUMNS = SupabaseConfig.SAFE_SELECT_COLUMNS;
   const DAY_LABELS = { day1: 'Day 1', day2: 'Day 2', day3: 'Day 3' };
   const NTP_DAY_TITLES = { day1: 'Day 1 · Murray', day2: 'Day 2 · Black Bull', day3: 'Day 3' };
   const NTP_DAY_FIELDS = { day1: ['h8', 'h17'], day2: ['h4', 'h16'], day3: ['h7', 'h14'] };
@@ -508,22 +510,14 @@ body.tv-page {
     return n > 0 ? `+${n}` : `${n}`;
   }
 
-  // Same deliberately-simpler full-refresh read ribbon-status.js uses --
-  // this is read-only display, not the scoring source of truth, so a
-  // from-epoch replay every poll is fine at this data volume.
-  async function fetchAllRows() {
-    const rows = [];
-    let cursor = '1970-01-01T00:00:00.000Z';
-    while (true) {
-      const url = `${SUPABASE_URL}/rest/v1/tournament_updates?select=${SAFE_SELECT_COLUMNS}&tournament_id=eq.${TOURNAMENT_ID}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
-      const resp = await fetch(url, { headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' } });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const page = await resp.json();
-      rows.push(...page);
-      if (page.length < 500) break;
-      cursor = page[page.length - 1].updated_at;
-    }
-    return rows;
+  // Issue #24: shared with ribbon-status.js via scoring.js's
+  // fetchAllRows() -- was byte-for-byte duplicated here, and had already
+  // diverged (issue #18: this copy had no fetch timeout at all, so a
+  // stalled connection froze the board forever with no retry and no
+  // visible sign anything was wrong). fetchWithTimeout's default here
+  // means the same 15s timeout ribbon-status.js already used.
+  function fetchAllRows() {
+    return WongaScoring.fetchAllRows({ baseUrl: SUPABASE_URL, apiKey: SUPABASE_ANON_KEY, tournamentId: TOURNAMENT_ID, columns: SAFE_SELECT_COLUMNS });
   }
 
   // eventStillHolds() (scoring.js) -- shared with scorecard-live.html's

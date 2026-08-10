@@ -20,7 +20,7 @@ test('sw.js exists and precaches exactly the live-scorecard shell -- not images,
   const sw = readFileSync(SW_PATH, 'utf8');
   const mustInclude = [
     'scorecard-live.html', 'styles.css', 'scorecard.css',
-    'theme.js', 'scoring.js', 'courses.js', 'players.js',
+    'supabase-config.js', 'theme.js', 'scoring.js', 'courses.js', 'players.js',
     'fonts/cormorant-garamond.woff2', 'fonts/geist.woff2'
   ];
   for (const path of mustInclude) {

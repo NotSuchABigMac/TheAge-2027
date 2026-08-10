@@ -2341,6 +2341,57 @@
     return stillPending;
   }
 
+  /* ── SHARED READ-ONLY FETCH HELPERS (issue #24) ──
+     Previously duplicated: fetchAllRows() byte-for-byte in tv.html and
+     ribbon-status.js; fetchWithTimeout() separately (and divergently --
+     tv.html had none at all, see issue #18) in tv.html, ribbon-status.js
+     and scorecard-live.html. Neither closes over module-level globals --
+     everything they touch is a parameter, so they're testable with an
+     injected fetchImpl and don't need Supabase config in scope. */
+
+  const DEFAULT_FETCH_TIMEOUT_MS = 15000;
+  // A fetch has no default timeout -- on a flaky connection it can hang
+  // indefinitely instead of failing. AbortController turns that hang into
+  // an ordinary rejection a caller's own retry/poll loop already handles.
+  async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs || DEFAULT_FETCH_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // Deliberately simpler than scorecard-live.html's exact-once cursor/id
+  // tracking (issue #111) -- for read-only display, not the source of
+  // truth for scoring. Pagination re-fetches each page's boundary row
+  // (`gte` on the last row's timestamp), so every page boundary
+  // double-applies one row; safe only because every applyUpdateToState
+  // case is idempotent for a repeated identical row. Callers must not
+  // feed this into anything that isn't.
+  //
+  // Capped at MAX_PAGES so a full 500-row page sharing one updated_at
+  // (vanishingly unlikely with `now()` defaults, but possible) becomes a
+  // bounded, diagnosable error instead of an unbounded loop with an
+  // ever-growing rows array.
+  const MAX_FETCH_ALL_PAGES = 1000;
+  async function fetchAllRows({ baseUrl, apiKey, tournamentId, columns, fetchImpl, timeoutMs }) {
+    const doFetch = fetchImpl || ((url, options) => fetchWithTimeout(url, options, timeoutMs));
+    const rows = [];
+    let cursor = '1970-01-01T00:00:00.000Z';
+    for (let page = 0; page < MAX_FETCH_ALL_PAGES; page++) {
+      const url = `${baseUrl}/rest/v1/tournament_updates?select=${columns}&tournament_id=eq.${tournamentId}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
+      const resp = await doFetch(url, { headers: { apikey: apiKey, 'Content-Type': 'application/json' } });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const pageRows = await resp.json();
+      rows.push(...pageRows);
+      if (pageRows.length < 500) return rows;
+      cursor = pageRows[pageRows.length - 1].updated_at;
+    }
+    throw new Error(`fetchAllRows: exceeded ${MAX_FETCH_ALL_PAGES} pages without reaching a partial page -- a full page likely shares one updated_at`);
+  }
+
   return {
     escapeHtml,
     defaultDay,
@@ -2376,6 +2427,7 @@
     parseIntOrNull, applyUpdateToState,
     UPDATE_TYPE_DESCRIPTORS, describeUpdateRow, isRestorable, buildRestoreRow,
     describeEvent, eventStillHolds,
-    normalizeState, flushQueue
+    normalizeState, flushQueue,
+    fetchWithTimeout, fetchAllRows
   };
 });

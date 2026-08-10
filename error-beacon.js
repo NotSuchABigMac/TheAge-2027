@@ -60,14 +60,14 @@
     state.seen.add(message);
   }
 
-  const SUPABASE_URL = 'https://wtyyarvyscbrrkawjcvo.supabase.co';
-  // Same publishable anon key already shipped in scorecard-live.html's
-  // page source -- not a secret (RLS is the actual boundary, see the
-  // supabase/migrations/ comments), so duplicating it here for the five
-  // marketing pages (which otherwise have zero Supabase awareness) adds
-  // no new exposure.
-  const SUPABASE_ANON_KEY = 'sb_publishable_T1z1rYbZ7yMoDdBXZMrjKw_R3aTxsrx';
-  const TOURNAMENT_ID = 'wonga-cup-2026';
+  // Issue #23: shared with every other Supabase-reading file via
+  // supabase-config.js, loaded on every page just before this one.
+  const SupabaseConfig = (typeof module === 'object' && module.exports)
+    ? require('./supabase-config.js')
+    : window.SupabaseConfig;
+  const SUPABASE_URL = SupabaseConfig.URL;
+  const SUPABASE_ANON_KEY = SupabaseConfig.ANON_KEY;
+  const TOURNAMENT_ID = SupabaseConfig.TOURNAMENT_ID;
 
   function install(win) {
     const state = makeState();

@@ -21,6 +21,7 @@ const SHELL_PATHS = [
   'scorecard-live.html',
   'styles.css',
   'scorecard.css',
+  'supabase-config.js',
   'error-beacon.js',
   'theme.js',
   'scoring.js',
