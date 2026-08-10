@@ -36,8 +36,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-import { execSync } from 'node:child_process';
+import { loadChromium } from './harness.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SUPABASE_HOST_GLOB = '**wtyyarvyscbrrkawjcvo**';
@@ -46,23 +45,6 @@ const SUPABASE_HOST_GLOB = '**wtyyarvyscbrrkawjcvo**';
 // installed globally in this environment instead. Resolve it from there
 // (or a local install, if one ever exists) rather than a static `import
 // 'playwright'`, which would fail to resolve at all otherwise.
-async function loadChromium() {
-  const require = createRequire(import.meta.url);
-  const candidates = [];
-  try { candidates.push(require.resolve('playwright')); } catch { /* no local install */ }
-  try {
-    const globalRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
-    candidates.push(`${globalRoot}/playwright/index.js`);
-  } catch { /* npm unavailable */ }
-  for (const c of candidates) {
-    try {
-      const mod = await import(c);
-      const resolved = mod.chromium ? mod : mod.default;
-      if (resolved?.chromium) return resolved.chromium;
-    } catch { /* try the next candidate */ }
-  }
-  throw new Error('Could not resolve Playwright locally or via `npm root -g`.');
-}
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.mjs': 'text/javascript' };
 

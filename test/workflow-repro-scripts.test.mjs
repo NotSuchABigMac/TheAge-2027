@@ -57,9 +57,23 @@ test('test/run-repro.sh keeps running the rest of the scripts after one fails, r
    which is exactly the rot that went unnoticed after #2. Any new
    convention needs adding here deliberately, rather than a file going
    quietly unrun. */
+/* Modules that are imported by tests rather than run as tests. Listed
+   explicitly, so adding one is a deliberate act -- an unlisted file that
+   matches neither glob is far more likely to be a test nobody runs than a
+   new helper. Note harness.mjs must NOT be named repro-*.mjs, or
+   run-repro.sh's glob would execute it as a script. */
+const HELPER_MODULES = new Set(['harness.mjs']);
+
 test('every .mjs file in test/ is claimed by exactly one runner -- none silently unrun', () => {
-  const files = readdirSync(path.join(ROOT, 'test')).filter((f) => f.endsWith('.mjs'));
+  const files = readdirSync(path.join(ROOT, 'test'))
+    .filter((f) => f.endsWith('.mjs'))
+    .filter((f) => !HELPER_MODULES.has(f));
   assert.ok(files.length > 0, 'expected test/ to contain .mjs files at all');
+
+  for (const helper of HELPER_MODULES) {
+    assert.ok(existsSync(path.join(ROOT, 'test', helper)), `declared helper ${helper} does not exist -- stale entry`);
+    assert.ok(!/^repro-.*\.mjs$/.test(helper), `${helper} matches run-repro.sh's glob, so it would be run as a test`);
+  }
 
   const fastSuite = files.filter((f) => f.endsWith('.test.mjs'));      // test.yml
   const reproSuite = files.filter((f) => f.startsWith('repro-'));       // run-repro.sh

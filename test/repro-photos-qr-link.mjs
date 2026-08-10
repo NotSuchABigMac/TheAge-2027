@@ -25,29 +25,11 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-import { execSync } from 'node:child_process';
+import { loadChromium, fail } from './harness.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PHOTOS_URL = 'https://photos.app.goo.gl/DG13eR5Fbmyb2P9i8';
 
-async function loadChromium() {
-  const require = createRequire(import.meta.url);
-  const candidates = [];
-  try { candidates.push(require.resolve('playwright')); } catch { /* no local install */ }
-  try {
-    const globalRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
-    candidates.push(`${globalRoot}/playwright/index.js`);
-  } catch { /* npm unavailable */ }
-  for (const c of candidates) {
-    try {
-      const mod = await import(c);
-      const resolved = mod.chromium ? mod : mod.default;
-      if (resolved?.chromium) return resolved.chromium;
-    } catch { /* try the next candidate */ }
-  }
-  throw new Error('Could not resolve Playwright locally or via `npm root -g`.');
-}
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.mjs': 'text/javascript', '.png': 'image/png' };
 
@@ -70,10 +52,6 @@ function startStaticServer() {
   });
 }
 
-function fail(msg) {
-  console.log('FAIL:', msg);
-  throw new Error(msg);
-}
 
 async function testTvPageQrCorner(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
