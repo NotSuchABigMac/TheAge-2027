@@ -27,7 +27,7 @@ DTSTART;TZID=Australia/Melbourne:20260807T140000
 DTEND;TZID=Australia/Melbourne:20260809T100000
 SUMMARY:Wonga Cup — The Whole Weekend
 LOCATION:45 Anchorage Way 2\, Yarrawonga VIC 3730
-DESCRIPTION:Check-in from 2:00pm Friday\, checkout by 10:00am Sunday. Three rounds\, one cup: Murray (Fri)\, Black Bull (Sat)\, Lake (Sun).\n\nFull info: https://thewongacup.golf/practical.html
-URL:https://thewongacup.golf/practical.html
+DESCRIPTION:Check-in from 2:00pm Friday\, checkout by 10:00am Sunday. Three rounds\, one cup: Murray (Fri)\, Black Bull (Sat)\, Lake (Sun).\n\nFull info: https://theage.golf/practical.html
+URL:https://theage.golf/practical.html
 END:VEVENT
 END:VCALENDAR

@@ -71,7 +71,7 @@ for (const [file, expect] of Object.entries(FILES)) {
 
   test(`calendar/${file}: has a URL back to the live site`, () => {
     const raw = readFileSync(path.join(CAL_DIR, file), 'utf8');
-    assert.match(prop(raw, 'URL') || '', /^https:\/\/thewongacup\.golf\//);
+    assert.match(prop(raw, 'URL') || '', /^https:\/\/theage\.golf\//);
   });
 }
 

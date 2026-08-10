@@ -27,7 +27,7 @@ DTSTART;TZID=Australia/Melbourne:20260809T100000
 DTEND;TZID=Australia/Melbourne:20260809T143000
 SUMMARY:Wonga Cup — Day III: Lake Course
 LOCATION:Yarrawonga & Mulwala Golf Club\, Park & Murray Streets\, Mulwala NSW 2647
-DESCRIPTION:Day III — Individual Stableford. Points by finishing position\, 1st=14 down to 14th=1.\n\nLive scorecard: https://thewongacup.golf/scorecard-live.html
-URL:https://thewongacup.golf/scorecard-live.html
+DESCRIPTION:Day III — Individual Stableford. Points by finishing position\, 1st=14 down to 14th=1.\n\nLive scorecard: https://theage.golf/scorecard-live.html
+URL:https://theage.golf/scorecard-live.html
 END:VEVENT
 END:VCALENDAR

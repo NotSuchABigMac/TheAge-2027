@@ -27,7 +27,7 @@ DTSTART;TZID=Australia/Melbourne:20260808T120000
 DTEND;TZID=Australia/Melbourne:20260808T163000
 SUMMARY:Wonga Cup — Day II: Black Bull
 LOCATION:Yarrawonga & Mulwala Golf Club\, Park & Murray Streets\, Mulwala NSW 2647
-DESCRIPTION:Day II — Team Scramble. Groups of 4 and 3\, plus a 5pt combined bonus.\n\nLive scorecard: https://thewongacup.golf/scorecard-live.html
-URL:https://thewongacup.golf/scorecard-live.html
+DESCRIPTION:Day II — Team Scramble. Groups of 4 and 3\, plus a 5pt combined bonus.\n\nLive scorecard: https://theage.golf/scorecard-live.html
+URL:https://theage.golf/scorecard-live.html
 END:VEVENT
 END:VCALENDAR

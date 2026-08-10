@@ -35,8 +35,8 @@ test('every page has Open Graph + Twitter card tags pointing at the real domain 
       assert.match(html, new RegExp(`<meta property="${prop}" content="[^"]+">`), `${page} missing ${prop}`);
     }
     assert.match(html, /<meta name="twitter:card" content="summary_large_image">/, `${page} missing twitter:card`);
-    assert.match(html, /og:url" content="https:\/\/thewongacup\.golf/, `${page} og:url isn't the real domain`);
-    assert.match(html, /og:image" content="https:\/\/thewongacup\.golf\/images\/og-card\.jpg"/, `${page} og:image isn't the real og-card.jpg URL`);
+    assert.match(html, /og:url" content="https:\/\/theage\.golf/, `${page} og:url isn't the real domain`);
+    assert.match(html, /og:image" content="https:\/\/theage\.golf\/images\/og-card\.jpg"/, `${page} og:image isn't the real og-card.jpg URL`);
   }
 });
 
