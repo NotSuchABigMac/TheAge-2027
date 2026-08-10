@@ -21,7 +21,8 @@ test('004_client_errors.sql exists and is the next migration in sequence', () =>
     '003_move_secrets_off_database_guc.sql',
     '004_client_errors.sql',
     '005_validate_tournament_pin_rpc.sql',
-    '006_validate_tournament_pin_distinguish_throttled.sql'
+    '006_validate_tournament_pin_distinguish_throttled.sql',
+    '007_index_tournament_updates.sql'
   ]);
 });
 

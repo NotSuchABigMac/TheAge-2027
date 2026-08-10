@@ -1,0 +1,45 @@
+-- Wonga Cup — index the read path every poller actually uses
+--
+-- Every read of tournament_updates (scorecard-live.html's
+-- loadFromSupabase()/loadFieldHistory(), tv.html's fetchAllRows(), and
+-- until it was retired, ribbon-status.js's fetchAllRows()) issues the
+-- same shape of query:
+--
+--   /rest/v1/tournament_updates
+--     ?select=...
+--     &tournament_id=eq.wonga-cup-2026
+--     &updated_at=gte.<cursor>
+--     &order=updated_at.asc,id.asc
+--     &limit=500
+--
+-- None of migrations 001-006 create an index beyond the primary key on
+-- id, so every one of these queries is a sequential scan over the full
+-- log plus a sort to satisfy the ORDER BY. At ~14 scorer devices on a
+-- 30s poll, plus the TV board, plus every open homepage, that's a
+-- steady stream of full-table scans against a table that only grows --
+-- and it grows fastest exactly when contention matters most, during
+-- play.
+--
+-- The `id` tiebreak is included so the ORDER BY is satisfied by the
+-- index itself, not a separate sort step.
+--
+-- Run this manually (Supabase dashboard -> SQL Editor) after 001-006,
+-- against the same project -- nothing client-side can apply it. Worth
+-- an EXPLAIN ANALYZE on the real table before and after: at the current
+-- row count the planner may still prefer a scan, in which case this is
+-- pre-emptive rather than an immediate win -- the absence is invisible
+-- until the table is big enough for it to hurt, and by then it hurts
+-- mid-tournament.
+CREATE INDEX IF NOT EXISTS tournament_updates_tid_updated_at_id_idx
+  ON tournament_updates (tournament_id, updated_at, id);
+
+-- ── Verify (Supabase dashboard -> SQL Editor) ──
+--   EXPLAIN ANALYZE SELECT id, tournament_id, update_type, match_idx,
+--     player_id, field_key, value, updated_by, updated_at
+--   FROM tournament_updates
+--   WHERE tournament_id = 'wonga-cup-2026' AND updated_at >= '1970-01-01T00:00:00.000Z'
+--   ORDER BY updated_at ASC, id ASC
+--   LIMIT 500;
+--   -- expect an Index Scan (or Index Only Scan) on
+--   -- tournament_updates_tid_updated_at_id_idx rather than a Seq Scan
+--   -- once the table is large enough for the planner to prefer it.
