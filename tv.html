@@ -518,13 +518,13 @@ body.tv-page {
   // poll only fetches rows newer than the last one it saw -- turning
   // every poll after the first from O(whole log) into O(new rows).
   //
-  // Issue #24: fetchAllRows() itself now lives once in scoring.js,
-  // shared with ribbon-status.js -- was byte-for-byte duplicated here,
-  // and had already diverged (issue #18: this copy had no fetch timeout
-  // at all, so a stalled connection froze the board forever with no
-  // retry and no visible sign anything was wrong). fetchWithTimeout's
-  // default here means the same 15s timeout ribbon-status.js already
-  // used.
+  // Issue #24: fetchAllRows() itself now lives once in scoring.js. It was
+  // byte-for-byte duplicated here and in the since-retired
+  // ribbon-status.js, and had already diverged (issue #18: this copy had
+  // no fetch timeout at all, so a stalled connection froze the board
+  // forever with no retry and no visible sign anything was wrong).
+  // Leaving fetchImpl unset takes scoring.js's 15s default -- the same
+  // timeout the other copy already used.
   //
   // fetchAllRows()'s `gte` cursor is inclusive, so the row already seen
   // at the previous cursor comes back again -- deduped by id the same

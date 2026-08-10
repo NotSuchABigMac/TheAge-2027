@@ -15,9 +15,12 @@ name: Repro scripts
 # doesn't block a PR the way a failing test.yml run does; it's here to
 # make rot visible; a human still decides what to do about a failure.
 on:
+  # Deliberately no `push: [trunk]` trigger: a merge would re-run the whole
+  # browser suite on code the pull_request run just cleared, for no new
+  # signal. The two triggers below cover both failure modes -- a change that
+  # breaks a script (pull_request) and a change that invalidates one days
+  # later without touching it (schedule).
   pull_request:
-    branches: [trunk]
-  push:
     branches: [trunk]
   schedule:
     # Daily, since a rename/refactor days apart from the actual repro
@@ -25,6 +28,13 @@ on:
     # to close.
     - cron: '17 3 * * *'
   workflow_dispatch:
+
+env:
+  # Bump deliberately. This pins the Chromium build the repro scripts run
+  # against and is the cache key below, so a floating version would both
+  # bust the cache on every upstream release and change the browser under
+  # the suite without anyone choosing to.
+  PLAYWRIGHT_VERSION: '1.55.0'
 
 jobs:
   repro:
@@ -40,10 +50,30 @@ jobs:
       # repro scripts themselves already know how to resolve Playwright
       # via `npm root -g` (see each script's loadChromium()), so a
       # global install is what they expect, not a local node_modules/.
+      #
+      # Pinned rather than floating: the version decides which Chromium
+      # build gets downloaded, so an unpinned `playwright` would silently
+      # invalidate the cache below on every upstream release, and a browser
+      # bump would land here without anyone choosing it.
+      - name: Restore Playwright + Chromium cache
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/.npm-global
+          key: playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ runner.os }}
+
       - name: Install Playwright + Chromium
+        # A cache hit still needs the global bin on PATH for `npm root -g`;
+        # only the download itself is skipped.
         run: |
-          npm install -g playwright
-          npx playwright install --with-deps chromium
+          npm config set prefix ~/.npm-global
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" != "true" ]; then
+            npm install -g "playwright@${PLAYWRIGHT_VERSION}"
+            npx "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium
+          fi
 
       - name: Run every test/repro-*.mjs script
         run: bash test/run-repro.sh

@@ -2383,8 +2383,11 @@
   // ever-growing rows array.
   const MAX_FETCH_ALL_PAGES = 1000;
   const EPOCH_CURSOR = '1970-01-01T00:00:00.000Z';
-  async function fetchAllRows({ baseUrl, apiKey, tournamentId, columns, fetchImpl, timeoutMs, cursor: startCursor }) {
-    const doFetch = fetchImpl || ((url, options) => fetchWithTimeout(url, options, timeoutMs));
+  async function fetchAllRows({ baseUrl, apiKey, tournamentId, columns, fetchImpl, cursor: startCursor }) {
+    // fetchWithTimeout already falls back to DEFAULT_FETCH_TIMEOUT_MS when
+    // given no explicit timeout, so there's no second knob for it here --
+    // a caller wanting a different one passes its own fetchImpl.
+    const doFetch = fetchImpl || fetchWithTimeout;
     const rows = [];
     let cursor = startCursor || EPOCH_CURSOR;
     for (let page = 0; page < MAX_FETCH_ALL_PAGES; page++) {

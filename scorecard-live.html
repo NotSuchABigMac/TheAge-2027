@@ -1646,18 +1646,19 @@ if (isDemoMode) {
 }
 
 /* ─────────────────────────────────────
-   SUPABASE CONFIG (issue #23: URL/key/tournament id/columns now live once
-   in supabase-config.js, shared with tv.html/ribbon-status.js/
-   error-beacon.js -- this page still derives its own demo-mode variant
-   of tournamentId/sessionKey on top, since the shared module has no
-   notion of demo mode.)
+   SUPABASE CONFIG (issue #23: URL/key/tournament ids/columns live once in
+   supabase-config.js, shared with tv.html/error-beacon.js/the snapshot
+   script -- including the demo-mode id, so this page picks which of the
+   two tournaments it's on rather than owning either literal.)
 ───────────────────────────────────── */
-const SUPABASE_CONFIG_SHARED = SupabaseConfig;
+const TOURNAMENT_ID = isDemoMode
+  ? SupabaseConfig.DEMO_TOURNAMENT_ID
+  : SupabaseConfig.TOURNAMENT_ID;
 const SUPABASE_CONFIG = {
-  apiUrl: SUPABASE_CONFIG_SHARED.URL,
-  apiKey: SUPABASE_CONFIG_SHARED.ANON_KEY,
-  tournamentId: isDemoMode ? 'wonga-demo-2026' : SUPABASE_CONFIG_SHARED.TOURNAMENT_ID,
-  sessionKey: isDemoMode ? 'wonga-demo-2026' : SUPABASE_CONFIG_SHARED.TOURNAMENT_ID
+  apiUrl: SupabaseConfig.URL,
+  apiKey: SupabaseConfig.ANON_KEY,
+  tournamentId: TOURNAMENT_ID,
+  sessionKey: TOURNAMENT_ID
 };
 const STATE_KEY = KEY_PREFIX + 'wongaCup2026';
 const LAST_SYNC_KEY = KEY_PREFIX + 'wongaCup2026_lastSync';
@@ -1923,9 +1924,9 @@ let rollbackInProgress = false;
 // of tournament_updates must name this list explicitly: a bare `select=*`
 // now gets a permission-denied error from Postgres rather than silently
 // leaking the shared write token back out to anyone loading the page.
-// Issue #23: shared with tv.html/ribbon-status.js/error-beacon.js via
+// Issue #23: shared with tv.html/error-beacon.js/the snapshot script via
 // supabase-config.js.
-const SAFE_SELECT_COLUMNS = SUPABASE_CONFIG_SHARED.SAFE_SELECT_COLUMNS;
+const SAFE_SELECT_COLUMNS = SupabaseConfig.SAFE_SELECT_COLUMNS;
 
 // Issue #285: a fetch has no default timeout -- on a flaky course wifi/cell
 // connection it can hang indefinitely instead of failing. loadFromSupabase()
@@ -1939,10 +1940,10 @@ const SAFE_SELECT_COLUMNS = SUPABASE_CONFIG_SHARED.SAFE_SELECT_COLUMNS;
 // updating normally while this one silently freezes on a stale score. A
 // hard timeout turns the hang into an ordinary failed request, which the
 // existing offline handling already surfaces loudly (red banner, retry).
-// Issue #24: the actual timeout logic now lives once in scoring.js,
-// shared with tv.html and ribbon-status.js -- this keeps this page's own
-// 15s value (all three happened to already agree) rather than silently
-// picking up scoring.js's default if it ever changes.
+// Issue #24: the actual timeout logic now lives once in scoring.js. This
+// wrapper keeps this page's own 15s value (every copy happened to already
+// agree) rather than silently picking up scoring.js's default if that ever
+// changes.
 const FETCH_TIMEOUT_MS = 15000;
 async function fetchWithTimeout(url, options = {}) {
   return WongaScoring.fetchWithTimeout(url, options, FETCH_TIMEOUT_MS);
@@ -6816,33 +6817,35 @@ async function confirmUsername() {
       // Issue #16: the RPC didn't actually check the token here -- it's
       // rate-limited and someone (not necessarily this user) has driven
       // it into lockout. That's not the same as a confirmed-wrong PIN, so
-      // don't tell this scorer their PIN is wrong when it might be
-      // right. Same provisional-login path as an unreachable Supabase,
-      // below: insertUpdate()'s existing 'auth' handling still catches a
-      // genuinely wrong PIN at first write.
+      // don't tell this scorer their PIN is wrong when it might be right.
       tokenInput.removeAttribute('aria-invalid');
-      authNeeded = true;
-      showSaveToast('⚠ PIN check is temporarily busy — will confirm on first save', 'error');
-      completeLogin(name, token);
-      renderSyncBar();
+      provisionalLogin(name, token, '⚠ PIN check is temporarily busy — will confirm on first save');
       return;
     }
     tokenInput.removeAttribute('aria-invalid');
     completeLogin(name, token);
   } catch (e) {
     // Couldn't reach Supabase at all (offline/timeout, e.g. patchy course
-    // wifi) -- there's no way to confirm the PIN either way from here, and
-    // this app is offline-first by design, so let the scorer in
-    // provisionally rather than lock them out entirely. insertUpdate()'s
-    // existing 'auth' handling still catches a genuinely wrong PIN and
-    // reopens this modal the moment the first real save is attempted.
+    // wifi) -- no way to confirm the PIN either way from here, and this app
+    // is offline-first by design.
     btn.disabled = false;
     btn.textContent = 'Enter Tournament';
-    authNeeded = true;
-    showSaveToast('⚠ Couldn\'t verify PIN — will confirm on first save', 'error');
-    completeLogin(name, token);
-    renderSyncBar();
+    provisionalLogin(name, token, '⚠ Couldn\'t verify PIN — will confirm on first save');
   }
+}
+
+// Let the scorer in without a confirmed PIN -- used for both "the server
+// couldn't answer" (offline/timeout) and "the server declined to check"
+// (issue #16's rate-limit lockout). Locking someone out on either would be
+// wrong: this app is offline-first, and neither case is evidence the PIN is
+// actually bad. authNeeded marks the login as unconfirmed in the sync bar,
+// and insertUpdate()'s existing 'auth' handling still catches a genuinely
+// wrong PIN the moment the first real save is attempted.
+function provisionalLogin(name, token, message) {
+  authNeeded = true;
+  showSaveToast(message, 'error');
+  completeLogin(name, token);
+  renderSyncBar();
 }
 
 // Admin controls (currently: score rollback) are only ever meant to be

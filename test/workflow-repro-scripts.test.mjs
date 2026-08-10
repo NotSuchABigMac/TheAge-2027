@@ -48,7 +48,27 @@ test('test/run-repro.sh keeps running the rest of the scripts after one fails, r
   assert.doesNotMatch(sh, /^set -e/m, 'must not use `set -e`, which would abort the loop on the first non-zero exit instead of running every script');
 });
 
-test('every repro-*.mjs file in test/ would actually be covered by the runner\'s glob', () => {
-  const reproFiles = readdirSync(path.join(ROOT, 'test')).filter((f) => /^repro-.*\.mjs$/.test(f));
-  assert.ok(reproFiles.length >= 10, `expected at least 10 repro-*.mjs files, found ${reproFiles.length}`);
+/* The invariant issue #6 is actually about is a *partition*: every .mjs
+   file in test/ is executed by exactly one runner -- test.yml's
+   `*.test.mjs` glob or run-repro.sh's `repro-*.mjs` glob. Asserting it
+   this way is what makes it able to fail: counting repro-*.mjs files and
+   re-globbing them with the same pattern cannot catch a file renamed
+   *out* of both conventions (test/repro-foo.mjs -> test/foo-repro.mjs),
+   which is exactly the rot that went unnoticed after #2. Any new
+   convention needs adding here deliberately, rather than a file going
+   quietly unrun. */
+test('every .mjs file in test/ is claimed by exactly one runner -- none silently unrun', () => {
+  const files = readdirSync(path.join(ROOT, 'test')).filter((f) => f.endsWith('.mjs'));
+  assert.ok(files.length > 0, 'expected test/ to contain .mjs files at all');
+
+  const fastSuite = files.filter((f) => f.endsWith('.test.mjs'));      // test.yml
+  const reproSuite = files.filter((f) => f.startsWith('repro-'));       // run-repro.sh
+
+  const orphans = files.filter((f) => !fastSuite.includes(f) && !reproSuite.includes(f));
+  assert.deepEqual(orphans, [], `these test/ files match neither runner's glob, so nothing executes them: ${orphans.join(', ')}`);
+
+  const both = fastSuite.filter((f) => reproSuite.includes(f));
+  assert.deepEqual(both, [], `these would be run twice, by both runners: ${both.join(', ')}`);
+
+  assert.ok(reproSuite.length >= 10, `expected the repro suite to be substantial, found ${reproSuite.length}`);
 });

@@ -222,20 +222,17 @@ kbd {
         // with it.
         overlay.remove();
     }
-    // Covers mouse clicks and native <button> keyboard activation
-    // (Enter/Space fire this automatically once the button has focus).
+    // One listener covers all three input routes: mouse click, real tap,
+    // and native <button> keyboard activation (Enter/Space, once focused).
+    //
+    // A tap used to need its own touchstart/touchend shim here, because
+    // the game's "tap to jump" handler was bound to `window` and
+    // preventDefault()'d every touch on the page -- which per spec
+    // suppresses the synthetic click this listener waits for. That handler
+    // now binds to the canvas instead (see poke() below), so nothing the
+    // game owns can see a touch on this overlay, and the synthetic click
+    // arrives normally.
     overlay.addEventListener('click', dismiss, { once: true });
-
-    // On a phone this click listener alone never fires: the game's own
-    // window-level "tap to jump" handler (below) calls preventDefault()
-    // on every touchstart on the page, and per spec that suppresses the
-    // browser's synthetic click for that touch entirely -- so a tap here
-    // reaches touchstart/touchend but the click dismiss() is waiting for
-    // never comes. Stop the touch at its source instead of depending on
-    // that synthetic click, and stop it from bubbling to window so the
-    // same tap doesn't also silently jump the hidden cart underneath.
-    overlay.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: false });
-    overlay.addEventListener('touchend', (e) => { e.stopPropagation(); dismiss(e); }, { passive: false });
 })();
 </script>
 
@@ -298,7 +295,13 @@ kbd {
     let isGameOver = false;
     let obstacles = [];
     let groundScroll = 0;
-    let nextSpawn = 80 + Math.floor(Math.random() * 60);
+    // Frames until the next hazard. A countdown rather than the old
+    // `frames % Math.floor(Math.random() * 60 + 80)`, which re-rolled the
+    // modulus every frame -- so it read as "every 80-140 frames" but was
+    // really a ~1-in-110 chance per frame, and always fired on frame 0.
+    let nextSpawn = 0;
+    function scheduleNextSpawn() { nextSpawn = 80 + Math.floor(Math.random() * 60); }
+    scheduleNextSpawn();
 
     // Cart palettes -- muted and near-monochrome, with the player picked
     // out in the site's gold and hazards in a desaturated clay. Three
@@ -474,10 +477,18 @@ kbd {
     }
     window.addEventListener('keydown', (e) => {
         if (e.code !== 'Space') return;
-        // Let Space activate whatever's actually focused (the drift
-        // overlay button, the "Relive 2026" link) instead of jumping the
-        // cart underneath it.
-        if (document.activeElement?.closest('a, button')) return;
+        // A keystroke is only the game's if it doesn't belong to something
+        // focused: keydown targets the focused element, falling back to
+        // <body> when nothing is. So "target is body" means nothing on the
+        // page has a claim on Space, and it's ours to jump on.
+        //
+        // Deliberately not a tag allowlist -- that would need editing every
+        // time the page gains another focusable control, and silently
+        // swallow Space on the ones it hadn't been told about. This is the
+        // keyboard equivalent of binding the touch handler to the canvas
+        // rather than to window (see below): the game owns its own surface
+        // and nothing else.
+        if (e.target !== document.body) return;
         poke(e);
     });
     // Bound to the canvas rather than window so a tap elsewhere on the
@@ -517,7 +528,7 @@ kbd {
         const minGap = (2 * Math.abs(player.jumpForce) / player.gravity) * baseSpeed * speedMult + player.width;
         if (!isGameOver && --nextSpawn <= 0 && (!last || last.x < VIEW_W - minGap)) {
             obstacles.push(new Obstacle());
-            nextSpawn = 80 + Math.floor(Math.random() * 60);
+            scheduleNextSpawn();
         }
 
         for (let i = 0; i < obstacles.length; i++) {
@@ -607,6 +618,7 @@ kbd {
         score = 0;
         speedMult = 1;
         frames = 0;
+        scheduleNextSpawn(); // else the retry inherits the last run's part-spent countdown
         isGameOver = false;
         animate();
     }

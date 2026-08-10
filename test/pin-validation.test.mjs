@@ -30,7 +30,12 @@ test('validate_tournament_pin throttles after repeated wrong guesses instead of 
   assert.match(sql, /ALTER TABLE pin_validation_attempts ENABLE ROW LEVEL SECURITY/);
   assert.match(sql, /REVOKE ALL ON pin_validation_attempts FROM anon, authenticated/, 'the attempt log itself must not be directly readable/writable by anon');
   assert.match(sql, /recent_failures >= \d+/, 'must stop checking the token past some failure threshold');
-  assert.match(sql, /RETURN false/, 'lockout path must return false without confirming/denying the real token');
+  // Deliberately no assertion on what the lockout path *returns*: 005
+  // returned a bare `false`, which migration 006 replaces with
+  // 'throttled' so the client can tell "declined to check" from
+  // "checked and wrong" (issue #16). 006's own test owns that contract --
+  // asserting 005's old return value here too would leave this file
+  // claiming two contradictory behaviours for one function.
 });
 
 test('supabase/migrations lists 005 as a migration', () => {
@@ -84,6 +89,21 @@ test('confirmUsername() actually validates the PIN before letting the user in', 
   const wrongBranch = fn.slice(fn.indexOf("if (result === 'invalid')"), fn.indexOf("if (result === 'throttled')"));
   assert.match(wrongBranch, /return;/, 'the wrong-PIN branch must return before completeLogin() runs');
   assert.doesNotMatch(wrongBranch, /completeLogin/);
+  assert.doesNotMatch(wrongBranch, /provisionalLogin/, 'a confirmed-wrong PIN must not take the provisional path either');
+});
+
+/* Both "couldn't confirm" cases -- a throttled RPC (issue #16) and an
+   unreachable Supabase -- route through this one helper, so the property
+   the two tests below care about is asserted here once rather than
+   pattern-matched inside each branch. */
+test('provisionalLogin() lets the scorer in but marks the login unconfirmed', () => {
+  const js = readFileSync(APP_PATH, 'utf8');
+  const fnMatch = js.match(/function provisionalLogin\([\s\S]*?\n}\n/);
+  assert.ok(fnMatch, 'expected to find provisionalLogin() body');
+  const fn = fnMatch[0];
+  assert.match(fn, /completeLogin\(name, token\)/, 'must actually let the scorer in -- the write-time auth check is the backstop');
+  assert.match(fn, /authNeeded = true/, 'must mark the login as unconfirmed so the sync bar shows it');
+  assert.doesNotMatch(fn, /Wrong PIN/, 'must not claim the PIN is wrong -- it was never confirmed either way');
 });
 
 test('issue #16: a throttled RPC answer is treated as "couldn\'t confirm", not as a confirmed-wrong PIN', () => {
@@ -91,13 +111,18 @@ test('issue #16: a throttled RPC answer is treated as "couldn\'t confirm", not a
   const fnMatch = js.match(/async function confirmUsername\(\)[\s\S]*?\n}\n/);
   const fn = fnMatch[0];
   assert.match(fn, /if \(result === 'throttled'\)/, 'must branch on the RPC being rate-limited, distinct from a confirmed-wrong PIN');
-  const throttledBranch = fn.slice(fn.indexOf("if (result === 'throttled')"), fn.indexOf('} catch (e)'));
+  // Stop at the branch's own `return;` rather than at the catch: slicing
+  // to '} catch (e)' also swept in the *valid* path's completeLogin() that
+  // sits between them, so this assertion used to pass on that call rather
+  // than on anything the throttled branch itself does.
+  const afterThrottled = fn.slice(fn.indexOf("if (result === 'throttled')"));
+  const throttledBranch = afterThrottled.slice(0, afterThrottled.indexOf('return;') + 'return;'.length);
   // Unlike the 'invalid' branch, this one must let the scorer in
   // provisionally -- a throttled answer means the token was never
   // actually checked, so refusing login here would let a third party
   // (the RPC is reachable by anyone, not just real scorers) lock every
   // legitimate scorer out by keeping the shared lockout engaged.
-  assert.match(throttledBranch, /completeLogin\(name, token\)/, 'a throttled answer must still let the scorer in provisionally');
+  assert.match(throttledBranch, /provisionalLogin\(name, token/, 'a throttled answer must still let the scorer in provisionally');
   assert.doesNotMatch(throttledBranch, /Wrong PIN/, 'must not tell the user their PIN is wrong when it was never actually checked');
 });
 
@@ -107,5 +132,6 @@ test('a network/timeout failure (offline course wifi) is distinguished from a co
   const fn = fnMatch[0];
   assert.match(fn, /catch \(e\)/, 'must handle validateTournamentPin() throwing (unreachable Supabase) separately from a false return value');
   const catchBlock = fn.slice(fn.indexOf('catch (e)'));
-  assert.match(catchBlock, /completeLogin\(name, token\)/, 'an unreachable Supabase must not lock the scorer out entirely -- the write-time auth check is still the backstop');
+  assert.match(catchBlock, /provisionalLogin\(name, token/, 'an unreachable Supabase must not lock the scorer out entirely -- the write-time auth check is still the backstop');
+  assert.doesNotMatch(catchBlock, /Wrong PIN/, 'a connection failure is not evidence the PIN is wrong');
 });

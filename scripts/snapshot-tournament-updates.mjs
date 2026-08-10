@@ -21,17 +21,22 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_PATH = path.join(ROOT, 'snapshots', 'tournament-updates.json');
 
-// Same publishable anon key/URL already shipped in scorecard-live.html's
-// page source -- not a secret, RLS is the boundary (see
-// supabase/migrations/). Safe to commit into this workflow file.
-const SUPABASE_URL = 'https://wtyyarvyscbrrkawjcvo.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_T1z1rYbZ7yMoDdBXZMrjKw_R3aTxsrx';
-const TOURNAMENT_ID = 'wonga-cup-2026';
-const SAFE_SELECT_COLUMNS = 'id,tournament_id,update_type,match_idx,player_id,field_key,value,updated_by,updated_at';
+// Issue #23: one owner for the connection details, shared with
+// scorecard-live.html/tv.html/error-beacon.js. This script is the *backup*
+// path, so a TOURNAMENT_ID bump that missed it would silently keep
+// snapshotting the closed tournament while the new one went unbacked-up --
+// which is precisely why it can't keep its own copy. supabase-config.js is
+// UMD, so createRequire reaches it from ESM without a dependency.
+const SupabaseConfig = createRequire(import.meta.url)('../supabase-config.js');
+const SUPABASE_URL = SupabaseConfig.URL;
+const SUPABASE_ANON_KEY = SupabaseConfig.ANON_KEY;
+const TOURNAMENT_ID = SupabaseConfig.TOURNAMENT_ID;
+const SAFE_SELECT_COLUMNS = SupabaseConfig.SAFE_SELECT_COLUMNS;
 
 // Paginates past the 500-row page cap the same way the app's own
 // late-joiner path does (loadFromSupabase() in scorecard-live.html,

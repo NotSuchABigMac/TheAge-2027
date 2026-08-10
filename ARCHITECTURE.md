@@ -473,9 +473,10 @@ what makes the loud red `#offline-banner` appear via `updateOfflineIndicator()`
 settles means `syncInFlight` never clears, and every subsequent 30s tick's
 `pollOnce()` early-returns on `if (syncInFlight) return`, permanently
 wedging that device's sync while every other device on a working connection
-keeps updating normally. `ribbon-status.js`'s `schedulePoll()` has the same
-shape of bug: it only re-arms its next `setTimeout` after its own
-`await renderLive()` settles.
+keeps updating normally. Any poll loop that re-arms only after its own
+`await` settles has the same shape of bug — `tv.html`'s `tick()` re-arms in
+a `finally`, which never runs if the awaited fetch never settles, so its
+timeout is what keeps the loop alive.
 
 `fetchWithTimeout()` (now one shared copy in `scoring.js`, see issue #24 —
 originally a divergent copy per file) wraps every Supabase-hitting
