@@ -162,11 +162,22 @@ test('a mode button click applies and persists dark mode without touching the th
 test('__activate_edit_mode reveals the panel and __deactivate_edit_mode hides it', () => {
   const { panel, windowStub } = loadTheme();
   try {
-    windowStub.listeners.message({ data: { type: '__activate_edit_mode' } });
+    windowStub.listeners.message({ source: windowStub.parent, data: { type: '__activate_edit_mode' } });
     assert.equal(panel.hidden, false);
-    windowStub.listeners.message({ data: { type: '__deactivate_edit_mode' } });
+    windowStub.listeners.message({ source: windowStub.parent, data: { type: '__deactivate_edit_mode' } });
     assert.equal(panel.hidden, true);
-    assert.doesNotThrow(() => windowStub.listeners.message({}));
+    assert.doesNotThrow(() => windowStub.listeners.message({ source: windowStub.parent }));
+  } finally { cleanup(); }
+});
+
+test('issue #28: a message from anything other than window.parent is ignored, even with a matching type', () => {
+  const { panel, windowStub } = loadTheme();
+  try {
+    const impostor = { postMessage() {} };
+    windowStub.listeners.message({ source: impostor, data: { type: '__activate_edit_mode' } });
+    assert.equal(panel.hidden, true);
+    assert.doesNotThrow(() => windowStub.listeners.message({ data: { type: '__activate_edit_mode' } }));
+    assert.equal(panel.hidden, true);
   } finally { cleanup(); }
 });
 

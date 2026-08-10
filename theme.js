@@ -92,7 +92,17 @@
 
   // ── Tweaks (edit-mode) protocol
   // Register listener BEFORE announcing availability.
+  //
+  // No e.origin check: the Tweaks host doesn't have a single fixed
+  // origin to pin against, so origin-pinning isn't available here. As a
+  // partial mitigation, e.source is checked instead -- only the
+  // immediate parent frame (the one this protocol talks to) can reach
+  // this handler, not an arbitrary embedder. That's why this handler's
+  // blast radius is kept deliberately tiny (toggling the panel's own
+  // visibility, nothing else): anyone extending this protocol to do more
+  // needs to revisit the origin question first.
   window.addEventListener('message', (e) => {
+    if (e.source !== window.parent) return;
     const t = e?.data?.type;
     if (t === '__activate_edit_mode' && panel) {
       panel.hidden = false;
