@@ -41,8 +41,14 @@
     const audio = document.getElementById('bg-audio');
     if (audio && !audio.paused) sessionStorage.setItem('musicTime', String(audio.currentTime));
   });
+  // Grant consent and start playing. Called both by the consent modal's
+  // own button and by the mute toggle's unmute branch -- clicking "unmute"
+  // before consent has ever been given is the same explicit gesture the
+  // modal would otherwise have collected, so it grants consent too.
+  // The modal is looked up defensively because the toggle exists on pages
+  // that carry no consent modal at all.
   window.startMusic = function startMusic() {
-    document.getElementById('music-modal').classList.add('hidden');
+    document.getElementById('music-modal')?.classList.add('hidden');
     sessionStorage.setItem('musicConsented', '1');
     sessionStorage.removeItem('musicMuted');
     const audio = document.getElementById('bg-audio');
@@ -144,12 +150,9 @@
     }
     function toggle() {
       if (audio.paused) {
-        const modal = document.getElementById('music-modal');
-        if (modal) modal.classList.add('hidden');
-        sessionStorage.setItem('musicConsented', '1');
-        sessionStorage.removeItem('musicMuted');
-        seekToSavedMusicTime(audio);
-        audio.play().catch(() => {});
+        // Unmuting *is* startMusic() -- this branch was a line-for-line
+        // copy of it, which is how the two could have drifted.
+        window.startMusic();
       } else {
         sessionStorage.setItem('musicTime', String(audio.currentTime));
         audio.pause();

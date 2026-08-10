@@ -19,14 +19,20 @@
    own sync machinery.
 ───────────────────────────────────── */
 (function (root, factory) {
-  const mod = factory();
-  if (typeof module === 'object' && module.exports) {
+  // Which environment we're in decides both how the config is reached and
+  // where the module is published, so it's sniffed once here and the
+  // resolved config handed to the factory -- rather than the factory
+  // re-deriving the same thing to pick between require() and a global.
+  const isCommonJS = typeof module === 'object' && module.exports;
+  const config = isCommonJS ? require('./supabase-config.js') : root.SupabaseConfig;
+  const mod = factory(config);
+  if (isCommonJS) {
     module.exports = mod;
   } else {
     root.WongaErrorBeacon = mod;
     if (typeof window !== 'undefined') mod.install(window);
   }
-})(typeof window !== 'undefined' ? window : globalThis, function () {
+})(typeof window !== 'undefined' ? window : globalThis, function (SupabaseConfig) {
 
   const MAX_REPORTS_PER_SESSION = 5;
 
@@ -60,10 +66,8 @@
   }
 
   // Issue #23: shared with every other Supabase-reading file via
-  // supabase-config.js, loaded on every page just before this one.
-  const SupabaseConfig = (typeof module === 'object' && module.exports)
-    ? require('./supabase-config.js')
-    : window.SupabaseConfig;
+  // supabase-config.js, loaded on every page just before this one and
+  // handed in by the wrapper above.
   const SUPABASE_URL = SupabaseConfig.URL;
   const SUPABASE_ANON_KEY = SupabaseConfig.ANON_KEY;
   const TOURNAMENT_ID = SupabaseConfig.TOURNAMENT_ID;

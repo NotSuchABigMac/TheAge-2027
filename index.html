@@ -506,48 +506,65 @@ kbd {
         requestAnimationFrame(() => { resizeQueued = false; resize(); });
     });
 
+    // Spacing of the scrolling ground dashes. Needed by both the advance
+    // (step) and the draw (drawGround), so it lives in one place.
+    const groundDashGap = () => 56 * S;
+
     // The ground: a hairline with scrolling dashes, which is what sells
     // the sense of speed now that the scene has no other scenery.
     function drawGround() {
         ctx.fillStyle = 'rgba(236, 229, 213, 0.14)';
         ctx.fillRect(0, GROUND, VIEW_W, 1);
 
-        const gap = 56 * S;
-        if (!isGameOver) groundScroll = (groundScroll + baseSpeed * speedMult) % gap;
+        const gap = groundDashGap();
         ctx.fillStyle = 'rgba(236, 229, 213, 0.07)';
         for (let x = -gap; x < VIEW_W + gap; x += gap) {
             ctx.fillRect(x - groundScroll, GROUND + 7 * S, 22 * S, 1);
         }
     }
 
-    function handleObstacles() {
+    function maybeSpawn() {
         // Random spawn cadence, but never closer than a jump-arc's worth
         // of road -- without the gap check two carts can land a frame
         // apart and form a wall nothing can clear.
         const last = obstacles[obstacles.length - 1];
         const minGap = (2 * Math.abs(player.jumpForce) / player.gravity) * baseSpeed * speedMult + player.width;
-        if (!isGameOver && --nextSpawn <= 0 && (!last || last.x < VIEW_W - minGap)) {
+        if (--nextSpawn <= 0 && (!last || last.x < VIEW_W - minGap)) {
             obstacles.push(new Obstacle());
             scheduleNextSpawn();
         }
+    }
 
-        for (let i = 0; i < obstacles.length; i++) {
+    function hits(obs) {
+        // Collision (AABB), padded so a near-miss over the roof reads
+        // as a near-miss rather than a hit.
+        const padX = 8 * S, padY = 6 * S;
+        return player.x < obs.x + obs.width - padX &&
+               player.x + player.width - padX > obs.x &&
+               player.y < obs.y + obs.height - padY &&
+               player.y + player.height - padY > obs.y;
+    }
+
+    // Advance the world one frame. Every mutation the game makes lives
+    // here and nowhere else, and animate() only calls it while the game is
+    // running -- which is what makes paint() below idempotent by
+    // construction, rather than by each drawing helper remembering its own
+    // `if (!isGameOver)` guard (there were four).
+    function step() {
+        player.update();
+        groundScroll = (groundScroll + baseSpeed * speedMult) % groundDashGap();
+        maybeSpawn();
+        for (let i = obstacles.length - 1; i >= 0; i--) {
             const obs = obstacles[i];
-            if (!isGameOver) obs.update();
-            obs.draw();
-
-            // Collision (AABB), padded so a near-miss over the roof reads
-            // as a near-miss rather than a hit.
-            const padX = 8 * S, padY = 6 * S;
-            if (player.x < obs.x + obs.width - padX &&
-                player.x + player.width - padX > obs.x &&
-                player.y < obs.y + obs.height - padY &&
-                player.y + player.height - padY > obs.y) {
-                isGameOver = true;
-            }
-
-            if (obs.x + obs.width < 0) { obstacles.splice(i, 1); i--; }
+            obs.update();
+            if (hits(obs)) isGameOver = true;
+            if (obs.x + obs.width < 0) obstacles.splice(i, 1);
         }
+        score += 0.1;
+        frames++;
+        // Ramp every 150 frames rather than 300 -- twice as fast to
+        // reach the same 3x ceiling.
+        if (frames % 150 === 0 && speedMult < 3) speedMult += 0.1;
     }
 
     function setTracked(font, size, spacing) {
@@ -623,9 +640,9 @@ kbd {
         animate();
     }
 
-    // One full frame. Idempotent once isGameOver is set (nothing moves,
-    // the score stops accruing), so it doubles as the repaint for resize
-    // and late-loading fonts.
+    // Draw the world as it currently stands. Pure: mutates nothing, so
+    // it's safe to call as the repaint for a resize or a late-loading
+    // webfont without nudging the simulation forward.
     function paint() {
         ctx.clearRect(0, 0, VIEW_W, VIEW_H);
 
@@ -633,31 +650,21 @@ kbd {
         // being covered by an opaque rectangle.
         ctx.globalAlpha = isGameOver ? 0.16 : 1;
         drawGround();
-        if (!isGameOver) player.update();
         player.draw();
-        handleObstacles();
+        for (const obs of obstacles) obs.draw();
         ctx.globalAlpha = 1;
 
         drawUI();
     }
 
     function animate() {
+        // Step before painting, so the frame a collision happens on is
+        // already drawn in its game-over state. The old order painted
+        // first and detected the collision mid-paint, which needed a
+        // second paint() to ghost the scene back under the panel.
+        if (!isGameOver) step();
         paint();
-
-        if (!isGameOver) {
-            score += 0.1;
-            frames++;
-            // Ramp every 150 frames rather than 300 -- twice as fast to
-            // reach the same 3x ceiling.
-            if (frames > 0 && frames % 150 === 0 && speedMult < 3) speedMult += 0.1;
-            requestAnimationFrame(animate);
-        } else {
-            // The collision is detected *during* the paint above, so that
-            // frame drew the scene at full opacity before the panel went
-            // on top. One more pass now that the flag is set gives the
-            // ghosted-back scene the panel is designed to sit on.
-            paint();
-        }
+        if (!isGameOver) requestAnimationFrame(animate);
     }
 
     resize();
