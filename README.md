@@ -31,11 +31,18 @@ node --test test/*.test.mjs
 A handful of `test/repro-*.mjs` scripts also exist for browser-driven
 regression tests (Playwright); they're deliberately excluded from that
 glob (no `.test.mjs` suffix) since they need a browser and aren't part of
-the fast CI suite. Run one directly, e.g.:
+the fast suite `test.yml` runs on every PR. Run one directly, e.g.:
 
 ```
 node test/repro-212-rollback-race.mjs
 ```
+
+Run all of them via `bash test/run-repro.sh` (prints a pass/fail
+summary, exits non-zero on any failure). `.github/workflows/
+repro-scripts.yml` (issue #6) runs this on a daily schedule and on
+pushes/PRs to `trunk` — not a required check, so it doesn't block a PR,
+but a rename/refactor that silently breaks one no longer goes unnoticed
+the way #4's did.
 
 ## Deploys
 

@@ -19,9 +19,13 @@ live scorecard. Zero npm dependencies by design — no `package.json`, no
 - `supabase/migrations/` — hand-run SQL migrations (nothing applies them
   automatically; see README's Supabase runbook before touching security
   behavior).
-- `test/*.test.mjs` — fast Node test suite, runs in CI on every PR.
+- `test/*.test.mjs` — fast Node test suite, runs in CI (`test.yml`) on
+  every PR, and is what gates `deploy.yml`.
 - `test/repro-*.mjs` — Playwright browser regression scripts, deliberately
-  excluded from the `*.test.mjs` glob (need a browser, not part of CI).
+  excluded from the `*.test.mjs` glob (need a browser). Run on their own
+  schedule by `repro-scripts.yml` (issue #6) — not a required check, so a
+  failure there doesn't block a PR, but it's no longer silent either.
+  Run them all locally via `bash test/run-repro.sh`.
 
 ## Before you start
 

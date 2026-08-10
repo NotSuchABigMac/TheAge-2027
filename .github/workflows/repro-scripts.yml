@@ -1,0 +1,49 @@
+name: Repro scripts
+
+# Issue #6: test/repro-*.mjs are deliberately excluded from test.yml's
+# `*.test.mjs` glob (they need a real browser, not part of the fast
+# suite) -- but that meant NOTHING ever ran them, so they could rot
+# without any signal. That happened for real: the homepage move (#2)
+# re-pointed six repro scripts at index2026.html, two of them broke, and
+# it went unnoticed through two merges.
+#
+# This is a separate, non-required workflow rather than folded into
+# test.yml on purpose -- these scripts are slower (spin up a real
+# Chromium) and driven against real page markup, which is a different
+# (and noisier) failure mode than the fast unit suite. Not wired into
+# any branch-protection required-check list, so a flaky/slow repro here
+# doesn't block a PR the way a failing test.yml run does; it's here to
+# make rot visible; a human still decides what to do about a failure.
+on:
+  pull_request:
+    branches: [trunk]
+  push:
+    branches: [trunk]
+  schedule:
+    # Daily, since a rename/refactor days apart from the actual repro
+    # run (like #2 -> the #4/#6 breakage) is exactly the gap this exists
+    # to close.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No package.json in this repo by design (see CLAUDE.md) -- the
+      # repro scripts themselves already know how to resolve Playwright
+      # via `npm root -g` (see each script's loadChromium()), so a
+      # global install is what they expect, not a local node_modules/.
+      - name: Install Playwright + Chromium
+        run: |
+          npm install -g playwright
+          npx playwright install --with-deps chromium
+
+      - name: Run every test/repro-*.mjs script
+        run: bash test/run-repro.sh
