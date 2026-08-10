@@ -8,8 +8,7 @@
    error/rejection, so the organiser can read the stack trace before
    anyone's finished typing that message.
 
-   Loaded on all six pages (scorecard-live.html directly; the five
-   marketing pages via site.js's own <script> tag list) -- same UMD
+   Loaded on every page in the repo via its own <script> tag -- same UMD
    pattern as scoring.js/courses.js so the decision logic is unit
    testable without a browser, while still auto-installing its real
    listeners the instant it's loaded as a plain <script>.

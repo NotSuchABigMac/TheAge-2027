@@ -43,3 +43,10 @@ test('README.md is more than the old one-line placeholder and points to ARCHITEC
   assert.match(readme, /ARCHITECTURE\.md/, 'expected README.md to point readers to ARCHITECTURE.md');
   assert.match(readme, /node --test/, 'expected README.md to document how to run the tests');
 });
+
+test('issue #25: every top-level .html file appears in README.md\'s page map', () => {
+  const readme = readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const pages = readdirSync(ROOT).filter((f) => f.endsWith('.html'));
+  const missing = pages.filter((p) => !readme.includes(`\`${p}\``));
+  assert.deepEqual(missing, [], `README.md's page map is missing: ${missing.join(', ')} -- add a row so a future page addition can't drift out of sync silently, the way index2026.html/drift.html did`);
+});

@@ -1,8 +1,44 @@
-# Wonga Cup — Architecture Notes
+# AGE 2027 — Architecture Notes
 
 See `README.md` for what this is, how to run tests, and how deploys work.
 This file covers the data model, the Supabase/RLS setup, and the
 provenance of each scoring rule.
+
+## The 2026 → 2027 pivot (issue #25)
+
+The 2026 tournament ("The Wonga Cup") wrapped, and the site pivoted to
+a placeholder for the 2027 edition ("AGE 2027") rather than starting a
+fresh repo. What that means concretely:
+
+- **Frozen (2026, archived):** `index2026.html` — the old homepage,
+  renamed and kept as a static recap; its ribbon result is baked
+  straight into the markup (issue #20) rather than computed live.
+  `golfers.html`, `format.html`, `records.html`, `practical.html`,
+  `print-cards.html` all still describe the 2026 tournament and aren't
+  linked from the new placeholder homepage. `scorecard-live.html` and
+  `tv.html` are still wired to `TOURNAMENT_ID: 'wonga-cup-2026'` in
+  `supabase-config.js` — the live sync machinery this file otherwise
+  documents in depth is all still pointed at 2026's now-closed data
+  until a 2027 tournament actually gets configured.
+- **Live (2027, placeholder):** `index.html` — a "more info coming
+  soon" teaser plus a canvas cart-runner game, with `drift.html` playing
+  as a full-screen intro over it on load.
+
+Everything else in this file — the transaction log, RLS, scoring
+rules — describes machinery that's currently idle (pointed at closed
+2026 data) rather than removed. It'll apply again as soon as
+`supabase-config.js`'s `TOURNAMENT_ID` (and the rest of a real 2027
+tournament's config) gets wired up.
+
+`manifest.webmanifest`'s `name`/`start_url` were deliberately left
+pointing at "The Wonga Cup"/`scorecard-live.html` rather than renamed
+to match the new AGE branding: only `scorecard-live.html` links it, and
+that page still self-identifies as "THE WONGA CUP" throughout its own
+UI (the login modal title, in particular) since it's still the 2026
+scorecard under the hood — renaming the manifest alone would make an
+installed PWA's home-screen name disagree with the app it opens into.
+Revisit both together once `scorecard-live.html` is actually re-pointed
+at a 2027 tournament.
 
 ## Supabase Schema: `tournament_updates` (transaction log)
 
@@ -107,7 +143,7 @@ three:
 
 ## Supabase Schema: `client_errors` (write-only error beacon, issue #202)
 
-`error-beacon.js` (loaded on all six pages) fire-and-forget inserts a row
+`error-beacon.js` (loaded on every page) fire-and-forget inserts a row
 here on every uncaught `error`/`unhandledrejection`, gated client-side by
 a per-session cap, a dedupe set, and an ignore-list for known-benign
 noise (`error-beacon.js`'s `shouldReport()`).

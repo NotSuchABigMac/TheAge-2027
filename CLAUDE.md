@@ -8,12 +8,23 @@ provenance). Don't duplicate that material here; link to it.
 
 ## What this is
 
-A static site for the Wonga Cup golf tournament, with a Supabase-backed
-live scorecard. Zero npm dependencies by design — no `package.json`, no
-`node_modules`. Plain HTML/CSS/JS served from the repo root.
+A static site for the Annual Golf Extravaganza (AGE), with a
+Supabase-backed live scorecard. Zero npm dependencies by design — no
+`package.json`, no `node_modules`. Plain HTML/CSS/JS served from the
+repo root.
+
+The site pivoted from "The Wonga Cup" (2026) to "AGE 2027" once that
+tournament wrapped (issue #25): `index.html` is now a placeholder for
+the still-unannounced 2027 edition (a teaser + a `drift.html` intro
+animation over a canvas cart-runner game), and the entire 2026 site —
+including its live scorecard's synced data — is frozen and archived at
+`index2026.html`. `scorecard-live.html` still targets 2026
+(`TOURNAMENT_ID` in `supabase-config.js`) until a 2027 tournament gets
+wired up; don't assume it's live right now.
 
 - `scorecard-live.html` — the live scorecard: score entry, sync, admin
-  tools. The one page most feature work touches.
+  tools. The one page most feature work touched through 2026; check
+  `git log` before assuming it's still the active target.
 - `scoring.js`, `courses.js`, `theme.js` — DOM-free logic, `require()`-able
   from Node tests.
 - `supabase/migrations/` — hand-run SQL migrations (nothing applies them

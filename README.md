@@ -1,19 +1,26 @@
-# Wonga Cup
+# AGE 2027
 
-A static site for the Wonga Cup golf tournament, with a Supabase-backed
-live scorecard scorers update from their phones during play.
+A static site for the Annual Golf Extravaganza (AGE), with a
+Supabase-backed live scorecard scorers update from their phones during
+play. The 2026 event (as "The Wonga Cup") is archived and frozen;
+`index.html` is currently a placeholder for the still-unannounced 2027
+edition (issue #25 — the pivot).
 
 ## Page map
 
 | Page | Purpose |
 |---|---|
-| `index.html` | Homepage |
-| `golfers.html` | Player list / handicaps |
-| `format.html` | Tournament format, points system, house rules |
+| `index.html` | AGE 2027 placeholder homepage — teaser + a canvas cart-runner game |
+| `drift.html` | Full-screen intro animation played over `index.html`, dismissed on first interaction |
+| `index2026.html` | Archived 2026 ("The Wonga Cup") homepage/recap — frozen, no live data |
+| `golfers.html` | 2026 player list / handicaps |
+| `format.html` | 2026 tournament format, points system, house rules |
 | `records.html` | Past results |
-| `practical.html` | Logistics for the weekend |
+| `practical.html` | 2026 logistics for the weekend |
+| `print-cards.html` | Printable paper-backup scorecards for 2026 |
 | `scorecard-live.html` | The live scorecard — score entry, sync, admin tools |
 | `tv.html` | Read-only clubhouse TV/spectator leaderboard (issue #187) |
+| `404.html` | Not-found page |
 
 Static data/logic modules (no DOM, `require()`-able from Node tests):
 `scoring.js` (scoring math + sync/state helpers), `courses.js` (course
