@@ -77,10 +77,19 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((resp) => {
-        const copy = resp.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(path, copy));
+        // Only cache a genuine success. Cache.put() happily stores a 404/503
+        // too -- so a GitHub Pages blip, a mid-deploy window, or a captive-
+        // portal interstitial on venue wifi would otherwise become the
+        // cached shell, and stay broken until the next successful fetch.
+        if (resp.ok) {
+          const copy = resp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(path, copy)).catch(() => {});
+        }
         return resp;
       })
-      .catch(() => caches.match(path))
+      // A cache miss resolves undefined, which respondWith() can't turn
+      // into a Response -- fall back to a generic network-error response
+      // instead of throwing.
+      .catch(async () => (await caches.match(path)) || Response.error())
   );
 });

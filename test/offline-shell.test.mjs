@@ -47,9 +47,26 @@ test('sw.js never intercepts requests outside its own precached shell (Supabase,
 test('sw.js is network-first with a cache fallback, and activate cleans up old cache versions', () => {
   const sw = readFileSync(SW_PATH, 'utf8');
   assert.match(sw, /fetch\(event\.request\)/, 'expected the fetch handler to try the network first');
-  assert.match(sw, /\.catch\(\(\)\s*=>\s*caches\.match/, 'expected a cache fallback on network failure');
+  assert.match(sw, /\.catch\(async \(\)\s*=>\s*\(await caches\.match/, 'expected a cache fallback on network failure');
   assert.match(sw, /caches\.delete/, 'expected activate to delete stale cache versions');
   assert.match(sw, /clients\.claim/, 'expected activate to take control of already-open tabs');
+});
+
+test('issue #17: sw.js only caches a successful response, and falls back to a network-error Response rather than throwing on a cache miss', () => {
+  const sw = readFileSync(SW_PATH, 'utf8');
+  assert.match(sw, /if\s*\(resp\.ok\)\s*\{/, 'expected the fetch handler to gate caching on resp.ok, so a 404/503 error page is never cached as the shell');
+  assert.match(sw, /caches\.match\(path\)\)\s*\|\|\s*Response\.error\(\)/, 'expected a cache-miss fallback that never resolves undefined to respondWith()');
+});
+
+test('issue #17: every SHELL_PATHS entry exists on disk, so a missing file fails CI instead of silently disabling the offline shell (cache.addAll is atomic -- one 404 fails the whole install)', () => {
+  const sw = readFileSync(SW_PATH, 'utf8');
+  const match = sw.match(/const SHELL_PATHS = \[([\s\S]*?)\];/);
+  assert.ok(match, 'expected to find a SHELL_PATHS array literal in sw.js');
+  const paths = [...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.ok(paths.length > 0, 'expected SHELL_PATHS to list at least one path');
+  for (const p of paths) {
+    assert.ok(existsSync(path.join(ROOT, p)), `expected SHELL_PATHS entry '${p}' to exist on disk`);
+  }
 });
 
 test('deploy.yml cachebusts sw.js the same way it cachebusts every HTML file', () => {
