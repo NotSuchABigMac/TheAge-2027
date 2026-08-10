@@ -62,8 +62,13 @@
     // respects the existing musicConsented session state (autoplay if
     // '1' and not explicitly muted, stay silent otherwise) without
     // re-prompting, even if that autoplay attempt gets rejected.
+    // index.html was the homepage through 2026; the 2027 pivot moved that
+    // tournament homepage to index2026.html (index.html is now the AGE
+    // 2027 placeholder and carries no #music-modal at all, so it never
+    // reaches this branch). Both are matched so a page rename here isn't
+    // a repeat of this bug.
     const path = location.pathname.split('/').pop();
-    const isHomepage = path === '' || path === 'index.html';
+    const isHomepage = path === '' || path === 'index.html' || path === 'index2026.html';
     const consented = sessionStorage.getItem('musicConsented');
     if (!consented) {
       if (isHomepage) musicModal.classList.remove('hidden');
