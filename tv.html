@@ -510,14 +510,32 @@ body.tv-page {
     return n > 0 ? `+${n}` : `${n}`;
   }
 
-  // Issue #24: shared with ribbon-status.js via scoring.js's
-  // fetchAllRows() -- was byte-for-byte duplicated here, and had already
-  // diverged (issue #18: this copy had no fetch timeout at all, so a
-  // stalled connection froze the board forever with no retry and no
-  // visible sign anything was wrong). fetchWithTimeout's default here
-  // means the same 15s timeout ribbon-status.js already used.
+  // Issue #20: this used to re-download and replay the *entire* update
+  // log from epoch on every 30s poll -- fine at the data volumes this
+  // page launched at, not fine as the log grows, forever, at a cost paid
+  // per poll per open client. state/wireCandidates/cursor now persist
+  // across polls (module-level, not re-created per refresh()), and each
+  // poll only fetches rows newer than the last one it saw -- turning
+  // every poll after the first from O(whole log) into O(new rows).
+  //
+  // Issue #24: fetchAllRows() itself now lives once in scoring.js,
+  // shared with ribbon-status.js -- was byte-for-byte duplicated here,
+  // and had already diverged (issue #18: this copy had no fetch timeout
+  // at all, so a stalled connection froze the board forever with no
+  // retry and no visible sign anything was wrong). fetchWithTimeout's
+  // default here means the same 15s timeout ribbon-status.js already
+  // used.
+  //
+  // fetchAllRows()'s `gte` cursor is inclusive, so the row already seen
+  // at the previous cursor comes back again -- deduped by id the same
+  // way scorecard-live.html's loadFromSupabase() does (issue #111),
+  // otherwise it would re-enter the wire feed as a duplicate event.
+  let tvState = null;
+  let tvWireCandidates = [];
+  let tvCursor = '1970-01-01T00:00:00.000Z';
+  let tvSeenIdsAtCursor = new Set();
   function fetchAllRows() {
-    return WongaScoring.fetchAllRows({ baseUrl: SUPABASE_URL, apiKey: SUPABASE_ANON_KEY, tournamentId: TOURNAMENT_ID, columns: SAFE_SELECT_COLUMNS });
+    return WongaScoring.fetchAllRows({ baseUrl: SUPABASE_URL, apiKey: SUPABASE_ANON_KEY, tournamentId: TOURNAMENT_ID, columns: SAFE_SELECT_COLUMNS, cursor: tvCursor });
   }
 
   // eventStillHolds() (scoring.js) -- shared with scorecard-live.html's
@@ -525,38 +543,51 @@ body.tv-page {
   // extracted so both full-replay consumers use the same check).
 
   // Same describeEvent() classification scorecard-live.html's Wonga Wire
-  // (issue #186) uses, but rebuilt from scratch on every refresh() rather
-  // than kept incrementally -- this page already does a from-epoch replay
-  // every poll (see fetchAllRows()' comment), so there's no persistent
-  // "state so far" to update incrementally in the first place, and this
-  // is a read-only display, not the wire's own toast/notification system,
-  // so there's no own-echo or page-load filtering to do either.
+  // (issue #186) uses. wireCandidates accumulates across polls rather
+  // than being rebuilt from scratch each time -- each row is described
+  // exactly once, the moment it's first seen, same as a full replay
+  // would describe it exactly once per row. This is a read-only display,
+  // not the wire's own toast/notification system, so there's no
+  // own-echo or page-load filtering to do.
   const WIRE_FEED_MAX = 8;
+  // Generous headroom over WIRE_FEED_MAX so eventStillHolds() filtering
+  // (which can drop candidates) still has enough history to fill 8 slots
+  // -- trimmed after every poll so this doesn't grow for the whole
+  // session, unlike the array it derives from used to.
+  const WIRE_CANDIDATES_KEEP = 200;
   function replayState(rows) {
-    const state = { teamNameA: 'Team A', teamNameB: 'Team B', teamA: new Set(), teamB: new Set() };
-    normalizeState(state);
-    const wireCandidates = [];
-    processUpdateRows(rows, (row) => {
+    if (!tvState) {
+      tvState = { teamNameA: 'Team A', teamNameB: 'Team B', teamA: new Set(), teamB: new Set() };
+      normalizeState(tvState);
+    }
+    const freshRows = rows.filter((r) => !(r.updated_at === tvCursor && tvSeenIdsAtCursor.has(r.id)));
+    processUpdateRows(freshRows, (row) => {
       let prevMatchSnapshot = null;
-      if (row.update_type === 'day1_hole' && typeof row.match_idx === 'number' && state.day1.matches[row.match_idx]) {
-        prevMatchSnapshot = JSON.parse(JSON.stringify(state.day1.matches[row.match_idx]));
+      if (row.update_type === 'day1_hole' && typeof row.match_idx === 'number' && tvState.day1.matches[row.match_idx]) {
+        prevMatchSnapshot = JSON.parse(JSON.stringify(tvState.day1.matches[row.match_idx]));
       }
-      applyUpdateToState(state, row);
+      applyUpdateToState(tvState, row);
       const prevState = prevMatchSnapshot
         ? { day1: { matches: { [row.match_idx]: prevMatchSnapshot } } }
-        : state;
-      const players = playersWithOverrides(PLAYERS, state.hcp);
-      const event = describeEvent(row, prevState, state, players, COURSES, { A: state.teamNameA, B: state.teamNameB });
-      if (event) wireCandidates.unshift({ event, row });
+        : tvState;
+      const players = playersWithOverrides(PLAYERS, tvState.hcp);
+      const event = describeEvent(row, prevState, tvState, players, COURSES, { A: tvState.teamNameA, B: tvState.teamNameB });
+      if (event) tvWireCandidates.unshift({ event, row });
     });
+    if (freshRows.length > 0) {
+      const newCursor = freshRows[freshRows.length - 1].updated_at;
+      tvSeenIdsAtCursor = new Set(freshRows.filter((r) => r.updated_at === newCursor).map((r) => r.id));
+      tvCursor = newCursor;
+      if (tvWireCandidates.length > WIRE_CANDIDATES_KEEP) tvWireCandidates.length = WIRE_CANDIDATES_KEEP;
+    }
     // Filtered against the FINAL state (every row applied, including any
     // later clears) before truncating -- a stale event must not occupy one
     // of the 8 slots a still-current event could otherwise have.
-    const wire = wireCandidates
-      .filter(({ row }) => eventStillHolds(row, state))
+    const wire = tvWireCandidates
+      .filter(({ row }) => eventStillHolds(row, tvState))
       .slice(0, WIRE_FEED_MAX)
       .map(({ event, row }) => ({ ...event, at: row.updated_at }));
-    return { state, wire };
+    return { state: tvState, wire };
   }
 
   function renderStatus(totals, state) {
@@ -928,6 +959,18 @@ body.tv-page {
     renderStats(state, players);
     setWireFeed(wire);
   }
+
+  // Test hook for test/repro-tv-incremental-poll.mjs -- the incremental
+  // cursor/state (issue #20) is otherwise only observable by counting
+  // outbound requests and diffing rendered totals across two real 30s
+  // polls.
+  window.__tv = {
+    refresh,
+    get cursor() { return tvCursor; },
+    get wireCandidateCount() { return tvWireCandidates.length; },
+    get wireFeed() { return wireFeed; },
+    get day1Match0() { return tvState && tvState.day1.matches[0]; }
+  };
 
   // Screen wake lock (issue #187) -- best-effort only, this is a display
   // meant to stay lit on a TV/tablet propped up in the corner. Silently

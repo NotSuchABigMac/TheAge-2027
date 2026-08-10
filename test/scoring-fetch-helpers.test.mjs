@@ -76,6 +76,13 @@ test('fetchAllRows throws on a non-ok response instead of silently returning par
   );
 });
 
+test('fetchAllRows: an explicit cursor starts the read from there instead of the epoch, for incremental callers', async () => {
+  const { fetchImpl, calls } = makeFetchImpl([[{ id: 1, updated_at: '2026-08-09T12:00:00.000Z' }]]);
+  const rows = await fetchAllRows({ baseUrl: 'https://x.test', apiKey: 'k', tournamentId: 't', columns: 'id,updated_at', fetchImpl, cursor: '2026-08-09T11:00:00.000Z' });
+  assert.equal(rows.length, 1);
+  assert.match(calls[0], /updated_at=gte\.2026-08-09T11%3A00%3A00\.000Z/);
+});
+
 test('fetchAllRows raises a bounded error instead of looping forever if every page shares one updated_at', async () => {
   const stuckImpl = async () => ({ ok: true, json: async () => Array.from({ length: 500 }, (_, i) => ({ id: i, updated_at: '2026-01-01T00:00:00.000Z' })) });
   await assert.rejects(

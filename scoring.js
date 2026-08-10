@@ -2371,15 +2371,22 @@
   // case is idempotent for a repeated identical row. Callers must not
   // feed this into anything that isn't.
   //
+  // `cursor` defaults to epoch (a full from-scratch read) but a caller
+  // that keeps its own state across polls can pass in the last
+  // `updated_at` it saw, turning this into an incremental delta fetch
+  // instead of a full replay every time (issue #20). The same
+  // idempotency note applies to the boundary row either way.
+  //
   // Capped at MAX_PAGES so a full 500-row page sharing one updated_at
   // (vanishingly unlikely with `now()` defaults, but possible) becomes a
   // bounded, diagnosable error instead of an unbounded loop with an
   // ever-growing rows array.
   const MAX_FETCH_ALL_PAGES = 1000;
-  async function fetchAllRows({ baseUrl, apiKey, tournamentId, columns, fetchImpl, timeoutMs }) {
+  const EPOCH_CURSOR = '1970-01-01T00:00:00.000Z';
+  async function fetchAllRows({ baseUrl, apiKey, tournamentId, columns, fetchImpl, timeoutMs, cursor: startCursor }) {
     const doFetch = fetchImpl || ((url, options) => fetchWithTimeout(url, options, timeoutMs));
     const rows = [];
-    let cursor = '1970-01-01T00:00:00.000Z';
+    let cursor = startCursor || EPOCH_CURSOR;
     for (let page = 0; page < MAX_FETCH_ALL_PAGES; page++) {
       const url = `${baseUrl}/rest/v1/tournament_updates?select=${columns}&tournament_id=eq.${tournamentId}&updated_at=gte.${encodeURIComponent(cursor)}&order=updated_at.asc,id.asc&limit=500`;
       const resp = await doFetch(url, { headers: { apikey: apiKey, 'Content-Type': 'application/json' } });
