@@ -68,3 +68,16 @@ test('deploy.yml never assembles _site/ from repo-internal directories', () => {
     assert.ok(!workflow.includes(`cp -r ${internal}`), `expected deploy.yml to never copy ${internal} into _site/`);
   }
 });
+
+test('issue #26: deploy.yml never deploys without the test suite passing first', () => {
+  const workflow = readFileSync(path.join(ROOT, '.github/workflows/deploy.yml'), 'utf8');
+  // Both jobs live in the same workflow (rather than a separate
+  // workflow_run-triggered one) specifically so `needs:` can express the
+  // dependency directly -- deploy.yml and test.yml used to run fully in
+  // parallel on a push to trunk, so a red suite still shipped.
+  assert.match(workflow, /^  test:/m, "expected a 'test' job in deploy.yml");
+  assert.match(workflow, /node --test test\/\*\.test\.mjs/, 'expected the test job to run the full test suite');
+  const deployJobMatch = workflow.match(/^  deploy:\n([\s\S]*)$/m);
+  assert.ok(deployJobMatch, "expected to find the 'deploy' job block");
+  assert.match(deployJobMatch[1], /needs:\s*test/, "expected the 'deploy' job to declare `needs: test`");
+});

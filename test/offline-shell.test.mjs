@@ -69,9 +69,9 @@ test('issue #17: every SHELL_PATHS entry exists on disk, so a missing file fails
   }
 });
 
-test('deploy.yml cachebusts sw.js the same way it cachebusts every HTML file', () => {
+test('deploy.yml cachebusts sw.js (and every other .js file) the same way it cachebusts every HTML file', () => {
   const workflow = readFileSync(DEPLOY_PATH, 'utf8');
-  assert.match(workflow, /sed -i "s\/__CACHEBUST__\/\$\{GITHUB_SHA::8\}\/g" \*\.html sw\.js/, 'expected the cachebust sed to also target sw.js');
+  assert.match(workflow, /sed -i "s\/__CACHEBUST__\/\$\{GITHUB_SHA::8\}\/g" \*\.html \*\.js/, 'expected the cachebust sed to target every .js file, sw.js included (issue #26)');
 });
 
 test('deploy.yml copies manifest.webmanifest into _site/', () => {

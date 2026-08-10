@@ -15,7 +15,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Issue #26: this workflow used to run in parallel with test.yml, with
+  # no dependency between them -- a push whose test job failed still
+  # deployed, because the deploy job had no way to know the other
+  # workflow even existed. test.yml's own `pull_request` trigger still
+  # gates PRs, but this repeats the test run here so `deploy` below can
+  # `needs: test` and actually block on it. Given this repo's context (a
+  # live scorecard used from phones during play, where a bad deploy
+  # reaches devices via the version.json refresh prompt) "the tests were
+  # red but it shipped anyway" is worth closing off, even at the cost of
+  # running the fast suite twice on an ordinary trunk push.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: node --test test/*.test.mjs
+
   deploy:
+    needs: test
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -37,8 +59,12 @@ jobs:
         # without its bytes changing every deploy too, the browser's own
         # "is there a new service worker" check would never notice a new
         # version exists, since that check is a byte diff against the
-        # previously installed sw.js.
-        run: sed -i "s/__CACHEBUST__/${GITHUB_SHA::8}/g" *.html sw.js
+        # previously installed sw.js. Widened to *.js (issue #26) so any
+        # __CACHEBUST__ reference landing in a .js file -- today just a
+        # comment in site.js, but the glob shouldn't silently miss a real
+        # one -- actually gets substituted; *.js already covers sw.js, so
+        # it no longer needs listing separately.
+        run: sed -i "s/__CACHEBUST__/${GITHUB_SHA::8}/g" *.html *.js
 
       - name: Write version.json
         # Issue #196: a fix pushed mid-tournament reaches ~none of the open
