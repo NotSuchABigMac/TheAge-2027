@@ -214,7 +214,13 @@ kbd {
 
     function dismiss(e) {
         if (e) e.preventDefault();
-        overlay.style.display = 'none';
+        // Removed rather than hidden: display:none doesn't reliably
+        // suspend the iframe's own requestAnimationFrame loop, so the
+        // drift scene's physics/trails/canvas paint would otherwise keep
+        // running for the rest of the session with nothing to show for it.
+        // Removing the element unloads its document and takes the loop
+        // with it.
+        overlay.remove();
     }
     // Covers mouse clicks and native <button> keyboard activation
     // (Enter/Space fire this automatically once the button has focus).
@@ -291,6 +297,7 @@ kbd {
     let isGameOver = false;
     let obstacles = [];
     let groundScroll = 0;
+    let nextSpawn = 80 + Math.floor(Math.random() * 60);
 
     // Cart palettes -- muted and near-monochrome, with the player picked
     // out in the site's gold and hazards in a desaturated clay. Three
@@ -464,10 +471,28 @@ kbd {
         if (isGameOver) resetGame();
         else player.jump();
     }
-    window.addEventListener('keydown', (e) => { if (e.code === 'Space') poke(e); });
-    window.addEventListener('touchstart', poke, { passive: false });
+    window.addEventListener('keydown', (e) => {
+        if (e.code !== 'Space') return;
+        // Let Space activate whatever's actually focused (the drift
+        // overlay button, the "Relive 2026" link) instead of jumping the
+        // cart underneath it.
+        if (document.activeElement?.closest('a, button')) return;
+        poke(e);
+    });
+    // Bound to the canvas rather than window so a tap elsewhere on the
+    // page -- the "Relive 2026" link included -- isn't swallowed by
+    // preventDefault() before its synthetic click can fire.
+    canvas.addEventListener('touchstart', poke, { passive: false });
     canvas.addEventListener('mousedown', poke);
-    window.addEventListener('resize', resize);
+    // Coalesced to one resize per frame -- an address-bar collapse or
+    // orientation change fires a burst of resize events, and resize()
+    // reallocates the canvas bitmap on every call.
+    let resizeQueued = false;
+    window.addEventListener('resize', () => {
+        if (resizeQueued) return;
+        resizeQueued = true;
+        requestAnimationFrame(() => { resizeQueued = false; resize(); });
+    });
 
     // The ground: a hairline with scrolling dashes, which is what sells
     // the sense of speed now that the scene has no other scenery.
@@ -489,8 +514,9 @@ kbd {
         // apart and form a wall nothing can clear.
         const last = obstacles[obstacles.length - 1];
         const minGap = (2 * Math.abs(player.jumpForce) / player.gravity) * baseSpeed * speedMult + player.width;
-        if ((!last || last.x < VIEW_W - minGap) && frames % Math.floor(Math.random() * 60 + 80) === 0) {
+        if (!isGameOver && --nextSpawn <= 0 && (!last || last.x < VIEW_W - minGap)) {
             obstacles.push(new Obstacle());
+            nextSpawn = 80 + Math.floor(Math.random() * 60);
         }
 
         for (let i = 0; i < obstacles.length; i++) {
@@ -594,7 +620,7 @@ kbd {
         // being covered by an opaque rectangle.
         ctx.globalAlpha = isGameOver ? 0.16 : 1;
         drawGround();
-        player.update();
+        if (!isGameOver) player.update();
         player.draw();
         handleObstacles();
         ctx.globalAlpha = 1;

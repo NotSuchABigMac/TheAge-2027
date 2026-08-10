@@ -179,8 +179,9 @@ async function main() {
       if (!(scoreAfterWait > scoreBefore)) fail(`expected the score to accrue under the overlay (game already running), stayed at ${scoreBefore}`);
 
       await overlay.click();
-      const visibleAfter = await overlay.evaluate((el) => getComputedStyle(el).display !== 'none');
-      if (visibleAfter) fail('expected the drift overlay to be hidden after a click');
+      // Removed rather than hidden, so its iframe's rAF loop unloads with
+      // it instead of running invisibly for the rest of the session.
+      if (await overlay.count() !== 0) fail('expected the drift overlay to be removed from the DOM after a click');
       await page.close();
     }
 
@@ -207,14 +208,38 @@ async function main() {
       await page.tap('#drift-overlay');
       await page.waitForTimeout(200);
 
-      const visibleAfterTap = await page.evaluate(() => getComputedStyle(document.getElementById('drift-overlay')).display !== 'none');
-      if (visibleAfterTap) fail('expected a real touch tap to dismiss the drift overlay, same as a mouse click does');
+      const overlayGoneAfterTap = await page.evaluate(() => document.getElementById('drift-overlay') === null);
+      if (!overlayGoneAfterTap) fail('expected a real touch tap to remove the drift overlay from the DOM, same as a mouse click does');
 
       const groundedAfter = await page.evaluate(() => player.grounded);
       if (groundedAfter !== groundedBefore) fail('expected dismissing the overlay by tap not to also jump the hidden cart underneath');
 
       if (errors.length) fail(`expected zero page errors from the tap, saw: ${JSON.stringify(errors)}`);
       await touchContext.close();
+    }
+
+    // 5b. Pressing Space while the overlay is focused dismisses it too --
+    // the page's own hint says "Tap or press Space to jump", and a
+    // <button> activates on Space at keyup by default. The game's
+    // window-level keydown handler used to call preventDefault() on every
+    // Space press unconditionally, which suppresses that native
+    // activation and silently jumps the hidden cart instead.
+    {
+      const page = await context.newPage();
+      await page.goto(homeUrl, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(300);
+
+      await page.focus('#drift-overlay');
+      const groundedBefore = await page.evaluate(() => player.grounded);
+      await page.keyboard.press('Space');
+      await page.waitForTimeout(200);
+
+      const overlayGoneAfterSpace = await page.evaluate(() => document.getElementById('drift-overlay') === null);
+      if (!overlayGoneAfterSpace) fail('expected pressing Space on the focused overlay to remove it from the DOM, same as Enter does');
+
+      const groundedAfter = await page.evaluate(() => player.grounded);
+      if (groundedAfter !== groundedBefore) fail('expected dismissing the overlay by Space not to also jump the hidden cart underneath');
+      await page.close();
     }
 
     // 6. The archive link lands on the renamed 2026 recap page, once the
@@ -230,6 +255,26 @@ async function main() {
       ]);
       if (!page.url().endsWith('/index2026.html')) fail(`expected the archive link to land on index2026.html, got ${page.url()}`);
       await page.close();
+    }
+
+    // 6b. Same as 6, but with a real touch tap -- a synthetic click (as in
+    // step 6) goes through a different code path on a touchscreen than an
+    // actual tap does, because the game's window-level "tap to jump"
+    // handler used to call preventDefault() on every touchstart on the
+    // page, which suppresses the tapped link's synthetic click entirely.
+    {
+      const touchContext = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 700 } });
+      const page = await touchContext.newPage();
+      await page.goto(homeUrl, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(300);
+      await page.tap('#drift-overlay');
+      await page.waitForTimeout(200);
+      await Promise.all([
+        page.waitForURL('**/index2026.html'),
+        page.tap('text=Relive 2026'),
+      ]);
+      if (!page.url().endsWith('/index2026.html')) fail(`expected a real touch tap on the archive link to land on index2026.html, got ${page.url()}`);
+      await touchContext.close();
     }
 
     console.log('All AGE 2027 placeholder homepage assertions passed.');
